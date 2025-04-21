@@ -1,11 +1,12 @@
 import logo from '../assets/color.png';
+
 import { Link } from "react-router-dom";
 
 const Home = () => {
   return (
     <div className="h-screen bg-white flex flex-col items-center justify-center gap-6 px-4">
       <img src={logo} alt="Logo CardioUCM" className="w-48 mx-auto mb-4" />
-      <h1 className="text-3xl font-bold text-red-600 text-center">❤️ CARDIOUCM</h1>
+      {/* <h1 className="text-3xl font-bold text-red-600 text-center">❤️ CARDIOUCM</h1> */}
 
       <div className="text-center">
         <a
@@ -58,3 +59,12 @@ const Home = () => {
 };
 
 export default Home;
+
+
+
+/* import logo from '../assets/color.png';
+import facultadLogo from '../assets/fac_infor.png';
+import informaticaLogo from '../assets/ing.infor.png';
+import { Link } from "react-router-dom";
+*/
+  
