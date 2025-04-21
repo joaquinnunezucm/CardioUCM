@@ -1,8 +1,10 @@
+import logo from '../assets/color.png';
 import { Link } from "react-router-dom";
 
 const Home = () => {
   return (
     <div className="h-screen bg-white flex flex-col items-center justify-center gap-6 px-4">
+      <img src={logo} alt="Logo CardioUCM" className="w-48 mx-auto mb-4" />
       <h1 className="text-3xl font-bold text-red-600 text-center">❤️ CARDIOUCM</h1>
 
       <div className="text-center">
@@ -14,7 +16,7 @@ const Home = () => {
         </a>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full">
         <Link
           to="/rcp"
           className="bg-green-100 p-4 rounded-xl shadow hover:bg-green-200 text-center"
@@ -42,6 +44,13 @@ const Home = () => {
         >
           <p className="text-lg font-semibold">FAQ</p>
           <p className="text-sm">Preguntas frecuentes</p>
+        </Link>
+        <Link
+          to="/noticias"
+          className="bg-pink-100 p-4 rounded-xl shadow hover:bg-pink-200 text-center col-span-full sm:col-span-2 lg:col-span-1"
+        >
+          <p className="text-lg font-semibold">Noticias</p>
+          <p className="text-sm">Campañas, cursos y vínculos de interés</p>
         </Link>
       </div>
     </div>
