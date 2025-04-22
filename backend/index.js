@@ -1,116 +1,81 @@
+// ==== 📦 BACKEND - index.js ====
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
+const db = require('./db');
+
+dotenv.config();
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
-// Lista simulada de 10 desfibriladores
-const desfibriladores = [
-    {
-      id: 1,
-      nombre: "Campus San Miguel - UCM",
-      lat: -35.428542,
-      lng: -71.672308,
-      direccion: "Avenida San Miguel 3605, Talca",
-    },
-    {
-      id: 2,
-      nombre: "Estadio Fiscal de Talca",
-      lat: -35.430525,
-      lng: -71.668107,
-      direccion: "Av. Circunvalación Oriente 1055, Talca",
-    },
-    {
-      id: 3,
-      nombre: "CESFAM Las Américas",
-      lat: -35.434765,
-      lng: -71.651200,
-      direccion: "Calle 6 Norte 1220, Talca",
-    },
-    {
-      id: 4,
-      nombre: "Hospital Regional de Talca",
-      lat: -35.422222,
-      lng: -71.658888,
-      direccion: "Calle 1 Poniente 1800, Talca",
-    },
-    {
-      id: 5,
-      nombre: "Mall Plaza Maule",
-      lat: -35.442200,
-      lng: -71.648900,
-      direccion: "Av. Circunvalación 1050, Talca",
-    },
-    {
-      id: 6,
-      nombre: "Centro de Salud Lircay",
-      lat: -35.420000,
-      lng: -71.673000,
-      direccion: "Lircay 1900, Talca",
-    },
-    {
-      id: 7,
-      nombre: "Bomberos Talca - Compañía 1",
-      lat: -35.428000,
-      lng: -71.660000,
-      direccion: "Calle 3 Norte 200, Talca",
-    },
-    {
-      id: 8,
-      nombre: "Colegio Inglés de Talca",
-      lat: -35.438000,
-      lng: -71.680000,
-      direccion: "Camino a Lircay 2500, Talca",
-    },
-    {
-      id: 9,
-      nombre: "Parque Río Claro",
-      lat: -35.436000,
-      lng: -71.663000,
-      direccion: "Costanera Río Claro, Talca",
-    },
-    {
-      id: 10,
-      nombre: "Clínica Lircay",
-      lat: -35.426500,
-      lng: -71.674800,
-      direccion: "Av. San Miguel 3500, Talca",
-    }
-  ];
-
-app.get('/defibriladores', (req, res) => {
-  res.json(desfibriladores);
+// Test de conexión
+app.get('/ping', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT 1');
+    res.json({ conectado: true, resultado: rows });
+  } catch (error) {
+    res.status(500).json({ conectado: false, error: error.message });
+  }
 });
 
-app.post('/defibriladores', (req, res) => {
-  const { nombre, direccion, lat, lng } = req.body;
+// Obtener todos los DEA activos
+app.get('/defibriladores', async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        id_tramite AS id,
+        gl_nombre_fantasia AS nombre,
+        CONCAT(gl_instalacion_calle, ' ', nr_instalacion_numero, ', ', gl_instalacion_comuna) AS direccion,
+        gl_instalacion_latitud AS lat,
+        gl_instalacion_longitud AS lng
+      FROM tramites
+      WHERE bo_activo = 1 AND bo_eliminado = 'N'
+    `);
 
-  if (!nombre || !direccion || !lat || !lng) {
-    return res.status(400).json({ mensaje: 'Faltan datos' });
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener desfibriladores:', error);
+    res.status(500).json({ mensaje: 'Error al obtener datos desde la base' });
+  }
+});
+
+// Insertar nuevo DEA con solo los campos requeridos
+app.post('/defibriladores', async (req, res) => {
+  const { nombre, direccion, lat, lng, solicitante, rut } = req.body;
+
+  if (!nombre || !direccion || !lat || !lng || !solicitante || !rut) {
+    return res.status(400).json({ mensaje: 'Faltan datos obligatorios' });
   }
 
-  const nuevo = {
-    id: desfibriladores.length + 1,
-    nombre,
-    direccion,
-    lat: parseFloat(lat),
-    lng: parseFloat(lng),
-  };
+  try {
+    const [result] = await db.query(
+      `INSERT INTO tramites (
+        gl_nombre_fantasia,
+        gl_instalacion_calle,
+        gl_instalacion_latitud,
+        gl_instalacion_longitud,
+        gl_solicitante_nombre,
+        gl_solicitante_rut,
+        bo_activo,
+        bo_eliminado
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, 'N')`,
+      [nombre, direccion, lat, lng, solicitante, rut]
+    );
 
-  desfibriladores.push(nuevo);
-
-  res.status(201).json({ mensaje: 'Desfibrilador agregado', desfibrilador: nuevo });
-});
-
-// Eliminar todos (opcional para testing)
-app.delete('/defibriladores', (req, res) => {
-  desfibriladores = [];
-  res.json({ mensaje: 'Lista de desfibriladores borrada' });
+    res.status(201).json({
+      mensaje: 'Desfibrilador registrado correctamente',
+      desfibrilador: { id: result.insertId, nombre, direccion, lat, lng, solicitante, rut }
+    });
+  } catch (error) {
+    console.error('❌ Error al insertar:', error);
+    res.status(500).json({ mensaje: 'Error al guardar' });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`Backend corriendo en http://localhost:${PORT}`);
+  console.log(`✅ Backend corriendo en http://localhost:${PORT}`);
 });

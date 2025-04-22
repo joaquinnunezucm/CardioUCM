@@ -18,11 +18,17 @@ const CenterMap = ({ position }) => {
   return null;
 };
 
-const App = () => {
+const UbicacionDEA = () => {
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [formVisible, setFormVisible] = useState(false);
-  const [formMode, setFormMode] = useState('create'); // 'create' o 'edit'
-  const [formData, setFormData] = useState({ id: null, nombre: '', direccion: '', lat: '', lng: '' });
+  const [formData, setFormData] = useState({
+    nombre: '',
+    direccion: '',
+    lat: '',
+    lng: '',
+    solicitante: '',
+    rut: ''
+  });
   const [center, setCenter] = useState([-35.428542, -71.672308]);
   const markersRef = useRef({});
 
@@ -33,46 +39,26 @@ const App = () => {
   }, []);
 
   const resetForm = () => {
-    setFormData({ id: null, nombre: '', direccion: '', lat: '', lng: '' });
+    setFormData({
+      nombre: '',
+      direccion: '',
+      lat: '',
+      lng: '',
+      solicitante: '',
+      rut: ''
+    });
     setFormVisible(false);
-    setFormMode('create');
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const method = formMode === 'edit' ? 'put' : 'post';
-    const url = formMode === 'edit'
-      ? `http://localhost:3001/defibriladores/${formData.id}`
-      : `http://localhost:3001/defibriladores`;
-
-    axios[method](url, formData)
+    axios.post('http://localhost:3001/defibriladores', formData)
       .then(res => {
-        if (formMode === 'edit') {
-          setDesfibriladores(prev =>
-            prev.map(d => d.id === formData.id ? res.data.updated || res.data : d)
-          );
-        } else {
-          setDesfibriladores(prev => [...prev, res.data.desfibrilador || res.data]);
-        }
+        setDesfibriladores(prev => [...prev, res.data.desfibrilador]);
         resetForm();
       })
-      .catch(err => alert('Error: ' + err));
-  };
-
-  const handleDelete = (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este desfibrilador?')) return;
-    axios.delete(`http://localhost:3001/defibriladores/${id}`)
-      .then(() => {
-        setDesfibriladores(prev => prev.filter(d => d.id !== id));
-      })
-      .catch(err => alert('Error al eliminar: ' + err));
-  };
-
-  const startEdit = (d) => {
-    setFormData({ ...d });
-    setFormMode('edit');
-    setFormVisible(true);
+      .catch(err => alert('Error al guardar: ' + err.message));
   };
 
   const focusMarker = (id, lat, lng) => {
@@ -94,15 +80,13 @@ const App = () => {
           {desfibriladores.map((d) => (
             <Marker
               key={d.id}
-              position={[d.lat, d.lng]}
+              position={[parseFloat(d.lat), parseFloat(d.lng)]}
               icon={customIcon}
               ref={(ref) => (markersRef.current[d.id] = ref)}
             >
               <Popup>
                 <b>{d.nombre}</b><br />
-                {d.direccion}<br />
-                <button onClick={() => startEdit(d)} style={{ marginTop: 5 }}>✏️ Editar</button><br />
-                <button onClick={() => handleDelete(d.id)} style={{ color: 'red' }}>🗑️ Eliminar</button>
+                {d.direccion}
               </Popup>
             </Marker>
           ))}
@@ -110,11 +94,7 @@ const App = () => {
 
         {/* Botón Crear */}
         <button
-          onClick={() => {
-            setFormMode('create');
-            setFormVisible(!formVisible);
-            resetForm();
-          }}
+          onClick={() => setFormVisible(!formVisible)}
           style={{
             position: 'absolute',
             top: 10,
@@ -147,10 +127,10 @@ const App = () => {
               width: '250px'
             }}
           >
-            <h4>{formMode === 'edit' ? 'Editar' : 'Agregar'} desfibrilador</h4>
+            <h4 className="mb-2">Registrar nuevo DEA</h4>
             <input
               type="text"
-              placeholder="Nombre"
+              placeholder="Nombre del lugar"
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
@@ -168,7 +148,7 @@ const App = () => {
               type="number"
               placeholder="Latitud"
               value={formData.lat}
-              onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, lat: e.target.value })}
               required
               style={{ width: '100%', marginBottom: 5 }}
             />
@@ -176,12 +156,28 @@ const App = () => {
               type="number"
               placeholder="Longitud"
               value={formData.lng}
-              onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, lng: e.target.value })}
               required
               style={{ width: '100%', marginBottom: 5 }}
             />
-            <button type="submit" style={{ width: '100%', background: '#28a745', color: 'white', padding: 5 }}>
-              {formMode === 'edit' ? 'Guardar Cambios' : 'Guardar'}
+            <input
+              type="text"
+              placeholder="Nombre del solicitante"
+              value={formData.solicitante}
+              onChange={(e) => setFormData({ ...formData, solicitante: e.target.value })}
+              required
+              style={{ width: '100%', marginBottom: 5 }}
+            />
+            <input
+              type="text"
+              placeholder="RUT del solicitante"
+              value={formData.rut}
+              onChange={(e) => setFormData({ ...formData, rut: e.target.value })}
+              required
+              style={{ width: '100%', marginBottom: 10 }}
+            />
+            <button type="submit" style={{ width: '100%', background: '#28a745', color: 'white', padding: 6 }}>
+              Guardar
             </button>
           </form>
         )}
@@ -213,4 +209,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default UbicacionDEA;
