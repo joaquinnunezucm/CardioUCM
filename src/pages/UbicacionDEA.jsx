@@ -61,6 +61,13 @@ const UbicacionDEA = () => {
   }, []);
 
   useEffect(() => {
+    // Forzar ubicación en San Clemente, Talca
+    const sanClementeCoords = [-35.5048, -71.4862];
+    setUserLocation(sanClementeCoords);
+    setCenter(sanClementeCoords);
+  }, []);
+  
+/*   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const userPos = [position.coords.latitude, position.coords.longitude];
@@ -69,7 +76,7 @@ const UbicacionDEA = () => {
       });
     }
   }, []);
-
+ */
   const getClosestDEA = () => {
     if (!userLocation || desfibriladores.length === 0) return [];
     return [...desfibriladores]
@@ -78,7 +85,7 @@ const UbicacionDEA = () => {
         distancia: getDistance(userLocation[0], userLocation[1], parseFloat(dea.lat), parseFloat(dea.lng))
       }))
       .sort((a, b) => a.distancia - b.distancia)
-      .slice(0, 10);
+      .slice(0, 5);
   };
 
   const resetForm = () => {
