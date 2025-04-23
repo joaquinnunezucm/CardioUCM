@@ -10,7 +10,7 @@ const Home = () => {
 
       <div className="text-center">
         <a
-          href="tel:131"
+          href="tel:991670040"
           className="bg-red-600 text-white px-8 py-4 rounded-full text-lg font-bold shadow-lg"
         >
           LLAMAR 131

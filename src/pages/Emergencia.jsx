@@ -1,5 +1,5 @@
 const Emergencia = () => {
-  const numeroEmergencia = "91670040"; // 🔁 Cambia este número por el que tú quieras
+  const numeroEmergencia = "991670040"; // 🔁 Cambia este número por el que tú quieras
 
   const llamar = () => {
     // Intenta realizar la llamada (funciona solo en móviles)
