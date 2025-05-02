@@ -60,23 +60,22 @@ const UbicacionDEA = () => {
       .catch(err => console.error(err));
   }, []);
 
+  // Obtener ubicación del usuario
   useEffect(() => {
-    // Forzar ubicación en San Clemente, Talca
-    const sanClementeCoords = [-35.5048, -71.4862];
-    setUserLocation(sanClementeCoords);
-    setCenter(sanClementeCoords);
-  }, []);
-  
-/*   useEffect(() => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const userPos = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(userPos);
-        setCenter(userPos);
-      });
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userPos = [position.coords.latitude, position.coords.longitude];
+          setUserLocation(userPos);
+          setCenter(userPos);
+        },
+        (error) => {
+          console.error("Error obteniendo ubicación:", error);
+        }
+      );
     }
   }, []);
- */
+
   const getClosestDEA = () => {
     if (!userLocation || desfibriladores.length === 0) return [];
     return [...desfibriladores]
@@ -85,7 +84,7 @@ const UbicacionDEA = () => {
         distancia: getDistance(userLocation[0], userLocation[1], parseFloat(dea.lat), parseFloat(dea.lng))
       }))
       .sort((a, b) => a.distancia - b.distancia)
-      .slice(0, 5);
+      .slice(0, 100);
   };
 
   const resetForm = () => {
@@ -122,6 +121,13 @@ const UbicacionDEA = () => {
           />
           <CenterMap position={center} />
           <ClickHandler setFormVisible={setFormVisible} setFormData={setFormData} />
+          {userLocation && (
+            <Marker position={userLocation} icon={customIcon}>
+              <Popup>
+                Estás aquí
+              </Popup>
+            </Marker>
+          )}
           {cercanos.map((d) => (
             <Marker
               key={d.id}
@@ -144,8 +150,17 @@ const UbicacionDEA = () => {
           {formVisible ? 'Cerrar' : 'Crear'}
         </button>
 
+        <button
+          onClick={() => {
+            if (userLocation) setCenter(userLocation);
+          }}
+          style={{ position: 'absolute', top: 60, right: 10, zIndex: 1000, background: '#17a2b8', color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', cursor: 'pointer' }}
+        >
+          Mi ubicación
+        </button>
+
         {formVisible && (
-          <form onSubmit={handleSubmit} style={{ position: 'absolute', top: 60, right: 10, zIndex: 1000, background: 'white', padding: 10, borderRadius: 5, boxShadow: '0px 0px 10px rgba(0,0,0,0.2)', width: '250px' }}>
+          <form onSubmit={handleSubmit} style={{ position: 'absolute', top: 110, right: 10, zIndex: 1000, background: 'white', padding: 10, borderRadius: 5, boxShadow: '0px 0px 10px rgba(0,0,0,0.2)', width: '250px' }}>
             <h4 className="mb-2">Registrar nuevo DEA</h4>
             <input type="text" placeholder="Nombre del lugar" value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required style={{ width: '100%', marginBottom: 5 }} />
             <input type="text" placeholder="Dirección" value={formData.direccion} onChange={(e) => setFormData({ ...formData, direccion: e.target.value })} required style={{ width: '100%', marginBottom: 5 }} />

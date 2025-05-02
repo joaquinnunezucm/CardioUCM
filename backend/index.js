@@ -21,6 +21,36 @@ app.get('/ping', async (req, res) => {
   }
 });
 
+// 🔵 Nuevo: Login REAL consultando la base de datos
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ mensaje: 'Correo y contraseña son requeridos' });
+  }
+
+  try {
+    const [rows] = await db.query('SELECT * FROM usuarios WHERE email = ?', [email]);
+
+    if (rows.length === 0) {
+      return res.status(401).json({ mensaje: 'Correo no registrado' });
+    }
+
+    const user = rows[0];
+
+    // Acá comparas directamente, luego mejoramos con hash (bcrypt)
+    if (user.password === password) {
+      return res.json({ mensaje: 'Login exitoso', usuario: { id: user.id, email: user.email, nombre: user.nombre } });
+    } else {
+      return res.status(401).json({ mensaje: 'Contraseña incorrecta' });
+    }
+  } catch (error) {
+    console.error('❌ Error en login:', error);
+    res.status(500).json({ mensaje: 'Error interno en login' });
+  }
+});
+
+
 // Obtener todos los DEA activos
 app.get('/defibriladores', async (req, res) => {
   try {
@@ -42,7 +72,7 @@ app.get('/defibriladores', async (req, res) => {
   }
 });
 
-// Insertar nuevo DEA con solo los campos requeridos
+// Insertar nuevo DEA
 app.post('/defibriladores', async (req, res) => {
   const { nombre, direccion, lat, lng, solicitante, rut } = req.body;
 
