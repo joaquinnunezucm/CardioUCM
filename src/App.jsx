@@ -15,7 +15,6 @@ import Dashboard from "./pages/Dashboard"; // Dashboard.jsx
 function App() {
   const isAuthenticated = localStorage.getItem('loggedIn') === "true";
 
-
   return (
     <BrowserRouter>
       <Routes>
