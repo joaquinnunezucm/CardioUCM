@@ -9,7 +9,7 @@ export default function Dashboard() {
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas" },
     { nombre: "Noticias", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/noticias" },
     { nombre: "Emergencia", icono: "fas fa-exclamation-triangle", color: "bg-danger", ruta: "/admin/emergencias" },
-    { nombre: "Preguntas frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq" },
+    { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq" },
 
     { nombre: "Reportes", icono: "fas fa-chart-bar", color: "bg-info", ruta: "/admin/reportes" }
 
@@ -120,7 +120,6 @@ export default function Dashboard() {
                   <a
                     href={modulo.ruta}
                     className="nav-link"
-                    onClick={() => handleMenuClick(modulo.nombre)}
                   >
                     <i className={`nav-icon ${modulo.icono}`}></i>
                     <p>{modulo.nombre}</p>

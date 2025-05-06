@@ -26,7 +26,7 @@ const Home = () => {
 
       <div className="text-center">
         <button
-          onClick={() => handleSeccionClick('LLAMAR 131', 'tel:131')}
+          onClick={() => handleSeccionClick('Emergencia', 'tel:131')}
           className="bg-red-600 text-white px-8 py-4 rounded-full text-lg font-bold shadow-lg"
         >
           LLAMAR 131
@@ -51,7 +51,7 @@ const Home = () => {
         </div>
 
         <div
-          onClick={() => handleSeccionClick('EDUCACION', '/educacion')}
+          onClick={() => handleSeccionClick('Educación', '/educacion')}
           className="cursor-pointer bg-yellow-100 p-4 rounded-xl shadow hover:bg-yellow-200 text-center"
         >
           <p className="text-lg font-semibold">Educación</p>
@@ -59,15 +59,15 @@ const Home = () => {
         </div>
 
         <div
-          onClick={() => handleSeccionClick('FAQ', '/faq')}
+          onClick={() => handleSeccionClick('Preguntas Frecuentes', '/faq')}
           className="cursor-pointer bg-purple-100 p-4 rounded-xl shadow hover:bg-purple-200 text-center"
         >
           <p className="text-lg font-semibold">FAQ</p>
-          <p className="text-sm">Preguntas frecuentes</p>
+          <p className="text-sm">Preguntas Frecuentes</p>
         </div>
 
         <div
-          onClick={() => handleSeccionClick('NOTICIAS', '/noticias')}
+          onClick={() => handleSeccionClick('Noticias', '/noticias')}
           className="cursor-pointer bg-pink-100 p-4 rounded-xl shadow hover:bg-pink-200 text-center col-span-full sm:col-span-2 lg:col-span-1"
         >
           <p className="text-lg font-semibold">Noticias</p>
