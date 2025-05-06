@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react'; // 👈 agregamos useEffect
 import { Link } from 'react-router-dom';
 
 const RCP = () => {
@@ -16,6 +16,17 @@ const RCP = () => {
     }
     setMetronomoActivo(!metronomoActivo);
   };
+
+  // 👇 NUEVO: useEffect para registrar el click al cargar la página
+  useEffect(() => {
+    fetch("http://localhost:3001/api/registro-clic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seccion: "RCP" })
+    }).catch((error) => {
+      console.error("Error registrando clic:", error);
+    });
+  }, []); // [] para que solo se dispare una vez al entrar
 
   return (
     <div className="min-h-screen bg-white p-6">

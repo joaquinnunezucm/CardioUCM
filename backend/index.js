@@ -21,7 +21,7 @@ app.get('/ping', async (req, res) => {
   }
 });
 
-// 🔵 Nuevo: Login REAL consultando la base de datos
+// 🔵 Login REAL consultando la base de datos
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -38,7 +38,6 @@ app.post('/login', async (req, res) => {
 
     const user = rows[0];
 
-    // Acá comparas directamente, luego mejoramos con hash (bcrypt)
     if (user.password === password) {
       return res.json({ mensaje: 'Login exitoso', usuario: { id: user.id, email: user.email, nombre: user.nombre } });
     } else {
@@ -49,7 +48,6 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ mensaje: 'Error interno en login' });
   }
 });
-
 
 // Obtener todos los DEA activos
 app.get('/defibriladores', async (req, res) => {
@@ -104,6 +102,45 @@ app.post('/defibriladores', async (req, res) => {
     res.status(500).json({ mensaje: 'Error al guardar' });
   }
 });
+
+// Registrar clics en la base de datos
+app.post('/api/registro-clic', async (req, res) => {
+  const { seccion } = req.body;
+
+  if (!seccion) {
+    return res.status(400).json({ mensaje: 'Sección requerida' });
+  }
+
+  try {
+    await db.query('INSERT INTO clicks (seccion, fecha) VALUES (?, NOW())', [seccion]);
+    res.json({ mensaje: 'Clic registrado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al registrar clic:', error);
+    res.status(500).json({ mensaje: 'Error al registrar clic' });
+  }
+});
+
+app.get('/api/obtener-clics', async (req, res) => {
+  try {
+    const [resultados] = await db.query(`
+      SELECT seccion, COUNT(*) as cantidad
+      FROM clicks
+      GROUP BY seccion
+    `);
+    
+    // Transformar el array a objeto directamente
+    const data = {};
+    resultados.forEach(r => {
+      data[r.seccion] = r.cantidad;
+    });
+
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error al obtener clics:', error);
+    res.status(500).json({ mensaje: 'Error al obtener datos' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`✅ Backend corriendo en http://localhost:${PORT}`);
