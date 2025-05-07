@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const usuario = localStorage.getItem('username') || "Admin";
 
-  const modulos = [
-    { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion" },
-    { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas" },
-    { nombre: "Noticias", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/noticias" },
-    { nombre: "Emergencia", icono: "fas fa-exclamation-triangle", color: "bg-danger", ruta: "/admin/emergencias" },
-    { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq" },
+  // Definimos las rutas específicas para cada módulo del admin
+  const modulosHome = [
+    { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
+    { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
+    { nombre: "Noticias", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/noticias", seccionApi: "Noticias" },
+    { nombre: "Emergencia", icono: "fas fa-exclamation-triangle", color: "bg-danger", ruta: "/admin/emergencias", seccionApi: "Emergencia" },
+    { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq", seccionApi: "Preguntas Frecuentes" },
+  ];
 
-    { nombre: "Reportes", icono: "fas fa-chart-bar", color: "bg-info", ruta: "/admin/reportes" }
-
+  const modulosAdmin = [
+    { nombre: "Validación DEA", icono: "fas fa-check-circle", color: "bg-info", ruta: "/admin/validacion-deas", seccionApi: "Validación DEA" },
+    { nombre: "Reportes", icono: "fas fa-chart-bar", color: "bg-info", ruta: "/admin/reportes", seccionApi: "Reportes" },
   ];
 
   const [clicks, setClicks] = useState({});
@@ -21,63 +26,56 @@ export default function Dashboard() {
     if (window.$ && window.$.AdminLTE) {
       window.$.AdminLTE.init();
     }
-
     document.body.classList.add('hold-transition', 'sidebar-mini');
     return () => {
       document.body.classList.remove('hold-transition', 'sidebar-mini');
     };
   }, []);
 
+  // Este useEffect sigue siendo necesario para OBTENER los clics existentes y mostrarlos
   useEffect(() => {
     const fetchClicks = async () => {
       try {
         const response = await axios.get('http://localhost:3001/api/obtener-clics');
-  
-        // Solución definitiva: normalizar sea lo que sea que venga
         let clicsData = {};
-  
         if (Array.isArray(response.data)) {
           response.data.forEach(item => {
             clicsData[item.seccion] = item.cantidad;
           });
         } else if (typeof response.data === 'object' && response.data !== null) {
-          // Si ya viene como objeto tipo { "Reportes": 2, ... }
-          clicsData = response.data;
+          clicsData = response.data; // Asumiendo que el backend ya devuelve el objeto {seccion: cantidad}
         } else {
           console.warn('Respuesta inesperada de clics:', response.data);
         }
-  
+
         const clicksIniciales = {};
-        modulos.forEach(modulo => {
-          clicksIniciales[modulo.nombre] = clicsData[modulo.nombre] || 0;
+        // Usamos 'seccionApi' para mapear con los datos del backend
+        [...modulosHome, ...modulosAdmin].forEach(modulo => {
+          clicksIniciales[modulo.seccionApi] = clicsData[modulo.seccionApi] || 0;
         });
-  
         setClicks(clicksIniciales);
       } catch (error) {
         console.error('Error al obtener los clics:', error);
+        // Inicializar clics a 0 si falla la carga
+        const clicksFallidos = {};
+        [...modulosHome, ...modulosAdmin].forEach(modulo => {
+          clicksFallidos[modulo.seccionApi] = 0;
+        });
+        setClicks(clicksFallidos);
       }
     };
-  
     fetchClicks();
-  }, []);
+  }, []); // No hay dependencias, se ejecuta solo al montar
 
-  const handleMenuClick = async (seccion) => {
-    try {
-      await axios.post('http://localhost:3001/api/registro-clic', { seccion });
-      setClicks(prev => ({
-        ...prev,
-        [seccion]: (prev[seccion] || 0) + 1
-      }));
-      console.log(`Clic registrado correctamente en: ${seccion}`);
-    } catch (error) {
-      console.error('Error al registrar clic:', error);
-    }
+  // MODIFICADO: handleMenuClick ahora solo navega. No registra clics.
+  const handleMenuClick = (ruta) => {
+    navigate(ruta);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('username');
-    window.location.href = '/login';
+    window.location.href = '/login'; // O usa navigate('/login') si está dentro del Router
   };
 
   return (
@@ -91,7 +89,8 @@ export default function Dashboard() {
             </a>
           </li>
           <li className="nav-item d-none d-sm-inline-block">
-            <a href="/" className="nav-link">CardioUCM APP</a>
+            {/* Este enlace podría ir al dashboard principal /admin si es necesario */}
+            <a href="/admin" className="nav-link">CardioUCM APP - Admin</a>
           </li>
         </ul>
         <ul className="navbar-nav ml-auto">
@@ -108,17 +107,38 @@ export default function Dashboard() {
 
       {/* Sidebar */}
       <aside className="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="/admin" className="brand-link">
+        <a href="/admin" className="brand-link"> {/* Enlace al dashboard principal */}
           <i className="fas fa-heartbeat brand-image ml-3"></i>
           <span className="brand-text font-weight-light">CardioUCM Admin</span>
         </a>
         <div className="sidebar">
           <nav className="mt-2">
             <ul className="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
-              {modulos.map((modulo, index) => (
-                <li className="nav-item" key={index}>
+            <li className="nav-header">ADMINISTRACIÓN DE CONTENIDO</li>
+              {modulosHome.map((modulo, index) => (
+                <li className="nav-item" key={`home-${index}`}>
+                  <a
+                    href={modulo.ruta} // Usar href directamente o prevenir default si se usa onClick para lógica compleja
+                    onClick={(e) => {
+                      e.preventDefault(); // Prevenir navegación por href si se maneja con navigate
+                      handleMenuClick(modulo.ruta);
+                    }}
+                    className="nav-link"
+                  >
+                    <i className={`nav-icon ${modulo.icono}`}></i>
+                    <p>{modulo.nombre}</p>
+                  </a>
+                </li>
+              ))}
+              <li className="nav-header">ADMINISTRACIÓN</li>
+              {modulosAdmin.map((modulo, index) => (
+                <li className="nav-item" key={`admin-${index}`}>
                   <a
                     href={modulo.ruta}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleMenuClick(modulo.ruta);
+                    }}
                     className="nav-link"
                   >
                     <i className={`nav-icon ${modulo.icono}`}></i>
@@ -152,29 +172,34 @@ export default function Dashboard() {
         <section className="content">
           <div className="container-fluid">
             <div className="row">
-              {modulos.map((modulo, index) => (
-                <div className="col-12 col-sm-6 col-md-4" key={index}>
-                  <div className={`info-box ${modulo.color}`} style={{ cursor: "default" }}>
+              {modulosHome.map((modulo, index) => (
+                <div className="col-12 col-sm-6 col-md-4" key={`info-home-${index}`}>
+                  <div
+                    className={`info-box ${modulo.color}`}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleMenuClick(modulo.ruta)} // Solo navega
+                  >
                     <span className="info-box-icon">
                       <i className={modulo.icono}></i>
                     </span>
                     <div className="info-box-content">
                       <span className="info-box-text">{modulo.nombre}</span>
-                      <span className="info-box-number">{clicks[modulo.nombre] || 0}</span>
+                      {/* Mostramos los clics obtenidos de 'seccionApi' */}
+                      <span className="info-box-number">{clicks[modulo.seccionApi] || 0}</span>
                       <div className="progress">
                         <div
                           className="progress-bar"
-                          style={{ width: `${(clicks[modulo.nombre] || 0) * 10}%` }}
+                          style={{ width: `${(clicks[modulo.seccionApi] || 0) * 10}%` }} // Ajusta la lógica de la barra si es necesario
                         ></div>
                       </div>
-                      <span className="progress-description">Cantidad de Ingresos por Sección</span>
+                      <span className="progress-description">Ingresos (App principal)</span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Estadísticas */}
+            {/* Estadísticas (como estaban, podrías hacerlas dinámicas si quieres) */}
             <div className="row mt-4">
               <div className="col-md-12">
                 <div className="card">
@@ -186,8 +211,8 @@ export default function Dashboard() {
                       <div className="col-md-4">
                         <div className="small-box bg-success">
                           <div className="inner">
-                            <h3>150</h3>
-                            <p>Usuarios registrados</p>
+                            <h3>150</h3> {/* Ejemplo Estático */}
+                            <p>Visitas a la página</p>
                           </div>
                           <div className="icon">
                             <i className="fas fa-users"></i>
@@ -197,7 +222,7 @@ export default function Dashboard() {
                       <div className="col-md-4">
                         <div className="small-box bg-warning">
                           <div className="inner">
-                            <h3>53</h3>
+                            <h3>53</h3> {/* Ejemplo Estático */}
                             <p>DEAs registrados</p>
                           </div>
                           <div className="icon">
@@ -208,7 +233,7 @@ export default function Dashboard() {
                       <div className="col-md-4">
                         <div className="small-box bg-danger">
                           <div className="inner">
-                            <h3>12</h3>
+                            <h3>12</h3> {/* Ejemplo Estático */}
                             <p>Emergencias este mes</p>
                           </div>
                           <div className="icon">
