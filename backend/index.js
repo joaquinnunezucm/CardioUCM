@@ -259,6 +259,36 @@ app.delete('/solicitudes-dea/:id/rechazar', async (req, res) => {
 });
 
 
+// --- ENDPOINT PARA ESTADÍSTICAS DEL DASHBOARD ---
+app.get('/api/estadisticas', async (req, res) => {
+  try {
+    // Contar visitas a la página Home (usando la tabla 'clicks' con una sección específica)
+    const [visitasResult] = await db.query(
+      "SELECT COUNT(*) as totalVisitas FROM clicks WHERE seccion = 'VisitaHomePage'"
+    );
+    const totalVisitas = visitasResult[0]?.totalVisitas || 0;
+
+    // Contar DEAs activos
+    const [deasActivosResult] = await db.query(
+      "SELECT COUNT(*) as totalDeasActivos FROM tramites WHERE bo_activo = 1 AND bo_eliminado = 'N'"
+    );
+    const totalDeasActivos = deasActivosResult[0]?.totalDeasActivos || 0;
+
+    // Podrías añadir más estadísticas aquí, ej. emergencias si tienes una tabla para ello
+    const totalEmergencias = 12; // Placeholder, deberías obtenerlo de tu BD si existe
+
+    res.json({
+      visitasPagina: totalVisitas,
+      deasRegistrados: totalDeasActivos,
+      emergenciasEsteMes: totalEmergencias, // Mantén esto como placeholder o impleméntalo
+    });
+
+  } catch (error) {
+    console.error('❌ Error al obtener estadísticas:', error);
+    res.status(500).json({ mensaje: 'Error al obtener estadísticas' });
+  }
+});
+
 // Clicks API (sin cambios)
 app.post('/api/registro-clic', async (req, res) => {
   const { seccion } = req.body;

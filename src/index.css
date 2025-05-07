@@ -1,4 +1,18 @@
-
+/* En index.css o un CSS específico para Home */
+.home-page-icon-container i.fas,
+.home-page-icon-container i.far,
+.home-page-icon-container i.fab,
+.home-page-icon-container i.fa-solid,
+.home-page-icon-container i.fa-regular,
+.home-page-icon-container i.fa-brands {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important; /* Asegurar la familia de fuentes */
+    font-weight: 900 !important; /* Para iconos sólidos, ajusta para otros estilos si es necesario */
+    font-style: normal !important;
+    font-variant: normal !important;
+    text-rendering: auto !important;
+    -webkit-font-smoothing: antialiased !important;
+    /* Puedes necesitar más propiedades de Font Awesome aquí si son anuladas */
+}
 
 @tailwind base;
 @tailwind components;
