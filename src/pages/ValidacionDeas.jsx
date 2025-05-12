@@ -1,124 +1,118 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/ValidacionDEAs.jsx
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
+// import { useAuth } from '../context/AuthContext.jsx'; // Opcional si necesitas el usuario aquí
 
 const ValidacionDEAs = () => {
   const [solicitudes, setSolicitudes] = useState([]);
-  const [mensaje, setMensaje] = useState(''); // Para mensajes de éxito o error después de la acción
+  const [mensaje, setMensaje] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false); // Para deshabilitar botones durante acción
 
-  useEffect(() => {
-    fetchSolicitudes();
-  }, []);
-
-  const fetchSolicitudes = () => {
-    setMensaje(''); // Limpiar mensaje anterior al recargar
+  const fetchSolicitudes = useCallback(() => {
+    setMensaje('');
+    setLoading(true);
     axios.get('http://localhost:3001/solicitudes-dea')
-      .then(res => setSolicitudes(res.data))
+      .then(res => {
+        setSolicitudes(res.data);
+      })
       .catch(err => {
         console.error('Error al cargar solicitudes pendientes', err);
         setMensaje('Error al cargar solicitudes: ' + (err.response?.data?.mensaje || err.message));
-      });
-  };
-
-  const aprobarSolicitud = (idSolicitud, nombreSolicitud) => {
-    // --- MENSAJE DE CONFIRMACIÓN ANTES DE APROBAR ---
-    if (window.confirm(`¿Estás seguro de que quieres APROBAR la solicitud para "${nombreSolicitud || 'este DEA'}"?`)) {
-      setMensaje('Procesando aprobación...'); // Mensaje de feedback inmediato
-      axios.post(`http://localhost:3001/solicitudes-dea/${idSolicitud}/aprobar`)
-      .then(() => {
-        setMensaje(`Solicitud para "${nombreSolicitud || 'DEA'}" aprobada con éxito.`);
-        fetchSolicitudes(); // Recargar la lista de solicitudes pendientes
-        window.dispatchEvent(new CustomEvent('refrescarEstadisticasAdmin'));
-        console.log("ValidacionDEAs: Evento 'refrescarEstadisticasAdmin' disparado tras aprobación.");
       })
-      .catch(err => {
-        console.error('Error al aprobar solicitud', err);
-        setMensaje('Error al aprobar: ' + (err.response?.data?.mensaje || err.message));
+      .finally(() => {
+        setLoading(false);
       });
+  }, []); // fetchSolicitudes no tiene dependencias que cambien
+
+  useEffect(() => {
+    fetchSolicitudes();
+  }, [fetchSolicitudes]); // Se llama una vez al montar
+
+  const handleAction = async (actionType, idSolicitud, nombreSolicitud) => {
+    const confirmAction = actionType === 'aprobar' ? 'APROBAR' : 'RECHAZAR';
+    const confirmMessage = `¿Estás seguro de que quieres ${confirmAction} la solicitud para "${nombreSolicitud || 'este DEA'}"?`;
+
+    if (window.confirm(confirmMessage)) {
+      setIsProcessing(true);
+      setMensaje(`Procesando ${actionType === 'aprobar' ? 'aprobación' : 'rechazo'}...`);
+      try {
+        if (actionType === 'aprobar') {
+          await axios.post(`http://localhost:3001/solicitudes-dea/${idSolicitud}/aprobar`);
+        } else {
+          await axios.delete(`http://localhost:3001/solicitudes-dea/${idSolicitud}/rechazar`);
+        }
+        setMensaje(`Solicitud para "${nombreSolicitud || 'DEA'}" ${actionType === 'aprobar' ? 'aprobada' : 'rechazada'} con éxito.`);
+        fetchSolicitudes(); // Recargar la lista
+      } catch (err) {
+        console.error(`Error al ${actionType} solicitud`, err);
+        setMensaje(`Error al ${actionType}: ` + (err.response?.data?.mensaje || err.message));
+      } finally {
+        setIsProcessing(false);
+      }
     } else {
-      setMensaje('Aprobación cancelada por el usuario.');
-      setTimeout(() => setMensaje(''), 3000); // Limpiar mensaje de cancelación
+      setMensaje(`${actionType === 'aprobar' ? 'Aprobación' : 'Rechazo'} cancelado por el usuario.`);
+      setTimeout(() => setMensaje(''), 3000);
     }
   };
-
-  const rechazarSolicitud = (idSolicitud, nombreSolicitud) => {
-    // --- MENSAJE DE CONFIRMACIÓN ANTES DE RECHAZAR ---
-    // El window.confirm ya estaba, lo mantenemos y podemos mejorar el mensaje
-    if (window.confirm(`¿Estás seguro de que quieres RECHAZAR la solicitud para "${nombreSolicitud || 'este DEA'}"? Esta acción usualmente no se puede deshacer.`)) {
-      setMensaje('Procesando rechazo...'); // Mensaje de feedback inmediato
-      axios.delete(`http://localhost:3001/solicitudes-dea/${idSolicitud}/rechazar`)
-        .then(() => {
-          setMensaje(`Solicitud para "${nombreSolicitud || 'DEA'}" rechazada con éxito.`);
-          fetchSolicitudes(); // Recargar la lista
-          // Opcional: Disparar evento de refresco si el rechazo afecta alguna estadística global
-          // window.dispatchEvent(new CustomEvent('refrescarEstadisticasAdmin'));
-        })
-        .catch(err => {
-          console.error('Error al rechazar solicitud', err);
-          setMensaje('Error al rechazar: ' + (err.response?.data?.mensaje || err.message));
-        });
-    } else {
-      setMensaje('Rechazo cancelado por el usuario.');
-      setTimeout(() => setMensaje(''), 3000); // Limpiar mensaje de cancelación
-    }
-  };
-
-  // Estilos (sin cambios)
-  const cardStyle = {
-    border: '1px solid #ccc',
-    borderRadius: '8px',
-    padding: '15px',
-    marginBottom: '15px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-  };
-  const buttonStyle = {
-    padding: '8px 15px',
-    marginRight: '10px',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    color: 'white',
-    fontSize: '14px'
-  };
-  const approveButtonStyle = { ...buttonStyle, backgroundColor: '#28a745' };
-  const rejectButtonStyle = { ...buttonStyle, backgroundColor: '#dc3545' };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '25px', color: '#333' }}>Validación de Solicitudes DEA Pendientes</h2>
-
-      {mensaje && (
-        <p style={{
-          padding: '10px',
-          // Cambiar color de fondo si es un mensaje de "procesando" o "cancelado"
-          backgroundColor: mensaje.includes('Procesando') ? '#e2e3e5' : (mensaje.includes('cancelad') ? '#fff3cd' : (mensaje.startsWith('Error') ? '#f8d7da' : '#d4edda')),
-          color: mensaje.includes('Procesando') || mensaje.includes('cancelad') ? '#383d41' : (mensaje.startsWith('Error') ? '#721c24' : '#155724'),
-          border: `1px solid ${mensaje.includes('Procesando') ? '#d6d8db' : (mensaje.includes('cancelad') ? '#ffeeba' : (mensaje.startsWith('Error') ? '#f5c6cb' : '#c3e6cb'))}`,
-          borderRadius: '4px',
-          marginBottom: '20px',
-          textAlign: 'center'
-        }}>{mensaje}</p>
-      )}
-
-      {solicitudes.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#6c757d', fontSize: '1.1em' }}>No hay solicitudes pendientes de validación en este momento.</p>
-      ) : (
-        solicitudes.map(s => (
-          <div key={s.id} style={cardStyle}>
-            <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#007bff' }}>{s.nombre || 'Nombre no especificado'}</h3>
-            <p><strong>ID Solicitud:</strong> {s.id}</p>
-            <p><strong>Dirección Propuesta:</strong> {s.direccion_completa || `${s.gl_instalacion_calle || ''} ${s.nr_instalacion_numero || ''}, ${s.gl_instalacion_comuna || ''}`.replace(/ , $/, '').trim() || 'Dirección no especificada'}</p>
-            <p><strong>Coordenadas:</strong> Lat: {s.lat}, Lng: {s.lng}</p>
-            <p><strong>Solicitante:</strong> {s.solicitante || 'N/A'} (RUT: {s.rut || 'N/A'})</p>
-            <p><strong>Fecha Solicitud:</strong> {s.fc_creacion ? new Date(s.fc_creacion).toLocaleString() : 'N/A'}</p>
-            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #eee', textAlign: 'right' }}>
-              {/* Pasar s.nombre a las funciones para usarlo en el mensaje de confirmación */}
-              <button onClick={() => aprobarSolicitud(s.id, s.nombre)} style={approveButtonStyle}>Aprobar</button>
-              <button onClick={() => rechazarSolicitud(s.id, s.nombre)} style={rejectButtonStyle}>Rechazar</button>
+    <>
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2">
+            <div className="col-sm-6"><h1 className="m-0">Validación de Solicitudes DEA</h1></div>
+            <div className="col-sm-6">
+              <ol className="breadcrumb float-sm-right">
+                <li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li>
+                <li className="breadcrumb-item active">Validación DEAs</li>
+              </ol>
             </div>
           </div>
-        ))
-      )}
-    </div>
+        </div>
+      </div>
+      <section className="content">
+        <div className="container-fluid">
+          {mensaje && (
+            <div className={`alert ${mensaje.startsWith('Error') ? 'alert-danger' : (mensaje.includes('cancelad') || mensaje.includes('Procesando') ? 'alert-info' : 'alert-success')} alert-dismissible fade show`} role="alert">
+              {mensaje}
+              <button type="button" className="close" data-dismiss="alert" aria-label="Close" onClick={() => setMensaje('')}>
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="text-center p-5"><i className="fas fa-spinner fa-spin fa-3x"></i><p className="mt-2">Cargando solicitudes...</p></div>
+          ) : solicitudes.length === 0 ? (
+            <div className="card shadow-sm"><div className="card-body text-center text-muted">No hay solicitudes pendientes de validación en este momento.</div></div>
+          ) : (
+            solicitudes.map(s => (
+              <div key={s.id} className="card shadow-sm mb-3">
+                <div className="card-header">
+                  <h5 className="card-title mb-0">{s.nombre || 'Nombre no especificado'} (ID: {s.id})</h5>
+                </div>
+                <div className="card-body">
+                  <p><strong>Dirección:</strong> {s.direccion_completa || `${s.gl_instalacion_calle || ''} ${s.nr_instalacion_numero || ''}, ${s.gl_instalacion_comuna || ''}`.replace(/ , $/, '').trim() || 'N/D'}</p>
+                  <p><strong>Coordenadas:</strong> Lat: {s.lat || 'N/D'}, Lng: {s.lng || 'N/D'}</p>
+                  <p><strong>Solicitante:</strong> {s.solicitante || 'N/A'} (RUT: {s.rut || 'N/A'})</p>
+                  <p><strong>Fecha Solicitud:</strong> {s.fc_creacion ? new Date(s.fc_creacion).toLocaleString('es-ES') : 'N/A'}</p>
+                </div>
+                <div className="card-footer text-right bg-light">
+                  <button onClick={() => handleAction('aprobar', s.id, s.nombre)} className="btn btn-success btn-sm mr-2" disabled={isProcessing}>
+                    <i className="fas fa-check mr-1"></i> Aprobar
+                  </button>
+                  <button onClick={() => handleAction('rechazar', s.id, s.nombre)} className="btn btn-danger btn-sm" disabled={isProcessing}>
+                    <i className="fas fa-times mr-1"></i> Rechazar
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </>
   );
 };
 

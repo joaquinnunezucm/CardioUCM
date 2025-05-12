@@ -1,4 +1,4 @@
-export const faqs = [
+/* export const faqs = [
   {
     pregunta: "¿Qué es un paro cardíaco?",
     respuesta:
@@ -60,3 +60,4 @@ export const faqs = [
       "Es una secuencia de acciones que aumentan las posibilidades de sobrevivir a un paro cardíaco: reconocer, llamar a emergencias, iniciar RCP, usar DEA y recibir atención avanzada.",
   },
 ];
+ */

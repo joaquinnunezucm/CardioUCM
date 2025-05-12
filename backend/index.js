@@ -305,6 +305,95 @@ app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, 
   }
 });
 
+// --- CRUD DE FAQs (Protegido - Admin y Superadmin) ---
+
+// LEER todas las FAQs (GET)
+app.get('/api/faqs', async (req, res) => { // Ruta pública para mostrar FAQs
+  try {
+    // Ordenar por 'orden' si existe y luego por 'id' o 'fecha_creacion'
+    const [rows] = await db.query('SELECT id, pregunta, respuesta, categoria, orden FROM faqs ORDER BY orden ASC, id ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener FAQs:', error);
+    res.status(500).json({ message: 'Error interno al obtener las FAQs.', detalle: error.message });
+  }
+});
+
+// LEER todas las FAQs para ADMIN (podría ser la misma que la pública o tener más datos si fuera necesario)
+app.get('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, pregunta, respuesta, categoria, orden, fecha_creacion, fecha_actualizacion FROM faqs ORDER BY orden ASC, id ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener FAQs para admin:', error);
+    res.status(500).json({ message: 'Error interno al obtener las FAQs para admin.', detalle: error.message });
+  }
+});
+
+
+// CREAR una nueva FAQ (POST)
+app.post('/api/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { pregunta, respuesta, categoria, orden } = req.body;
+
+  if (!pregunta || !respuesta) {
+    return res.status(400).json({ message: "La pregunta y la respuesta son requeridas." });
+  }
+
+  try {
+    const [result] = await db.query(
+      'INSERT INTO faqs (pregunta, respuesta, categoria, orden) VALUES (?, ?, ?, ?)',
+      [pregunta, respuesta, categoria || null, orden || 0]
+    );
+    res.status(201).json({ message: 'FAQ creada exitosamente.', faq: { id: result.insertId, pregunta, respuesta, categoria, orden } });
+  } catch (error) {
+    console.error("❌ Error al crear FAQ:", error);
+    res.status(500).json({ message: "Error interno al crear la FAQ.", detalle: error.message });
+  }
+});
+
+// ACTUALIZAR una FAQ existente (PUT)
+app.put('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+  const { pregunta, respuesta, categoria, orden } = req.body;
+
+  if (!pregunta || !respuesta) {
+    return res.status(400).json({ message: "La pregunta y la respuesta son requeridas." });
+  }
+
+  try {
+    const [result] = await db.query(
+      'UPDATE faqs SET pregunta = ?, respuesta = ?, categoria = ?, orden = ? WHERE id = ?',
+      [pregunta, respuesta, categoria || null, orden || 0, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "FAQ no encontrada o datos sin cambios." });
+    }
+    res.json({ message: 'FAQ actualizada exitosamente.', faq: { id: parseInt(id), pregunta, respuesta, categoria, orden } });
+  } catch (error) {
+    console.error("❌ Error al actualizar FAQ:", error);
+    res.status(500).json({ message: "Error interno al actualizar la FAQ.", detalle: error.message });
+  }
+});
+
+// ELIMINAR una FAQ (DELETE)
+app.delete('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await db.query('DELETE FROM faqs WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "FAQ no encontrada." });
+    }
+    res.json({ message: 'FAQ eliminada exitosamente.' });
+  } catch (error) {
+    console.error("❌ Error al eliminar FAQ:", error);
+    res.status(500).json({ message: "Error interno al eliminar la FAQ.", detalle: error.message });
+  }
+});
+
+
 // Clicks API
 // Registro de clic puede ser público o requerir autenticación general de usuario (no admin)
 app.post('/api/registro-clic', async (req, res) => { // Ejemplo: ruta pública
