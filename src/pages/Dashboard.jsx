@@ -4,28 +4,29 @@ import { Link, useNavigate, Outlet } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export default function Dashboard() { // Este componente ahora es el Layout principal del Admin
+export default function Dashboard() { // Este componente es el Layout principal del Admin
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const nombreUsuario = user ? user.nombre : "Usuario";
   const rolUsuario = user ? user.rol : "";
 
-  // --- ESTADO Y LÓGICA DE DATOS DEL DASHBOARD (VIVEN EN EL LAYOUT) ---
+  // --- ESTADO Y LÓGICA DE DATOS PARA LAS TARJETAS DEL DASHBOARD (VIVEN EN ESTE LAYOUT) ---
   const [clicksPorSeccion, setClicksPorSeccion] = useState({});
   const [estadisticasSistema, setEstadisticasSistema] = useState({
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
 
-  // modulosHomeInfoBoxes se usa para generar las info-boxes en DashboardActualContent
-  // y para la lógica de fetchClicksPorSeccion. Se memoriza para estabilidad.
-  const modulosHomeInfoBoxes = React.useMemo(() => [
+  // Definición de módulos para las INFO-BOXES que se pasarán y mostrarán en DashboardActualContent
+  // Esta lista AHORA incluye "Educación y Prevención" para que tenga su propia tarjeta.
+  const modulosParaInfoBoxes = React.useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
     { nombre: "Noticias", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/noticias", seccionApi: "Noticias" },
     { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq", seccionApi: "Preguntas Frecuentes" },
-    { nombre: "Llamadas al 131", icono: "fas fa-phone-volume", color: "bg-danger", seccionApi: "LlamadaEmergencia131" },
-  ], []);
+    { nombre: "Educación", icono: "fas fa-book-medical", color: "bg-teal", ruta: "/admin/educacion", seccionApi: "Educación" }, // <-- INFO-BOX PARA EDUCACIÓN
+    { nombre: "Llamadas al 131", icono: "fas fa-phone-volume", color: "bg-danger", seccionApi: "LlamadaEmergencia131" }, // Sin ruta, solo muestra clics
+  ], []); // Array de dependencias vacío porque los datos son estáticos aquí
 
 
   const fetchEstadisticasSistema = useCallback(async () => {
@@ -36,24 +37,19 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
     } catch (error) {
       console.error('Dashboard (Layout): Error stats:', error.response?.data?.message || error.message);
       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-        logout();
+        logout(); // Asumiendo que logout está disponible desde useAuth y es estable
       }
       setEstadisticasSistema({ visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0 });
     }
-  }, [logout]);
+  }, [logout]); // logout es estable
 
   const fetchClicksPorSeccion = useCallback(async () => {
     console.log("Dashboard (Layout): Fetching Clicks Por Seccion...");
     try {
       const response = await axios.get('http://localhost:3001/api/obtener-clics');
-      let clicsData = {};
-      if (Array.isArray(response.data)) {
-        response.data.forEach(item => { clicsData[item.seccion] = item.cantidad; });
-      } else if (typeof response.data === 'object' && response.data !== null) {
-        clicsData = response.data;
-      }
+      let clicsData = response.data || {}; // Asumir objeto vacío si no hay datos
       const clicksIniciales = {};
-      modulosHomeInfoBoxes.forEach(modulo => {
+      modulosParaInfoBoxes.forEach(modulo => { // Itera sobre la lista que incluye Educación
         if (modulo.seccionApi) clicksIniciales[modulo.seccionApi] = clicsData[modulo.seccionApi] || 0;
       });
       setClicksPorSeccion(clicksIniciales);
@@ -63,12 +59,12 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
         logout();
       }
       const clicksFallidos = {};
-      modulosHomeInfoBoxes.forEach(modulo => {
+      modulosParaInfoBoxes.forEach(modulo => {
         if (modulo.seccionApi) clicksFallidos[modulo.seccionApi] = 0;
       });
       setClicksPorSeccion(clicksFallidos);
     }
-  }, [logout, modulosHomeInfoBoxes]);
+  }, [logout, modulosParaInfoBoxes]); // modulosParaInfoBoxes es estable (useMemo con [])
 
   useEffect(() => {
     console.log("Dashboard (Layout) MOUNTED. Initializing AdminLTE and fetching dashboard data.");
@@ -88,23 +84,29 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
       document.body.classList.remove('hold-transition', 'sidebar-mini', 'layout-fixed');
       console.log("Dashboard (Layout) UNMOUNTED. AdminLTE classes removed.");
     };
-  }, [fetchClicksPorSeccion, fetchEstadisticasSistema]); // Estas dependencias son estables
+  }, [fetchClicksPorSeccion, fetchEstadisticasSistema]); // Estas dependencias son estables, se ejecuta 1 vez
   // --- FIN DE ESTADO Y LÓGICA DE DATOS DEL DASHBOARD ---
 
 
   // --- Módulos para el Sidebar ---
-  const modulosHomeNavegablesSidebar = [ // Para la sección "Administración de Contenido" del sidebar
+  // Lista de módulos para la sección "ADMINISTRACIÓN DE CONTENIDO" del sidebar
+  const modulosHomeNavegablesSidebar = [
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
     { nombre: "DEAs (Mapa Admin)", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
     { nombre: "Noticias (Admin)", icono: "fas fa-newspaper", ruta: "/admin/noticias" },
-    { nombre: "Ver FAQs Públicas", icono: "far fa-eye", ruta: "/admin/faq" },
+    { nombre: "Ver FAQs Públicas", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
+    { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" }, // <-- AÑADIDO AL SIDEBAR
   ];
+
+  // Estado para los módulos del sidebar de "ADMINISTRACIÓN" (sección inferior)
   const [modulosAdminDinamicosSidebar, setModulosAdminDinamicosSidebar] = useState([]);
+
   useEffect(() => {
-    console.log("Dashboard (Layout): Updating admin sidebar modules for user role:", user?.rol);
+    // Este useEffect es solo para actualizar la parte dinámica del sidebar (Control Usuarios)
+    console.log("Dashboard (Layout): Updating admin-specific sidebar modules for user role:", user?.rol);
     let baseAdminItems = [
       { nombre: "Validación DEA", icono: "fas fa-check-circle", ruta: "/admin/validacion-deas" },
-      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" },
+      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" }, // Para el CRUD de FAQs
       { nombre: "Reportes", icono: "fas fa-chart-bar", ruta: "/admin/reportes" },
     ];
     if (user && user.rol === 'superadministrador') {
@@ -114,11 +116,12 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
         ruta: "/admin/control-usuarios"
       });
     }
+    // Puedes ordenar 'baseAdminItems' aquí si es necesario antes de setear el estado
     setModulosAdminDinamicosSidebar(baseAdminItems);
-  }, [user]); // Se actualiza si el objeto user (y su rol) cambia.
+  }, [user]); // Depende de 'user' para reconstruir esta parte del sidebar si el rol cambia
 
   const handleLogoutClick = () => {
-    // La limpieza de clases del body la maneja el return del useEffect principal al desmontar
+    // La limpieza de clases del body la maneja el return del useEffect principal
     logout();
   };
 
@@ -127,22 +130,12 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
       {/* Navbar */}
       <nav className="main-header navbar navbar-expand navbar-white navbar-light">
         <ul className="navbar-nav">
-          <li className="nav-item">
-            <a className="nav-link" data-widget="pushmenu" href="#" role="button"><i className="fas fa-bars"></i></a>
-          </li>
-          <li className="nav-item d-none d-sm-inline-block">
-            <Link to="/admin" className="nav-link">CardioUCM APP - Admin</Link>
-          </li>
+          <li className="nav-item"><a className="nav-link" data-widget="pushmenu" href="#" role="button"><i className="fas fa-bars"></i></a></li>
+          <li className="nav-item d-none d-sm-inline-block"><Link to="/admin" className="nav-link">CardioUCM APP - Admin</Link></li>
         </ul>
         <ul className="navbar-nav ml-auto">
-          <li className="nav-item">
-            <span className="nav-link">
-              Bienvenido, <strong>{nombreUsuario}</strong> ({rolUsuario && rolUsuario.charAt(0).toUpperCase() + rolUsuario.slice(1)})
-            </span>
-          </li>
-          <li className="nav-item">
-            <button onClick={handleLogoutClick} className="btn btn-link nav-link"><i className="fas fa-sign-out-alt"></i> Cerrar sesión</button>
-          </li>
+          <li className="nav-item"><span className="nav-link">Bienvenido, <strong>{nombreUsuario}</strong> ({rolUsuario && rolUsuario.charAt(0).toUpperCase() + rolUsuario.slice(1)})</span></li>
+          <li className="nav-item"><button onClick={handleLogoutClick} className="btn btn-link nav-link"><i className="fas fa-sign-out-alt"></i> Cerrar sesión</button></li>
         </ul>
       </nav>
 
@@ -155,14 +148,14 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
         <div className="sidebar">
           <nav className="mt-2">
             <ul className="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-               <li className="nav-item">
-                  <Link to="/admin" className="nav-link"> {/* Enlace al contenido del Dashboard (ruta index) */}
+               <li className="nav-item"> {/* Enlace directo al contenido del Dashboard (ruta index) */}
+                  <Link to="/admin" className="nav-link">
                       <i className="nav-icon fas fa-tachometer-alt"></i>
                       <p>Dashboard</p>
                   </Link>
               </li>
               <li className="nav-header">ADMINISTRACIÓN DE CONTENIDO</li>
-              {modulosHomeNavegablesSidebar.map((modulo) => (
+              {modulosHomeNavegablesSidebar.map((modulo) => ( // Usa la lista actualizada
                 <li className="nav-item" key={modulo.ruta + '-layout-home'}>
                   <Link to={modulo.ruta} className="nav-link">
                     <i className={`nav-icon ${modulo.icono}`}></i> <p>{modulo.nombre}</p>
@@ -182,9 +175,10 @@ export default function Dashboard() { // Este componente ahora es el Layout prin
         </div>
       </aside>
 
-      {/* Content Wrapper: Renderiza el contenido de la página actual */}
-      <div className="content-wrapper" style={{ minHeight: 'calc(100vh - 101px)' }}> {/* Ajusta minHeight */}
-        <Outlet context={{ estadisticasSistema, clicksPorSeccion, modulosHomeInfoBoxes }} />
+      {/* Content Wrapper: Renderiza el contenido de la página actual a través de Outlet */}
+      <div className="content-wrapper" style={{ minHeight: 'calc(100vh - 101px)' }}> {/* Ajusta minHeight según tu header y footer */}
+        {/* Pasa los datos necesarios para las info-boxes del dashboard al Outlet */}
+        <Outlet context={{ estadisticasSistema, clicksPorSeccion, modulosParaInfoBoxes }} />
       </div>
 
       {/* Footer */}
