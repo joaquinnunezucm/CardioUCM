@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import logo from '../assets/color.png'; // Asegúrate que la ruta al logo sea correcta
+import logo from '../assets/color.png'; // Asegúrate que la ruta al logo sea correctaaa
 import { useNavigate } from "react-router-dom";
 import axios from 'axios';
 
@@ -60,12 +60,17 @@ const Home = () => {
   return (
     <div className="min-h-screen max-h-screen overflow-hidden flex flex-col items-center justify-between p-3 sm:p-4">
       
-      <div className="flex-shrink-0 pt-3 pb-2 sm:pt-4 sm:pb-3">
-        <img src={logo} alt="Logo CardioUCM" className="w-32 sm:w-36 md:w-40 mx-auto" />
-      </div>
+<div className="flex-shrink-0 pt-8 sm:pt-8 pb-2">
+  <img
+    src={logo}
+    alt="Logo CardioUCM"
+    className="w-64 sm:w-70 md:w-80 max-w-full mx-auto transition-all duration-300"
+    style={{ maxHeight: '280px' }}
+  />
+</div>
 
       <div className="w-full max-w-lg lg:max-w-xl flex-grow flex flex-col items-center justify-center my-1 sm:my-2">
-        <div className="flex-shrink-0 mb-4 sm:mb-6">
+        <div className="flex-shrink-0 mb-4 sm:mb-5">
           <button
             onClick={() => handleSeccionClick('LlamadaEmergencia131', 'tel:131')}
             className="bg-red-600 text-white px-6 py-2.5 sm:px-10 sm:py-3 rounded-full text-base sm:text-lg font-bold shadow-xl hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 focus:ring-opacity-50 transition-all duration-150 ease-in-out transform hover:scale-105"
