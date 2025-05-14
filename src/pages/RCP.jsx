@@ -9,18 +9,6 @@ const RCP = () => {
   const audioRef = useRef(null);
   const { user } = useAuth(); // Obtener usuario para enlaces condicionales
 
-  useEffect(() => {
-    // Registrar la visita a esta sección cuando el componente se monta
-    const registrarVisita = async () => {
-      try {
-        await axios.post('http://localhost:3001/api/registro-clic', { seccion: 'RCP' });
-        console.log("Visita a RCP registrada.");
-      } catch (error) {
-        console.error("Error al registrar visita a RCP:", error);
-      }
-    };
-    registrarVisita();
-  }, []);
 
   const toggleMetronomo = () => {
     if (!audioRef.current) return;
@@ -74,11 +62,21 @@ const RCP = () => {
                   >
                     {metronomoActivo ? 'Detener Metrónomo' : 'Iniciar Metrónomo (100-120 cpm)'}
                   </button>
-                </li>
+
+                    {/* Mostrar el gif siempre visible debajo del botón */}
+                    <div className="mt-4 flex justify-center">
+                      <img
+                        src="/assets/rcp.gif"
+                        className="w-50 md:w-64 rounded-lg shadow"
+                      />
+                    </div>
+                  </li>
+                <li>Llama a Emergencias 131.</li>
+                <li>Solicita un DEA si hay uno disponible. Enciéndelo y sigue sus instrucciones de voz inmediatamente.</li>
                 <li>Inicia compresiones torácicas: 30 compresiones firmes y rápidas al centro del pecho (5-6 cm de profundidad, ritmo de 100-120/min).</li>
                 <li>Después de 30 compresiones, realiza 2 ventilaciones boca a boca o con mascarilla.</li>
                 <li>Repite el ciclo 30:2 durante 2 minutos o hasta que llegue ayuda profesional o la persona muestre signos de vida.</li>
-                <li>Solicita un DEA si hay uno disponible. Enciéndelo y sigue sus instrucciones de voz inmediatamente.</li>
+                <li>Una vez el DEA haya llegado, instalalo y sigue las instrucciones</li>
                 <li>
                   <Link to={user && (user.rol === 'administrador' || user.rol === 'superadministrador') ? "/admin/deas" : "/dea"} className="text-blue-600 underline hover:text-blue-800">
                     Buscar DEA cercano

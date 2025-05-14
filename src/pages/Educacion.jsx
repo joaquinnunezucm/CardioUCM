@@ -9,18 +9,6 @@ const Educacion = () => {
   const audioRef = useRef(null);
   const { user } = useAuth(); // Para el enlace condicional a /admin/deas
 
-  useEffect(() => {
-    const registrarVisita = async () => {
-      try {
-        await axios.post('http://localhost:3001/api/registro-clic', { seccion: 'Educacion' });
-        console.log("Visita a Educación registrada.");
-      } catch (error) {
-        console.error("Error al registrar visita a Educación:", error);
-      }
-    };
-    registrarVisita();
-  }, []);
-
   const toggleMetronomo = () => {
     if (!audioRef.current) return;
     if (metronomoActivo) {
@@ -42,7 +30,7 @@ const Educacion = () => {
       categoriaNombre: 'Conceptos Fundamentales',
       items: [
         { id: 'c1', tituloTema: '¿Qué es un Paro Cardiorrespiratorio?', contenidoTema: <p>Es una situación en la que el corazón deja de latir de forma súbita y la persona deja de respirar, generando una pérdida total de conciencia. El tiempo es vital: cada minuto que pasa disminuye las probabilidades de supervivencia en un 10%.</p> },
-        { id: 'c2', tituloTema: '¿Diferencia entre Paro Cardíaco y Ataque al Corazón?', contenidoTema: <p>Un paro cardíaco es una emergencia eléctrica en el corazón que causa que deje de latir. Un ataque al corazón es un problema de circulación, usualmente por una arteria bloqueada que daña el músculo cardíaco. Un ataque al corazón puede llevar a un paro cardíaco.</p> },
+        { id: 'c2', tituloTema: '¿Diferencia entre Paro Cardíaco y Ataque al Corazón?', contenidoTema: <p>Un paro cardíaco es una emergencia eléctrica en el corazón que causa que deje de latir de manera normal. Un infarto agudo al miocardio o ataque al corazón es un problema de circulación, usualmente por una arteria bloqueada que daña el músculo cardíaco. Un ataque al corazón puede llevar a un paro cardíaco.</p> },
         { id: 'c3', tituloTema: 'Cadena de Supervivencia', contenidoTema: <><p className="mb-2">La Cadena de Supervivencia describe los pasos críticos para mejorar la supervivencia tras un paro cardíaco:</p><ol className="list-decimal ml-6 space-y-1"><li>Reconocimiento y activación del sistema de emergencias.</li><li>RCP precoz de alta calidad.</li><li>Desfibrilación rápida.</li><li>Servicios de Emergencias Médicas avanzados.</li><li>Soporte vital avanzado y cuidados postparo.</li></ol></> },
       ],
     },
@@ -51,9 +39,9 @@ const Educacion = () => {
       categoriaNombre: 'Reanimación Cardiopulmonar (RCP)',
       items: [
         { id: 'r1', tituloTema: '¿Qué es la RCP y por qué es importante?', contenidoTema: <><p className="mb-2">La Reanimación Cardiopulmonar (RCP) es un conjunto de maniobras que mantienen artificialmente la circulación de oxígeno. Puede duplicar o triplicar la probabilidad de supervivencia.</p><ul className="list-disc ml-6 space-y-1"><li>Debe iniciarse lo antes posible.</li><li>Debe combinarse con el uso del DEA.</li></ul></> },
-        { id: 'r2', tituloTema: '¿Cómo realizar RCP en Adultos?', contenidoTema: <><p className="mb-2">Si encuentras a un adulto que no responde y no respira normalmente:</p><ol className="list-decimal ml-6 space-y-1"><li>Asegura la escena.</li><li>Evalúa respuesta.</li><li>Pide ayuda y llama al 131. Pide un DEA.</li><li>Inicia compresiones torácicas: 100-120 por minuto, 5-6 cm de profundidad.</li><li>Si estás entrenado, realiza 30 compresiones y 2 ventilaciones. Si no, solo compresiones continuas.</li><li>Continúa hasta que llegue ayuda, la víctima se mueva, o llegue el DEA.</li></ol></> },
+        { id: 'r2', tituloTema: '¿Cómo realizar RCP en Adultos? (AÑADIR SESION DE FOTOS)', contenidoTema: <><p className="mb-2">Si encuentras a un adulto que no responde y no respira normalmente:</p><ol className="list-decimal ml-6 space-y-1"><li>Asegura la escena.</li><li>Evalúa respuesta.</li><li>Pide ayuda y llama al 131. Pide un DEA.</li><li>Inicia compresiones torácicas: 100-120 por minuto, 5-6 cm de profundidad.</li><li>Si estás entrenado, realiza 30 compresiones y 2 ventilaciones. Si no, solo compresiones continuas.</li><li>Continúa hasta que llegue ayuda, la víctima se mueva, o llegue el DEA.</li></ol></> },
         { id: 'r3', tituloTema: 'RCP Solo con las Manos', contenidoTema: <p>Si no estás entrenado en ventilaciones o no te sientes cómodo, puedes realizar RCP solo con compresiones torácicas continuas. Empuja fuerte y rápido en el centro del pecho a un ritmo de 100-120 compresiones por minuto.</p> },
-        { id: 'r4', tituloTema: 'Entrenamiento en RCP', contenidoTema: <p>Aunque cualquier intento es mejor que nada, un entrenamiento formal mejora significativamente la efectividad. Busca cursos de RCP y primeros auxilios en tu comunidad.</p> },
+        { id: 'r4', tituloTema: 'Entrenamiento en RCP (AÑADIR LINK AL CURSO https://postgrados.ucm.cl/curso-reanimacion-cardiopulmonar-basica-y-manejo-del-dea/)', contenidoTema: <p>Aunque cualquier intento es mejor que nada, un entrenamiento formal mejora significativamente la efectividad. Busca cursos de RCP y primeros auxilios en tu comunidad.</p> },
       ],
     },
     {
@@ -62,7 +50,7 @@ const Educacion = () => {
       items: [
         { id: 'd1', tituloTema: '¿Qué es un DEA y cómo se usa?', contenidoTema: <><p className="mb-2">Un DEA es un dispositivo portátil que analiza el ritmo cardíaco y administra una descarga eléctrica si es necesario.</p><ol className="list-decimal ml-6 space-y-1"><li>Enciende el DEA y sigue las instrucciones de voz.</li><li>Aplica los parches en el pecho desnudo de la víctima como indican los diagramas.</li><li>Asegúrate de que nadie toque a la víctima durante el análisis y la descarga.</li><li>Reanuda la RCP inmediatamente después de la descarga o si el DEA lo indica.</li></ol></> },
         { id: 'd2', tituloTema: '¿Puedo usar un DEA sin entrenamiento?', contenidoTema: <p>Sí. Los DEAs están diseñados para ser usados por cualquier persona, guiando con instrucciones claras. Sin embargo, la familiarización previa es beneficiosa.</p> },
-        { id: 'd3', tituloTema: 'Uso del DEA en Niños', contenidoTema: <p>Sí. Para niños menores de 8 años o menos de 25 kg, usa parches pediátricos y un atenuador de dosis si está disponible. Si no, usa parches de adulto asegurándote que no se toquen (uno en el pecho, otro en la espalda).</p> },
+        { id: 'd3', tituloTema: 'Uso del DEA en Niños (AÑADIR FOTOS)', contenidoTema: <p>Sí. Para niños menores de 8 años o menos de 25 kg, usa parches pediátricos y un atenuador de dosis si está disponible. Si no, usa parches de adulto asegurándote que no se toquen (uno en el pecho, otro en la espalda).</p> },
         { id: 'd4', tituloTema: '¿Dónde encontrar un DEA?', contenidoTema: <p>En lugares públicos como universidades, centros comerciales, aeropuertos. Esta aplicación te ayuda a localizar DEAs registrados cercanos (puedes acceder al <Link to={user && (user.rol === 'administrador' || user.rol === 'superadministrador') ? "/admin/deas" : "/dea"} className="text-blue-600 underline hover:text-blue-800">mapa de DEAs aquí</Link>).</p> },
       ],
     },
