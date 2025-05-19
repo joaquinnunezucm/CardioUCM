@@ -393,6 +393,168 @@ app.delete('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, r
   }
 });
 
+// --- CRUD DE CONTENIDO EDUCATIVO (Protegido - Admin y Superadmin, con ruta pública para lectura) ---
+
+// LEER todo el contenido educativo (público, solo activo)
+app.get('/api/educacion', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item 
+       FROM educacion_contenido 
+       WHERE activo = TRUE 
+       ORDER BY orden_categoria ASC, orden_item ASC, id ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener contenido educativo público:', error);
+    res.status(500).json({ message: 'Error interno al obtener el contenido educativo.', detalle: error.message });
+  }
+});
+
+
+// LEER todo el contenido educativo para ADMIN (GET - Protegida)
+app.get('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    // Todo el contenido (activo e inactivo), ordenado
+    const [rows] = await db.query(
+      `SELECT id, categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item, activo, created_at, updated_at 
+       FROM educacion_contenido 
+       ORDER BY orden_categoria ASC, orden_item ASC, id ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener contenido educativo para admin:', error);
+    res.status(500).json({ message: 'Error interno al obtener el contenido educativo para admin.', detalle: error.message });
+  }
+});
+
+// CREAR nuevo contenido educativo (POST - Protegida)
+app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const {
+    categoria_id,
+    categoria_nombre,
+    titulo_tema,
+    contenido_tema,
+    orden_categoria,
+    orden_item,
+    activo
+  } = req.body;
+
+  if (!categoria_id || !categoria_nombre || !titulo_tema || !contenido_tema) {
+    return res.status(400).json({ message: "Los campos: ID de categoría, nombre de categoría, título del tema y contenido del tema son requeridos." });
+  }
+
+  try {
+    const [result] = await db.query(
+      'INSERT INTO educacion_contenido (categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+      [
+        categoria_id,
+        categoria_nombre,
+        titulo_tema,
+        contenido_tema,
+        orden_categoria || 0,
+        orden_item || 0,
+        activo !== undefined ? (typeof activo === 'string' ? activo === 'true' : Boolean(activo)) : true
+      ]
+    );
+    res.status(201).json({
+      message: 'Contenido educativo creado exitosamente.',
+      item: { // Devolver el item completo o su ID para actualizar la UI
+        id: result.insertId,
+        categoria_id,
+        categoria_nombre,
+        titulo_tema,
+        contenido_tema,
+        orden_categoria: orden_categoria || 0,
+        orden_item: orden_item || 0,
+        activo: activo !== undefined ? (typeof activo === 'string' ? activo === 'true' : Boolean(activo)) : true
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error al crear contenido educativo:", error);
+    res.status(500).json({ message: "Error interno al crear el contenido educativo.", detalle: error.message });
+  }
+});
+
+// ACTUALIZAR contenido educativo existente (PUT - Protegida)
+app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+  const {
+    categoria_id,
+    categoria_nombre,
+    titulo_tema,
+    contenido_tema,
+    orden_categoria,
+    orden_item,
+    activo
+  } = req.body;
+
+  if (!categoria_id || !categoria_nombre || !titulo_tema || !contenido_tema) {
+    return res.status(400).json({ message: "Los campos: ID de categoría, nombre de categoría, título del tema y contenido del tema son requeridos." });
+  }
+
+  try {
+    const [result] = await db.query(
+      `UPDATE educacion_contenido
+       SET categoria_id = ?, categoria_nombre = ?, titulo_tema = ?, contenido_tema = ?,
+           orden_categoria = ?, orden_item = ?, activo = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [
+        categoria_id,
+        categoria_nombre,
+        titulo_tema,
+        contenido_tema,
+        orden_categoria || 0,
+        orden_item || 0,
+        activo !== undefined ? (typeof activo === 'string' ? activo === 'true' : Boolean(activo)) : true,
+        id
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Contenido educativo no encontrado o datos sin cambios." });
+    }
+    res.json({
+      message: 'Contenido educativo actualizado exitosamente.',
+      item: { // Devolver el item actualizado
+        id: parseInt(id),
+        categoria_id,
+        categoria_nombre,
+        titulo_tema,
+        contenido_tema,
+        orden_categoria: orden_categoria || 0,
+        orden_item: orden_item || 0,
+        activo: activo !== undefined ? (typeof activo === 'string' ? activo === 'true' : Boolean(activo)) : true
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error al actualizar contenido educativo:", error);
+    res.status(500).json({ message: "Error interno al actualizar el contenido educativo.", detalle: error.message });
+  }
+});
+
+// ELIMINAR contenido educativo (DELETE - Protegida)
+app.delete('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await db.query('DELETE FROM educacion_contenido WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Contenido educativo no encontrado." });
+    }
+    res.json({ message: 'Contenido educativo eliminado exitosamente.' });
+  } catch (error) {
+    console.error("❌ Error al eliminar contenido educativo:", error);
+    res.status(500).json({ message: "Error interno al eliminar el contenido educativo.", detalle: error.message });
+  }
+});
+
+
+// --- FIN DE CRUD DE CONTENIDO EDUCATIVO ---
+
+
+
 
 // Clicks API
 // Registro de clic puede ser público o requerir autenticación general de usuario (no admin)

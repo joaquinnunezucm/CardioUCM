@@ -1,6 +1,5 @@
 // src/pages/RCP.jsx
-import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios'; // Para registrar el clic/visita
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx'; // Para el enlace condicional al mapa de DEAs
 
@@ -66,8 +65,8 @@ const RCP = () => {
                     {/* Mostrar el gif siempre visible debajo del botón */}
                     <div className="mt-4 flex justify-center">
                       <img
-                        src="/assets/rcp.gif"
-                        className="w-50 md:w-64 rounded-lg shadow"
+                        src="/assets/gif3.gif"
+                        className="w-60 md:w-64 rounded-lg shadow"
                       />
                     </div>
                   </li>

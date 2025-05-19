@@ -18,7 +18,7 @@ import DashboardActualContent from "./pages/DashboardActualContent"; // Contenid
 import ValidacionDeas from './pages/ValidacionDeas';
 import ControlUsuarios from './pages/ControlUsuarios';
 import GestionFAQs from './pages/GestionFAQs.jsx';
-// Educacion_Public (definido arriba) se usará para la vista de admin de Educación
+import GestionEducacion from './pages/GestionEducacion';
 
 // --- Componente Wrapper para Contenido Interno de Páginas de Admin ---
 // Este wrapper añade el content-header (título, breadcrumbs) y la section.content
@@ -94,39 +94,40 @@ function AppContent() {
       <Route path="/noticias" element={<Noticias_Public />} />
       <Route path="/faq" element={<FAQ_Public />} />
 
-      {/* --- Rutas de Administración --- */}
-      {/* La ruta /admin está protegida y usa Dashboard.jsx como el componente de Layout */}
+            {/* --- Rutas de Administración --- */}
       <Route
-        path="/admin" // Ruta base para el layout de admin
+        path="/admin"
         element={
           <ProtectedRouteWithRole allowedRoles={rolesAdminYSuper}>
-            <Dashboard /> {/* Dashboard.jsx actúa como el Layout que contiene <Outlet /> */}
+            <Dashboard />
           </ProtectedRouteWithRole>
         }
       >
         {/* Rutas anidadas que se renderizarán en el <Outlet /> de Dashboard.jsx */}
-        <Route index element={<DashboardActualContent />} /> {/* Para la URL exacta "/admin" */}
+        <Route index element={<DashboardActualContent />} />
         
         <Route path="capacitacion" element={<RCPAdminView />} />
         <Route path="deas" element={<DEAsAdminView />} />
         <Route path="noticias" element={<NoticiasAdminView />} />
-        <Route path="faq" element={<FAQAdminView />} /> {/* Para ver las FAQs públicas dentro del admin layout */}
-        <Route path="educacion" element={<Educacion_Public />} /> {/* Renderiza Educacion.jsx directamente */}
+        <Route path="faq" element={<FAQAdminView />} />
+        <Route path="educacion" element={<Educacion_Public />} />
         
-        <Route path="validacion-deas" element={<ValidacionDeas />} /> {/* Asume que ValidacionDeas tiene su propio content-header y section.content */}
+        <Route path="validacion-deas" element={<ValidacionDeas />} />
         <Route path="reportes" element={<ReportesAdmin />} />
-        <Route path="gestion-faq" element={<GestionFAQs />} /> {/* Asume que GestionFAQs tiene su propio content-header y section.content */}
+        <Route path="gestion-faq" element={<GestionFAQs />} />
+        
+        {/* ---->>>> AQUÍ VA LA RUTA CORREGIDA <<<<---- */}
+        <Route path="gestion-educacion" element={<GestionEducacion />} />
         
         <Route
           path="control-usuarios"
-          element={ // Protección de rol más específica para esta página
+          element={
             <ProtectedRouteWithRole allowedRoles={rolesSoloSuper}>
-              <ControlUsuarios /> {/* Asume que ControlUsuarios tiene su propio content-header y section.content */}
+              <ControlUsuarios />
             </ProtectedRouteWithRole>
           }
         />
         
-        {/* Fallback para subrutas de /admin no encontradas, redirige al dashboard de admin */}
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
 

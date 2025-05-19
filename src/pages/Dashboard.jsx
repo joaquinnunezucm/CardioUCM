@@ -92,9 +92,9 @@ export default function Dashboard() { // Este componente es el Layout principal 
   // Lista de módulos para la sección "ADMINISTRACIÓN DE CONTENIDO" del sidebar
   const modulosHomeNavegablesSidebar = [
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
-    { nombre: "DEAs (Mapa Admin)", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
-    { nombre: "Noticias (Admin)", icono: "fas fa-newspaper", ruta: "/admin/noticias" },
-    { nombre: "Ver FAQs Públicas", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
+    { nombre: "DEAs ", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
+    { nombre: "Noticias ", icono: "fas fa-newspaper", ruta: "/admin/noticias" },
+    { nombre: "Ver FAQs ", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
     { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" }, // <-- AÑADIDO AL SIDEBAR
   ];
 
@@ -108,6 +108,7 @@ export default function Dashboard() { // Este componente es el Layout principal 
       { nombre: "Validación DEA", icono: "fas fa-check-circle", ruta: "/admin/validacion-deas" },
       { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" }, // Para el CRUD de FAQs
       { nombre: "Reportes", icono: "fas fa-chart-bar", ruta: "/admin/reportes" },
+      { nombre: "Gestionar Educación", icono: "fas fa-graduation-cap", ruta: "/admin/gestion-educacion" }, // <--- NUEVO
     ];
     if (user && user.rol === 'superadministrador') {
       baseAdminItems.push({
