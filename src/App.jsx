@@ -8,7 +8,7 @@ import Emergencia from "./pages/Emergencia";
 import RCP_Public from "./pages/RCP"; // Renombrado para claridad si hay versión admin
 import UbicacionDEA_Public from "./pages/UbicacionDEA"; // Renombrado para claridad
 import Educacion_Public from "./pages/Educacion"; // Componente de contenido de Educación
-import Noticias_Public from "./pages/Noticias";
+import Contáctanos_Public from "./pages/Contáctanos";
 import FAQ_Public from "./pages/FAQ";
 import Login from "./pages/Login";
 
@@ -52,7 +52,7 @@ const ReportesAdmin = () => (
 // Vistas de admin que reutilizan componentes de contenido público, envueltos para el layout de admin
 const RCPAdminView = () => <AdminPageContentWrapper title="Capacitación RCP" breadcrumbCurrent="RCP"><RCP_Public /></AdminPageContentWrapper>;
 const DEAsAdminView = () => <AdminPageContentWrapper title="Ubicación DEAs" breadcrumbCurrent="DEAs"><UbicacionDEA_Public /></AdminPageContentWrapper>;
-const NoticiasAdminView = () => <AdminPageContentWrapper title="Noticias (Admin)" breadcrumbCurrent="Noticias"><Noticias_Public /></AdminPageContentWrapper>;
+const ContáctanosAdminView = () => <AdminPageContentWrapper title="Contáctanos (Admin)" breadcrumbCurrent="Contáctanos"><Contáctanos_Public /></AdminPageContentWrapper>;
 const FAQAdminView = () => <AdminPageContentWrapper title="Ver FAQs Públicas (Admin)" breadcrumbCurrent="FAQ (Vista)"><FAQ_Public /></AdminPageContentWrapper>;
 
 
@@ -91,7 +91,7 @@ function AppContent() {
       <Route path="/educacion" element={<Educacion_Public />} /> {/* Ruta pública de Educación */}
       <Route path="/rcp" element={<RCP_Public />} />
       <Route path="/dea" element={<UbicacionDEA_Public />} />
-      <Route path="/noticias" element={<Noticias_Public />} />
+      <Route path="/contáctanos" element={<Contáctanos_Public />} />
       <Route path="/faq" element={<FAQ_Public />} />
 
             {/* --- Rutas de Administración --- */}
@@ -108,7 +108,7 @@ function AppContent() {
         
         <Route path="capacitacion" element={<RCPAdminView />} />
         <Route path="deas" element={<DEAsAdminView />} />
-        <Route path="noticias" element={<NoticiasAdminView />} />
+        <Route path="contáctanos" element={<ContáctanosAdminView />} />
         <Route path="faq" element={<FAQAdminView />} />
         <Route path="educacion" element={<Educacion_Public />} />
         

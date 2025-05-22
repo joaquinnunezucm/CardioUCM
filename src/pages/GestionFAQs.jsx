@@ -1,261 +1,189 @@
-// src/pages/GestionFAQs.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-// import { useAuth } from '../context/AuthContext.jsx'; // No es necesario si la ruta ya protege
-import { Link } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import $ from 'jquery';
+import 'datatables.net-bs4';
+import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 
-// --- FAQ Form Component (sin cambios significativos recientes) ---
-const FAQForm = ({ onSubmit, onClose, initialData = {}, isSubmitting }) => {
-  const [formData, setFormData] = useState({
-    pregunta: initialData.pregunta || '',
-    respuesta: initialData.respuesta || '',
-    categoria: initialData.categoria || '',
-    orden: initialData.orden || 0,
-  });
-  const [formError, setFormError] = useState('');
+const GestionFAQs = () => {
+  const [faqs, setFAQs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const tableRef = useRef();
 
+  // Fetch FAQs
   useEffect(() => {
-    setFormData({
-      pregunta: initialData.pregunta || '',
-      respuesta: initialData.respuesta || '',
-      categoria: initialData.categoria || '',
-      orden: initialData.orden || 0,
-    });
-    setFormError('');
-  }, [initialData]);
+    const fetchFAQs = async () => {
+      try {
+        const response = await axios.get('http://localhost:3001/api/faqs');
+        setFAQs(response.data);
+      } catch (err) {
+        console.error("Error al obtener FAQs:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleChange = (e) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseInt(value, 10) : value }));
+    fetchFAQs();
+  }, [refreshTrigger]);
+
+  // Inicializar DataTables después de cargar datos
+  useEffect(() => {
+    if (!loading && faqs.length > 0) {
+      const table = $(tableRef.current).DataTable({
+        destroy: true,
+        language: {
+          search: "Buscar:",
+          lengthMenu: "Mostrar _MENU_ registros",
+          info: "Mostrando _START_ a _END_ de _TOTAL_ FAQs",
+          paginate: { previous: "Anterior", next: "Siguiente" },
+          zeroRecords: "No se encontraron FAQs"
+        }
+      });
+
+      return () => {
+        table.destroy();
+      };
+    }
+  }, [faqs, loading]);
+
+  // Crear o Editar FAQ con SweetAlert2
+  const handleCreateOrEdit = (faq = null) => {
+    Swal.fire({
+      title: faq ? 'Editar FAQ' : 'Crear Pregunta Frecuente',
+      html: `
+        <div style="display: flex; flex-direction: column; gap: 15px; max-width: 800px; margin: auto;">
+          <input id="swal-input-pregunta" class="swal2-input" placeholder="Pregunta" value="${faq?.pregunta || ''}" style="width: 100%;">
+          <textarea id="swal-input-respuesta" class="swal2-textarea" placeholder="Respuesta" style="width: 100%;">${faq?.respuesta || ''}</textarea>
+          <input id="swal-input-categoria" class="swal2-input" placeholder="Categoría" value="${faq?.categoria || ''}" style="width: 100%;">
+          <input id="swal-input-orden" class="swal2-input" placeholder="Orden" type="number" value="${faq?.orden || 0}" style="width: 100%;">
+        </div>
+      `,
+      customClass: {
+        popup: 'swal-wide'
+      },
+      width: '900px',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: faq ? 'Actualizar' : 'Crear',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const pregunta = document.getElementById('swal-input-pregunta').value.trim();
+        const respuesta = document.getElementById('swal-input-respuesta').value.trim();
+        const categoria = document.getElementById('swal-input-categoria').value.trim();
+        const orden = parseInt(document.getElementById('swal-input-orden').value.trim());
+
+        if (!pregunta || !respuesta || isNaN(orden)) {
+          Swal.showValidationMessage('Todos los campos excepto categoría son obligatorios');
+          return false;
+        }
+
+        return { pregunta, respuesta, categoria, orden };
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed && result.value) {
+        try {
+          setIsSubmitting(true);
+          const url = faq ? `http://localhost:3001/api/faqs/${faq.id}` : 'http://localhost:3001/api/faqs';
+          const method = faq ? 'put' : 'post';
+          const response = await axios[method](url, result.value);
+
+          // Actualizar el estado de FAQs directamente
+          if (faq) {
+            setFAQs(faqs.map(item => (item.id === faq.id ? response.data : item)));
+          } else {
+            setFAQs([...faqs, response.data]);
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: faq ? '¡FAQ actualizada correctamente!' : '¡FAQ creada correctamente!',
+            showConfirmButton: false,
+            timer: 1500
+          });
+        } catch (err) {
+          console.error("Error al guardar FAQ:", err);
+          Swal.fire('Error', 'No se pudo guardar la FAQ.', 'error');
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormError('');
-    if (!formData.pregunta || !formData.respuesta) {
-      setFormError('La pregunta y la respuesta son requeridas.');
-      return;
-    }
-    const result = await onSubmit(formData, initialData.id);
-    if (result && result.error) {
-      setFormError(result.message || 'Ocurrió un error al guardar la FAQ.');
-    } else if (result && result.success) {
-      onClose();
-    }
+  // Eliminar FAQ con confirmación
+  const handleDeleteFAQ = (faqId, pregunta) => {
+    Swal.fire({
+      title: `¿Eliminar FAQ?`,
+      text: `"${pregunta}" se eliminará permanentemente.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await axios.delete(`http://localhost:3001/api/faqs/${faqId}`);
+          
+          // Actualizar el estado de FAQs directamente
+          setFAQs(faqs.filter(item => item.id !== faqId));
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡FAQ eliminada correctamente!',
+            showConfirmButton: false,
+            timer: 1500
+          });
+        } catch (err) {
+          console.error("Error eliminando FAQ:", err.response?.data || err.message);
+          Swal.fire('Error', err.response?.data?.message || "Error al eliminar la FAQ.", 'error');
+        }
+      }
+    });
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {formError && <div className="alert alert-danger p-2 mb-3">{formError}</div>}
-      <div className="form-group mb-3">
-        <label htmlFor="preguntaFAQFormGF">Pregunta</label> {/* ID único */}
-        <textarea className="form-control" id="preguntaFAQFormGF" name="pregunta" value={formData.pregunta} onChange={handleChange} rows="3" required disabled={isSubmitting}></textarea>
-      </div>
-      <div className="form-group mb-3">
-        <label htmlFor="respuestaFAQFormGF">Respuesta</label> {/* ID único */}
-        <textarea className="form-control" id="respuestaFAQFormGF" name="respuesta" value={formData.respuesta} onChange={handleChange} rows="5" required disabled={isSubmitting}></textarea>
-      </div>
-      <div className="form-group mb-3">
-        <label htmlFor="categoriaFAQFormGF">Categoría (Opcional)</label> {/* ID único */}
-        <input type="text" className="form-control" id="categoriaFAQFormGF" name="categoria" value={formData.categoria} onChange={handleChange} disabled={isSubmitting} />
-      </div>
-      <div className="form-group mb-4">
-        <label htmlFor="ordenFAQFormGF">Orden (Opcional, menor # aparece primero)</label> {/* ID único */}
-        <input type="number" className="form-control" id="ordenFAQFormGF" name="orden" value={formData.orden} onChange={handleChange} disabled={isSubmitting} />
-      </div>
-      <div className="modal-footer justify-content-end p-0 border-top-0 pt-3">
-        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>Cancelar</button>
-        <button type="submit" className="btn btn-primary ml-2" disabled={isSubmitting}>
-          {isSubmitting ? (initialData.id ? 'Actualizando...' : 'Creando...') : (initialData.id ? 'Actualizar FAQ' : 'Crear FAQ')}
+    <div className="container mt-4">
+      <div className="mb-3 d-flex justify-content-end">
+        <button className="btn btn-success" onClick={() => handleCreateOrEdit()} disabled={isSubmitting}>
+          <i className="fas fa-plus"></i> Nueva Pregunta
         </button>
       </div>
-    </form>
+
+      <div className="table-responsive">
+        <table ref={tableRef} id="faqsTable" className="table table-bordered table-hover">
+          <thead className="thead-light">
+            <tr>
+              <th>Pregunta</th>
+              <th>Categoría</th>
+              <th style={{ width: '10%', textAlign: 'center' }}>Orden</th>
+              <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {faqs.map(faq => (
+              <tr key={faq.id}>
+                <td>{faq.pregunta}</td>
+                <td>{faq.categoria || '-'}</td>
+                <td style={{ textAlign: 'center' }}>{faq.orden}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <button className="btn btn-xs btn-info mr-1" onClick={() => handleCreateOrEdit(faq)} disabled={isSubmitting}>
+                    <i className="fas fa-edit"></i>
+                  </button>
+                  <button className="btn btn-xs btn-danger" onClick={() => handleDeleteFAQ(faq.id, faq.pregunta)} disabled={isSubmitting}>
+                    <i className="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };
-
-// --- Componente Principal GestionFAQs ---
-function GestionFAQs() {
-  const [faqs, setFaqs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingFAQ, setEditingFAQ] = useState(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState({ type: '', text: '' });
-
-  const fetchFAQs = useCallback(async () => {
-    setLoading(true);
-    setFeedbackMessage({ type: '', text: '' });
-    try {
-      const response = await axios.get('http://localhost:3001/api/admin/faqs'); // Endpoint de admin
-      setFaqs(response.data);
-      setError('');
-    } catch (err) {
-      console.error("Error fetching FAQs:", err);
-      const errorMessage = err.response?.data?.message || 'Error al cargar las FAQs.';
-      setError(errorMessage);
-      setFaqs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchFAQs();
-  }, [fetchFAQs, refreshTrigger]);
-
-  const handleOpenModal = (faqParaEditar = null) => {
-    setEditingFAQ(faqParaEditar);
-    setFeedbackMessage({ type: '', text: '' });
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    if (isSubmitting) return;
-    setIsModalOpen(false);
-    setEditingFAQ(null);
-  };
-
-  const handleSubmitFAQForm = async (formData, faqId) => {
-    setIsSubmitting(true);
-    setFeedbackMessage({ type: '', text: '' });
-    try {
-      let response;
-      if (faqId) {
-        response = await axios.put(`http://localhost:3001/api/faqs/${faqId}`, formData);
-      } else {
-        response = await axios.post('http://localhost:3001/api/faqs', formData);
-      }
-      setFeedbackMessage({ type: 'success', text: response.data.message || (faqId ? 'FAQ actualizada con éxito.' : 'FAQ creada con éxito.') });
-      setRefreshTrigger(prev => prev + 1);
-      setIsSubmitting(false);
-      return { success: true };
-    } catch (err) {
-      console.error("Error guardando FAQ:", err.response?.data || err.message);
-      const errorMessage = err.response?.data?.message || "Error al guardar la FAQ.";
-      setIsSubmitting(false);
-      return { error: true, message: errorMessage };
-    }
-  };
-
-  const handleDeleteFAQ = async (faqId, pregunta) => {
-    setFeedbackMessage({ type: '', text: '' });
-    if (window.confirm(`¿Estás seguro de que quieres eliminar la FAQ: "${pregunta}"?`)) {
-      setIsSubmitting(true);
-      try {
-        await axios.delete(`http://localhost:3001/api/faqs/${faqId}`);
-        setFeedbackMessage({ type: 'success', text: `FAQ eliminada exitosamente.`});
-        setRefreshTrigger(prev => prev + 1);
-      } catch (err) {
-        console.error("Error eliminando FAQ:", err.response?.data || err.message);
-        const errorMessage = err.response?.data?.message || "Error al eliminar la FAQ.";
-        setFeedbackMessage({ type: 'error', text: errorMessage});
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-  
-  return (
-    <>
-      <div className="content-header">
-        <div className="container-fluid">
-          <div className="row mb-2">
-            <div className="col-sm-6"><h1 className="m-0">Gestionar Preguntas Frecuentes</h1></div>
-            <div className="col-sm-6">
-              <ol className="breadcrumb float-sm-right">
-                <li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li>
-                <li className="breadcrumb-item active">Gestión de FAQs</li>
-              </ol>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <section className="content">
-        <div className="container-fluid">
-          <div className={`modal fade ${isModalOpen ? 'show d-block' : ''}`} id="faqFormModalPage" tabIndex="-1" style={{ backgroundColor: isModalOpen ? 'rgba(0,0,0,0.4)' : 'transparent' }}>
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{editingFAQ ? 'Editar FAQ' : 'Crear Nueva FAQ'}</h5>
-                  <button type="button" className="close" onClick={handleCloseModal} disabled={isSubmitting}><span aria-hidden="true">×</span></button>
-                </div>
-                <div className="modal-body">
-                  <FAQForm
-                    onSubmit={handleSubmitFAQForm}
-                    onClose={handleCloseModal}
-                    initialData={editingFAQ || {}}
-                    isSubmitting={isSubmitting}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          {isModalOpen && <div className="modal-backdrop fade show"></div>}
-
-          {feedbackMessage.text && (
-            <div className={`alert ${feedbackMessage.type === 'success' ? 'alert-success' : 'alert-danger'} alert-dismissible fade show my-3`} role="alert">
-              {feedbackMessage.text}
-              <button type="button" className="close" data-dismiss="alert" onClick={() => setFeedbackMessage({ type: '', text: '' })}><span aria-hidden="true">×</span></button>
-            </div>
-          )}
-
-          <div className="card shadow-sm">
-            <div className="card-header">
-              <h3 className="card-title">Lista de FAQs</h3>
-              <div className="card-tools">
-                <button className="btn btn-primary btn-sm" onClick={() => handleOpenModal()} disabled={isSubmitting}>
-                  <i className="fas fa-plus mr-1"></i> Crear FAQ
-                </button>
-              </div>
-            </div>
-            <div className="card-body p-0">
-              {loading && faqs.length === 0 ? (
-                 <div className="text-center p-5"><i className="fas fa-spinner fa-spin fa-2x"></i><p className="mt-2">Cargando...</p></div>
-              ) : error && faqs.length === 0 ? (
-                <div className="alert alert-danger m-3">{error}</div>
-              ) : faqs.length === 0 ? (
-                <p className="p-3 text-center text-muted">No hay FAQs creadas.</p>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-striped table-hover">
-                    <thead className="thead-light">
-                      <tr>
-                        <th>Pregunta</th>
-                        <th style={{width: '20%'}}>Categoría</th> {/* Ajustado ancho */}
-                        <th style={{width: '10%', textAlign: 'center'}}>Orden</th>
-                        <th style={{width: '120px', textAlign: 'center'}}>Acciones</th> {/* Ajustado ancho */}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {faqs.map((faq) => (
-                        <tr key={faq.id}>
-                          <td>{faq.pregunta}</td>
-                          <td>{faq.categoria || '-'}</td>
-                          <td style={{textAlign: 'center'}}>{faq.orden}</td>
-                          <td style={{textAlign: 'center'}}>
-                            <button className="btn btn-xs btn-info mr-1" title="Editar" onClick={() => handleOpenModal(faq)} disabled={isSubmitting}>
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button className="btn btn-xs btn-danger" title="Eliminar" onClick={() => handleDeleteFAQ(faq.id, faq.pregunta)} disabled={isSubmitting}>
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
 
 export default GestionFAQs;

@@ -22,7 +22,7 @@ export default function Dashboard() { // Este componente es el Layout principal 
   const modulosParaInfoBoxes = React.useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
-    { nombre: "Noticias", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/noticias", seccionApi: "Noticias" },
+    { nombre: "Contáctanos", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/contáctanos", seccionApi: "Contáctanos" },
     { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq", seccionApi: "Preguntas Frecuentes" },
     { nombre: "Educación", icono: "fas fa-book-medical", color: "bg-teal", ruta: "/admin/educacion", seccionApi: "Educación" }, // <-- INFO-BOX PARA EDUCACIÓN
     { nombre: "Llamadas al 131", icono: "fas fa-phone-volume", color: "bg-danger", seccionApi: "LlamadaEmergencia131" }, // Sin ruta, solo muestra clics
@@ -93,7 +93,7 @@ export default function Dashboard() { // Este componente es el Layout principal 
   const modulosHomeNavegablesSidebar = [
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
     { nombre: "DEAs ", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
-    { nombre: "Noticias ", icono: "fas fa-newspaper", ruta: "/admin/noticias" },
+    { nombre: "Contáctanos ", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
     { nombre: "Ver FAQs ", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
     { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" }, // <-- AÑADIDO AL SIDEBAR
   ];
