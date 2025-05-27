@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import axios from 'axios';
+import { Modal, Button, Form } from 'react-bootstrap';
+import Swal from 'sweetalert2';
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -20,7 +22,7 @@ const userIcon = new L.Icon({
   popupAnchor: [1, -34],
 });
 
-// Componente para centrar el mapa cuando la posición cambia
+// Componente para centrar el mapa
 const CenterMap = ({ position }) => {
   const map = useMap();
   useEffect(() => {
@@ -31,23 +33,34 @@ const CenterMap = ({ position }) => {
   return null;
 };
 
-// Componente para manejar clics en el mapa y pre-rellenar el formulario
-const ClickHandler = ({ setFormVisible, setFormData }) => {
+// Componente para manejar clics en el mapa
+const ClickHandler = ({ setFormData, setShowModal }) => {
   useMapEvents({
     click(e) {
       const { lat, lng } = e.latlng;
-      setFormVisible(true);
-      setFormData((prev) => ({
-        ...prev,
-        lat: lat.toFixed(6),
-        lng: lng.toFixed(6),
-      }));
+      Swal.fire({
+        title: '¿Desea sugerir un DEA en esta ubicación?',
+        text: 'Seleccione el lugar para obtener las coordenadas automáticamente.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, sugerir',
+        cancelButtonText: 'Cancelar',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setFormData((prev) => ({
+            ...prev,
+            lat: lat.toFixed(6),
+            lng: lng.toFixed(6),
+          }));
+          setShowModal(true);
+        }
+      });
     },
   });
   return null;
 };
 
-// Función para calcular la distancia entre dos coordenadas (Haversine)
+// Función para calcular la distancia (Haversine)
 const getDistance = (lat1, lon1, lat2, lon2) => {
   const toRad = (value) => (value * Math.PI) / 180;
   const R = 6371; // Radio de la Tierra en km
@@ -63,7 +76,7 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 
 const UbicacionDEA = () => {
   const [desfibriladores, setDesfibriladores] = useState([]);
-  const [formVisible, setFormVisible] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
     calle: '',
@@ -74,46 +87,56 @@ const UbicacionDEA = () => {
     solicitante: '',
     rut: '',
   });
+  const [formError, setFormError] = useState('');
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
-  const [submissionMessage, setSubmissionMessage] = useState('');
-  const formRef = useRef(null);
   const [cercanos, setCercanos] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const userMarkerRef = useRef(null);
 
+  // Cargar DEAs
   useEffect(() => {
-    axios.get('http://localhost:3001/defibriladores')
-      .then(res => {
+    axios
+      .get('http://localhost:3001/defibriladores')
+      .then((res) => {
         setDesfibriladores(res.data);
       })
-      .catch(err => {
-        console.error("Error cargando DEAs aprobados:", err);
+      .catch((err) => {
+        console.error('Error cargando DEAs aprobados:', err);
+        Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error');
       });
   }, []);
 
+  // Obtener ubicación del usuario
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userPos = [position.coords.latitude, position.coords.longitude];
           setUserLocation(userPos);
+          // El popup se manejará en el Marker
           if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
             setCenter(userPos);
           }
         },
         (error) => {
-          console.error("Error obteniendo ubicación del usuario:", error);
+          console.error('Error obteniendo ubicación del usuario:', error);
+          Swal.fire('Error', 'No se pudo obtener tu ubicación.', 'error');
         }
       );
     }
-  }, []); // Removí 'center' de las dependencias para evitar bucles no deseados
+  }, []);
 
+  // Calcular DEAs cercanos
   useEffect(() => {
-    if (formVisible && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (userLocation && desfibriladores.length > 0) {
+      setCercanos(getClosestDEA(desfibriladores, userLocation));
+    } else {
+      setCercanos([]);
     }
-  }, [formVisible]);
+  }, [userLocation, desfibriladores]);
 
   const getClosestDEA = (allDeas, currentUserLocation) => {
     if (!currentUserLocation || allDeas.length === 0) {
@@ -128,54 +151,82 @@ const UbicacionDEA = () => {
         }
         return {
           ...dea,
-          distancia: getDistance(currentUserLocation[0], currentUserLocation[1], lat, lng)
+          distancia: getDistance(currentUserLocation[0], currentUserLocation[1], lat, lng),
         };
       })
       .sort((a, b) => a.distancia - b.distancia)
       .slice(0, 10);
   };
-  
-  useEffect(() => {
-      if (userLocation && desfibriladores.length > 0) {
-          setCercanos(getClosestDEA(desfibriladores, userLocation));
-      } else {
-          setCercanos([]);
-      }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLocation, desfibriladores]);
 
-
-  const resetForm = () => {
-    setFormData({
-      nombre: '', calle: '', numero: '', comuna: '',
-      lat: '', lng: '', solicitante: '', rut: ''
-    });
-    setFormVisible(false);
+  const handleShowModal = () => {
+    setShowModal(true);
+    setFormError('');
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmissionMessage('');
-    const dataParaEnviar = { // Asegúrate que estos nombres coincidan con el backend
-        nombre: formData.nombre,
-        gl_instalacion_calle: formData.calle,
-        nr_instalacion_numero: formData.numero,
-        gl_instalacion_comuna: formData.comuna,
-        lat: formData.lat,
-        lng: formData.lng,
-        solicitante: formData.solicitante,
-        rut: formData.rut,
-    };
-    axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar)
-      .then(res => {
-        setSubmissionMessage('Solicitud enviada para validación. ¡Gracias!');
-        resetForm();
-        setTimeout(() => setSubmissionMessage(''), 5000);
-      })
-      .catch(err => {
-        const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
-        setSubmissionMessage(`Error: ${errorMsg}`);
+  const handleCloseModal = () => {
+    if (!isSubmitting) {
+      setShowModal(false);
+      setFormData({
+        nombre: '',
+        calle: '',
+        numero: '',
+        comuna: '',
+        lat: '',
+        lng: '',
+        solicitante: '',
+        rut: '',
       });
+      setFormError('');
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+
+    if (!nombre || !calle || !comuna || !lat || !lng || !solicitante || !rut) {
+      setFormError('Todos los campos obligatorios deben ser completados.');
+      return;
+    }
+
+    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) {
+      setFormError('Las coordenadas deben ser valores numéricos válidos.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const dataParaEnviar = {
+      nombre,
+      gl_instalacion_calle: calle,
+      nr_instalacion_numero: numero,
+      gl_instalacion_comuna: comuna,
+      lat,
+      lng,
+      solicitante,
+      rut,
+    };
+
+    try {
+      await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
+      Swal.fire({
+        title: 'Sugerencia aceptada',
+        text: 'Revise constantemente para saber el estado de su solicitud, también puede contactarnos en el apartado contáctanos.',
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+      });
+      handleCloseModal();
+    } catch (err) {
+      const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
+      Swal.fire('Error', errorMsg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const focusMarker = (id, lat, lng) => {
@@ -188,153 +239,241 @@ const UbicacionDEA = () => {
   const mapButtonStyle = {
     position: 'absolute',
     zIndex: 1000,
-    color: 'white',
     border: 'none',
     borderRadius: '5px',
     padding: '10px 15px',
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-    fontSize: '14px'
+    fontSize: '14px',
   };
-  
-  // Estilo para el mensaje de submission
-  const submissionMessageStyle = {
-      position: 'absolute', top: 110,
-      left: '50%', transform: 'translateX(-50%)',
-      zIndex: 1001, 
-      padding: '12px 20px', borderRadius: '5px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)', textAlign: 'center',
-      fontSize: '14px', width: 'auto', maxWidth: '90%'
-  };
-
-  // Estilo para los botones de la lista de DEAs cercanos
-  const listItemButtonStyle = {
-      cursor: 'pointer', background: '#fff', border: '1px solid #ddd',
-      padding: '10px 15px', borderRadius: '4px', width: '100%',
-      textAlign: 'left', boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      transition: 'background-color 0.2s ease, box-shadow 0.2s ease'
-  };
-
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', padding: '10px', backgroundColor: '#f0f2f5', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 20px)', boxSizing: 'border-box' }}>
-      <div style={{ flexShrink: 0, height: '50%', minHeight: '350px', position: 'relative', marginBottom: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className="container mt-4">
+      <h3 className="mb-3">Mapa de Desfibriladores</h3>
+
+      <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
         <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
-          <TileLayer url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
           <CenterMap position={center} />
-          <ClickHandler setFormVisible={setFormVisible} setFormData={setFormData} />
-          {userLocation && <Marker position={userLocation} icon={userIcon}><Popup>Estás aquí</Popup></Marker>}
+          <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
+          {userLocation && (
+            <Marker
+              position={userLocation}
+              icon={userIcon}
+              ref={(ref) => {
+                userMarkerRef.current = ref;
+                if (ref) {
+                  setTimeout(() => {
+                    ref.openPopup();
+                  }, 500);
+                }
+              }}
+            >
+              <Popup>
+                <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1>
+              </Popup>
+            </Marker>
+          )}
           {cercanos.map((d) => (
-            <Marker 
-              key={d.id} 
-              position={[parseFloat(d.lat), parseFloat(d.lng)]} 
-              icon={customIcon} 
+            <Marker
+              key={d.id}
+              position={[parseFloat(d.lat), parseFloat(d.lng)]}
+              icon={customIcon}
               ref={(ref) => (markersRef.current[d.id] = ref)}
             >
-              <Popup><b>{d.nombre}</b><br />{d.direccion}</Popup>
+              <Popup>
+                <b>{d.nombre}</b>
+                <br />
+                {d.direccion}
+              </Popup>
             </Marker>
           ))}
         </MapContainer>
 
-        <button onClick={() => { setFormVisible(!formVisible); if (formVisible) setSubmissionMessage(''); }} style={{ ...mapButtonStyle, top: 10, right: 10, background: formVisible ? '#6c757d' : '#007bff' }}>
-          {formVisible ? 'Cerrar Formulario' : 'Sugerir Nuevo DEA'}
+        <button
+          onClick={handleShowModal}
+          className="btn btn-success"
+          style={{ ...mapButtonStyle, top: 10, right: 10 }}
+        >
+          <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
         </button>
-        <button onClick={() => { if (userLocation) { setCenter([...userLocation]); } else { alert("No se ha podido obtener tu ubicación actual."); }}} style={{ ...mapButtonStyle, top: 60, right: 10, background: '#17a2b8' }}>
+        <button
+          onClick={() => {
+            if (userLocation) {
+              setCenter([...userLocation]);
+              if (userMarkerRef.current) {
+                userMarkerRef.current.openPopup();
+              }
+            } else {
+              Swal.fire('Error', 'No se ha podido obtener tu ubicación actual.', 'error');
+            }
+          }}
+          className="btn btn-info"
+          style={{ ...mapButtonStyle, top: 60, right: 10 }}
+        >
           Mi Ubicación
         </button>
-        {/* CORRECCIÓN: Aplicando el estilo definido y el condicional para color */}
-        {submissionMessage && ( 
-            <div style={{
-                ...submissionMessageStyle,
-                background: submissionMessage.startsWith('Error') ? '#f8d7da' : '#d4edda',
-                color: submissionMessage.startsWith('Error') ? '#721c24' : '#155724',
-                border: `1px solid ${submissionMessage.startsWith('Error') ? '#f5c6cb' : '#c3e6cb'}`
-            }}>
-                {submissionMessage}
-            </div>
-        )}
       </div>
 
-      {/* Esta es la línea donde estaba el error (222 o 223 según tu último mensaje) */}
-      <div style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', padding: '0px' }}>
-        {formVisible && (
-          <form ref={formRef} onSubmit={handleSubmit} style={{ padding: '20px' }}>
-            <h4 style={{ marginTop: 0, marginBottom: '20px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-              Sugerir Nuevo DEA
-            </h4>
-            {[
-              { id: 'nombreLugar', label: 'Nombre del Lugar:', type: 'text', placeholder: 'Ej: Centro Comercial XYZ', value: formData.nombre, field: 'nombre', required: true },
-            ].map(input => (
-              <div key={input.id} style={{ marginBottom: '15px' }}>
-                <label htmlFor={input.id} style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#495057'}}>{input.label}</label>
-                <input id={input.id} type={input.type} placeholder={input.placeholder} value={input.value} onChange={(e) => setFormData({ ...formData, [input.field]: e.target.value })} required={input.required} style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }} />
-              </div>
-            ))}
-            <h5 style={{marginTop: '20px', marginBottom: '10px', fontSize: '16px', color: '#343a40'}}>Dirección de Instalación:</h5>
-            {[
-              { id: 'calle', label: 'Calle:', type: 'text', placeholder: 'Ej: Av. Siempre Viva', value: formData.calle, field: 'calle', required: true },
-              { id: 'numero', label: 'Número:', type: 'text', placeholder: 'Ej: 742 (opcional si no aplica)', value: formData.numero, field: 'numero', required: false },
-              { id: 'comuna', label: 'Comuna:', type: 'text', placeholder: 'Ej: Springfield', value: formData.comuna, field: 'comuna', required: true },
-            ].map(input => (
-              <div key={input.id} style={{ marginBottom: '15px' }}>
-                <label htmlFor={input.id} style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#495057'}}>{input.label}</label>
-                <input id={input.id} type={input.type} placeholder={input.placeholder} value={input.value} onChange={(e) => setFormData({ ...formData, [input.field]: e.target.value })} required={input.required} style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }} />
-              </div>
-            ))}
-            <h5 style={{marginTop: '20px', marginBottom: '10px', fontSize: '16px', color: '#343a40'}}>Coordenadas Geográficas (Clic en mapa para auto-rellenar):</h5>
-            {[
-              { id: 'latitud', label: 'Latitud:', type: 'number', step: "any", placeholder: 'Ej: -35.123456', value: formData.lat, field: 'lat', required: true },
-              { id: 'longitud', label: 'Longitud:', type: 'number', step: "any", placeholder: 'Ej: -71.123456', value: formData.lng, field: 'lng', required: true },
-            ].map(input => (
-              <div key={input.id} style={{ marginBottom: '15px' }}>
-                <label htmlFor={input.id} style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#495057'}}>{input.label}</label>
-                <input id={input.id} type={input.type} step={input.step} placeholder={input.placeholder} value={input.value} onChange={(e) => setFormData({ ...formData, [input.field]: e.target.value })} required={input.required} style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }} />
-              </div>
-            ))}
-            <h5 style={{marginTop: '20px', marginBottom: '10px', fontSize: '16px', color: '#343a40'}}>Información del Solicitante:</h5>
-            {[
-              { id: 'solicitante', label: 'Nombre del Solicitante:', type: 'text', placeholder: 'Nombre completo', value: formData.solicitante, field: 'solicitante', required: true },
-              { id: 'rut', label: 'RUT del Solicitante:', type: 'text', placeholder: 'Ej: 12345678-9', value: formData.rut, field: 'rut', required: true },
-            ].map(input => (
-              <div key={input.id} style={{ marginBottom: input.id === 'rut' ? '25px' : '15px' }}>
-                <label htmlFor={input.id} style={{display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#495057'}}>{input.label}</label>
-                <input id={input.id} type={input.type} placeholder={input.placeholder} value={input.value} onChange={(e) => setFormData({ ...formData, [input.field]: e.target.value })} required={input.required} style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px' }} />
-              </div>
-            ))}
-            <button type="submit" style={{ width: '100%', background: '#28a745', color: 'white', padding: '12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-              Enviar Solicitud
-            </button>
-          </form>
-        )}
-
-        {!formVisible && (
-          <div style={{padding: '20px'}}>
-            <h3 style={{ marginTop: '0', marginBottom: '15px', color: '#333', borderBottom: '2px solid #007bff', paddingBottom: '5px' }}>
-              10 Desfibriladores Activos más Cercanos
-            </h3>
-            {cercanos.length > 0 ? (
-              <ul style={{ listStyle: 'none', padding: 0 }}>
-                {cercanos.map((d) => (
-                  <li key={d.id} style={{ marginBottom: '10px' }}>
-                    {/* CORRECCIÓN: Aplicando el estilo definido */}
-                    <button
-                      onClick={() => focusMarker(d.id, d.lat, d.lng)}
-                      style={listItemButtonStyle}
-                      onMouseOver={e => { e.currentTarget.style.backgroundColor = '#e9ecef'; e.currentTarget.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';}}
-                      onMouseOut={e => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';}}
-                    >
-                      <strong style={{ color: '#007bff' }}>{d.nombre}</strong> - {d.direccion ? d.direccion : "Dirección no disponible"}
-                      <span style={{ float: 'right', color: '#6c757d', fontSize: '13px' }}>
-                        {typeof d.distancia === 'number' && !isNaN(d.distancia) ? `(${d.distancia.toFixed(2)} km)` : "(Dist. no disp.)"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : ( userLocation ? <p style={{color: '#6c757d'}}>No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.</p> : <p style={{color: '#6c757d'}}>Obteniendo tu ubicación para mostrar DEAs cercanos...</p> )}
-          </div>
-        )}
+      <div className="card shadow-sm">
+        <div className="card-header">
+          <h3 className="card-title">10 Desfibriladores Activos más Cercanos</h3>
+        </div>
+        <div className="card-body">
+          {cercanos.length > 0 ? (
+            <ul className="list-group">
+              {cercanos.map((d) => (
+                <li key={d.id} className="list-group-item">
+                  <button
+                    onClick={() => focusMarker(d.id, d.lat, d.lng)}
+                    className="btn btn-link p-0 text-left w-100"
+                    style={{ color: '#007bff', textDecoration: 'none' }}
+                  >
+                    <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
+                    <span className="float-right text-muted">
+                      {typeof d.distancia === 'number' && !isNaN(d.distancia)
+                        ? `(${d.distancia.toFixed(2)} km)`
+                        : '(Dist. no disp.)'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : userLocation ? (
+            <p className="text-muted">
+              No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
+            </p>
+          ) : (
+            <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
+          )}
+        </div>
       </div>
+
+      <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Sugerir Nuevo DEA</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+            {formError && (
+              <div className="alert alert-danger p-2 mb-3" role="alert">
+                {formError}
+              </div>
+            )}
+            <Form.Group controlId="formNombre" className="mb-3">
+              <Form.Label>Nombre del Lugar</Form.Label>
+              <Form.Control
+                type="text"
+                name="nombre"
+                value={formData.nombre}
+                onChange={handleChange}
+                placeholder="Ej: Centro Comercial XYZ"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <h5 className="mt-4 mb-3">Dirección de Instalación</h5>
+            <Form.Group controlId="formCalle" className="mb-3">
+              <Form.Label>Calle</Form.Label>
+              <Form.Control
+                type="text"
+                name="calle"
+                value={formData.calle}
+                onChange={handleChange}
+                placeholder="Ej: Av. Siempre Viva"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <Form.Group controlId="formNumero" className="mb-3">
+              <Form.Label>Número</Form.Label>
+              <Form.Control
+                type="text"
+                name="numero"
+                value={formData.numero}
+                onChange={handleChange}
+                placeholder="Ej: 742 (opcional si no aplica)"
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <Form.Group controlId="formComuna" className="mb-3">
+              <Form.Label>Comuna</Form.Label>
+              <Form.Control
+                type="text"
+                name="comuna"
+                value={formData.comuna}
+                onChange={handleChange}
+                placeholder="Ej: Springfield"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <h5 className="mt-4 mb-3">Coordenadas Geográficas (Clic en mapa para auto-rellenar)</h5>
+            <Form.Group controlId="formLatitud" className="mb-3">
+              <Form.Label>Latitud</Form.Label>
+              <Form.Control
+                type="number"
+                step="any"
+                name="lat"
+                value={formData.lat}
+                onChange={handleChange}
+                placeholder="Ej: -35.123456"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <Form.Group controlId="formLongitud" className="mb-3">
+              <Form.Label>Longitud</Form.Label>
+              <Form.Control
+                type="number"
+                step="any"
+                name="lng"
+                value={formData.lng}
+                onChange={handleChange}
+                placeholder="Ej: -71.123456"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <h5 className="mt-4 mb-3">Información del Solicitante</h5>
+            <Form.Group controlId="formSolicitante" className="mb-3">
+              <Form.Label>Nombre del Solicitante</Form.Label>
+              <Form.Control
+                type="text"
+                name="solicitante"
+                value={formData.solicitante}
+                onChange={handleChange}
+                placeholder="Nombre completo"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+            <Form.Group controlId="formRut" className="mb-3">
+              <Form.Label>RUT del Solicitante</Form.Label>
+              <Form.Control
+                type="text"
+                name="rut"
+                value={formData.rut}
+                onChange={handleChange}
+                placeholder="Ej: 12345678-9"
+                required
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
     </div>
   );
 };

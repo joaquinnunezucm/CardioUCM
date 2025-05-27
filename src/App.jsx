@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 
@@ -19,6 +18,7 @@ import ValidacionDeas from './pages/ValidacionDeas';
 import ControlUsuarios from './pages/ControlUsuarios';
 import GestionFAQs from './pages/GestionFAQs.jsx';
 import GestionEducacion from './pages/GestionEducacion';
+import GestionRCP from './pages/GestionRCP'; // Nueva importación para GestionRCP
 
 // --- Componente Wrapper para Contenido Interno de Páginas de Admin ---
 // Este wrapper añade el content-header (título, breadcrumbs) y la section.content
@@ -55,8 +55,6 @@ const DEAsAdminView = () => <AdminPageContentWrapper title="Ubicación DEAs" bre
 const ContáctanosAdminView = () => <AdminPageContentWrapper title="Contáctanos (Admin)" breadcrumbCurrent="Contáctanos"><Contáctanos_Public /></AdminPageContentWrapper>;
 const FAQAdminView = () => <AdminPageContentWrapper title="Ver FAQs Públicas (Admin)" breadcrumbCurrent="FAQ (Vista)"><FAQ_Public /></AdminPageContentWrapper>;
 
-
-
 // --- Componente ProtectedRouteWithRole (para proteger rutas basado en roles) ---
 const ProtectedRouteWithRole = ({ allowedRoles, children }) => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
@@ -77,7 +75,6 @@ const ProtectedRouteWithRole = ({ allowedRoles, children }) => {
   return <Navigate to="/admin" state={{ message: "No tiene los permisos necesarios para acceder a esta sección específica." }} replace />;
 };
 
-
 function AppContent() {
   const rolesAdminYSuper = ['administrador', 'superadministrador'];
   const rolesSoloSuper = ['superadministrador'];
@@ -94,7 +91,7 @@ function AppContent() {
       <Route path="/contáctanos" element={<Contáctanos_Public />} />
       <Route path="/faq" element={<FAQ_Public />} />
 
-            {/* --- Rutas de Administración --- */}
+      {/* --- Rutas de Administración --- */}
       <Route
         path="/admin"
         element={
@@ -115,9 +112,8 @@ function AppContent() {
         <Route path="validacion-deas" element={<ValidacionDeas />} />
         <Route path="reportes" element={<ReportesAdmin />} />
         <Route path="gestion-faq" element={<GestionFAQs />} />
-        
-        {/* ---->>>> AQUÍ VA LA RUTA CORREGIDA <<<<---- */}
         <Route path="gestion-educacion" element={<GestionEducacion />} />
+        <Route path="gestion-rcp" element={<GestionRCP />} /> {/* Nueva ruta para GestionRCP */}
         
         <Route
           path="control-usuarios"

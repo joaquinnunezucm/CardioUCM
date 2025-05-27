@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, Outlet } from 'react-router-dom';
 import axios from 'axios';
@@ -24,10 +23,9 @@ export default function Dashboard() { // Este componente es el Layout principal 
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
     { nombre: "Contáctanos", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/contáctanos", seccionApi: "Contáctanos" },
     { nombre: "Preguntas Frecuentes", icono: "fas fa-question-circle", color: "bg-secondary", ruta: "/admin/faq", seccionApi: "Preguntas Frecuentes" },
-    { nombre: "Educación", icono: "fas fa-book-medical", color: "bg-teal", ruta: "/admin/educacion", seccionApi: "Educación" }, // <-- INFO-BOX PARA EDUCACIÓN
+    { nombre: "Educación", icono: "fas fa-book-medical", color: "bg-teal", ruta: "/admin/educacion", seccionApi: "Educación" },
     { nombre: "Llamadas al 131", icono: "fas fa-phone-volume", color: "bg-danger", seccionApi: "LlamadaEmergencia131" }, // Sin ruta, solo muestra clics
   ], []); // Array de dependencias vacío porque los datos son estáticos aquí
-
 
   const fetchEstadisticasSistema = useCallback(async () => {
     console.log("Dashboard (Layout): Fetching Estadisticas Sistema...");
@@ -87,15 +85,14 @@ export default function Dashboard() { // Este componente es el Layout principal 
   }, [fetchClicksPorSeccion, fetchEstadisticasSistema]); // Estas dependencias son estables, se ejecuta 1 vez
   // --- FIN DE ESTADO Y LÓGICA DE DATOS DEL DASHBOARD ---
 
-
   // --- Módulos para el Sidebar ---
   // Lista de módulos para la sección "ADMINISTRACIÓN DE CONTENIDO" del sidebar
   const modulosHomeNavegablesSidebar = [
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
-    { nombre: "DEAs ", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
-    { nombre: "Contáctanos ", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
-    { nombre: "Ver FAQs ", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
-    { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" }, // <-- AÑADIDO AL SIDEBAR
+    { nombre: "DEAs", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
+    { nombre: "Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
+    { nombre: "Ver FAQs", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
+    { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" },
   ];
 
   // Estado para los módulos del sidebar de "ADMINISTRACIÓN" (sección inferior)
@@ -106,9 +103,10 @@ export default function Dashboard() { // Este componente es el Layout principal 
     console.log("Dashboard (Layout): Updating admin-specific sidebar modules for user role:", user?.rol);
     let baseAdminItems = [
       { nombre: "Validación DEA", icono: "fas fa-check-circle", ruta: "/admin/validacion-deas" },
-      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" }, // Para el CRUD de FAQs
+      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" },
+      { nombre: "Gestionar Educación", icono: "fas fa-graduation-cap", ruta: "/admin/gestion-educacion" },
+      { nombre: "Gestionar RCP", icono: "fas fa-heartbeat", ruta: "/admin/gestion-rcp" }, // Nueva entrada para Gestión RCP
       { nombre: "Reportes", icono: "fas fa-chart-bar", ruta: "/admin/reportes" },
-      { nombre: "Gestionar Educación", icono: "fas fa-graduation-cap", ruta: "/admin/gestion-educacion" }, // <--- NUEVO
     ];
     if (user && user.rol === 'superadministrador') {
       baseAdminItems.push({
@@ -117,7 +115,8 @@ export default function Dashboard() { // Este componente es el Layout principal 
         ruta: "/admin/control-usuarios"
       });
     }
-    // Puedes ordenar 'baseAdminItems' aquí si es necesario antes de setear el estado
+    // Ordenar alfabéticamente para consistencia (opcional)
+    baseAdminItems.sort((a, b) => a.nombre.localeCompare(b.nombre));
     setModulosAdminDinamicosSidebar(baseAdminItems);
   }, [user]); // Depende de 'user' para reconstruir esta parte del sidebar si el rol cambia
 
@@ -149,11 +148,11 @@ export default function Dashboard() { // Este componente es el Layout principal 
         <div className="sidebar">
           <nav className="mt-2">
             <ul className="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-               <li className="nav-item"> {/* Enlace directo al contenido del Dashboard (ruta index) */}
-                  <Link to="/admin" className="nav-link">
-                      <i className="nav-icon fas fa-tachometer-alt"></i>
-                      <p>Dashboard</p>
-                  </Link>
+              <li className="nav-item"> {/* Enlace directo al contenido del Dashboard (ruta index) */}
+                <Link to="/admin" className="nav-link">
+                  <i className="nav-icon fas fa-tachometer-alt"></i>
+                  <p>Dashboard</p>
+                </Link>
               </li>
               <li className="nav-header">ADMINISTRACIÓN DE CONTENIDO</li>
               {modulosHomeNavegablesSidebar.map((modulo) => ( // Usa la lista actualizada

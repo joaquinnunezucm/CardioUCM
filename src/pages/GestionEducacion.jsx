@@ -1,385 +1,423 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
-import Swal from 'sweetalert2';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
+import { Modal, Button, Form } from 'react-bootstrap';
+import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext.jsx';
 
-// --- Componente Principal GestionEducacion ---
-function GestionEducacion() {
-  const [items, setItems] = useState([]);
+const GestionEducacion = () => {
+  const [contenidos, setContenidos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const tableRef = useRef();
-  const dataTableRef = useRef(null);
+  const [tableInitialized, setTableInitialized] = useState(false);
+  const tableRef = useRef(null);
+
+  const [showModal, setShowModal] = useState(false);
+  const [currentContenido, setCurrentContenido] = useState(null);
+  const [formData, setFormData] = useState({
+    categoria_id: '',
+    categoria_nombre: '',
+    titulo_tema: '',
+    contenido_tema: '',
+    orden_categoria: 0,
+    orden_item: 0,
+    activo: true,
+    medios: [], // Arreglo para múltiples archivos
+    paso_asociado: '', // Para asociar medios a un paso
+  });
 
   const { token } = useAuth();
 
-  // Función para obtener los encabezados de autorización
-  const getAuthHeaders = useCallback(() => {
-    if (!token) {
-      console.error("GestionEducacion: Token no disponible para la solicitud.");
-      return {};
-    }
-    return {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    };
-  }, [token]);
+  const getAuthHeaders = () => ({
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'multipart/form-data',
+    },
+  });
 
-  // Destruir DataTable antes de actualizar
-  const destroyDataTable = () => {
-    if (dataTableRef.current) {
-      try {
-        dataTableRef.current.destroy();
-        dataTableRef.current = null;
-      } catch (err) {
-        console.log("DataTable ya destruida");
-      }
-    }
-  };
-
-  // Inicializar DataTable
-  const initializeDataTable = () => {
-    if (tableRef.current && items.length > 0) {
-      destroyDataTable();
-      
-      dataTableRef.current = $(tableRef.current).DataTable({
-        destroy: true,
-        responsive: true,
-        language: {
-          search: "Buscar:",
-          lengthMenu: "Mostrar _MENU_ registros",
-          info: "Mostrando _START_ a _END_ de _TOTAL_ contenidos",
-          paginate: { previous: "Anterior", next: "Siguiente" },
-          zeroRecords: "No se encontraron contenidos",
-          emptyTable: "No hay contenido educativo disponible"
-        },
-        order: [[2, 'asc'], [3, 'asc']], // Ordenar por orden_categoria y orden_item
-        columnDefs: [
-          { orderable: false, targets: [5] } // Deshabilitar orden en columna de acciones
-        ]
-      });
-    }
-  };
-
-  const fetchItems = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    
-    if (!token) {
-      setError("No autenticado. No se puede cargar el contenido.");
-      setLoading(false);
-      setItems([]);
-      return;
-    }
-    
+  const fetchContenidos = async () => {
     try {
+      setLoading(true);
+      if ($.fn.dataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
+        setTableInitialized(false);
+      }
+      if (!token) {
+        console.error("No hay token disponible");
+        return;
+      }
       const response = await axios.get('http://localhost:3001/api/admin/educacion', getAuthHeaders());
-      setItems(response.data);
-      setError('');
-    } catch (err) {
-      console.error("Error fetching educacion items:", err);
-      const errorMessage = err.response?.data?.message || err.message || 'Error al cargar el contenido educativo.';
-      setError(errorMessage);
-      setItems([]);
+      setContenidos(response.data);
+    } catch (error) {
+      console.error('Error al obtener contenidos educativos:', error);
+      Swal.fire('Error', 'No se pudieron cargar los contenidos educativos.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders, token]);
-
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-
-  // Inicializar DataTable después de cargar datos
-  useEffect(() => {
-    if (!loading) {
-      setTimeout(() => {
-        initializeDataTable();
-      }, 100);
-    }
-
-    return () => {
-      destroyDataTable();
-    };
-  }, [items, loading]);
-
-  // Crear o Editar contenido educativo con SweetAlert2
-  const handleCreateOrEdit = (item = null) => {
-    Swal.fire({
-      title: item ? 'Editar Contenido Educativo' : 'Crear Nuevo Contenido',
-      html: `
-        <div style="display: flex; flex-direction: column; gap: 15px; max-width: 900px; margin: auto;">
-          <div style="display: flex; gap: 15px;">
-            <input id="swal-input-categoria-id" class="swal2-input" placeholder="ID Categoría (ej: conceptos-clave)" value="${item?.categoria_id || ''}" style="flex: 1;">
-            <input id="swal-input-categoria-nombre" class="swal2-input" placeholder="Nombre Categoría (ej: Conceptos Clave)" value="${item?.categoria_nombre || ''}" style="flex: 1;">
-          </div>
-          <input id="swal-input-titulo" class="swal2-input" placeholder="Título del Tema" value="${item?.titulo_tema || ''}" style="width: 100%;">
-          <textarea id="swal-input-contenido" class="swal2-textarea" placeholder="Contenido del Tema (puede incluir HTML)" rows="6" style="width: 100%;">${item?.contenido_tema || ''}</textarea>
-          <div style="display: flex; gap: 15px; align-items: center;">
-            <input id="swal-input-orden-categoria" class="swal2-input" placeholder="Orden Categoría" type="number" value="${item?.orden_categoria || 0}" style="flex: 1;">
-            <input id="swal-input-orden-item" class="swal2-input" placeholder="Orden Ítem" type="number" value="${item?.orden_item || 0}" style="flex: 1;">
-            <label style="display: flex; align-items: center; gap: 5px; flex: 1;">
-              <input id="swal-input-activo" type="checkbox" ${item?.activo !== false ? 'checked' : ''}>
-              <span>Activo</span>
-            </label>
-          </div>
-        </div>
-      `,
-      customClass: {
-        popup: 'swal-wide'
-      },
-      width: '1000px',
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: item ? 'Actualizar' : 'Crear',
-      cancelButtonText: 'Cancelar',
-      preConfirm: () => {
-        const categoria_id = document.getElementById('swal-input-categoria-id').value.trim();
-        const categoria_nombre = document.getElementById('swal-input-categoria-nombre').value.trim();
-        const titulo_tema = document.getElementById('swal-input-titulo').value.trim();
-        const contenido_tema = document.getElementById('swal-input-contenido').value.trim();
-        const orden_categoria = parseInt(document.getElementById('swal-input-orden-categoria').value.trim());
-        const orden_item = parseInt(document.getElementById('swal-input-orden-item').value.trim());
-        const activo = document.getElementById('swal-input-activo').checked;
-
-        if (!categoria_id || !categoria_nombre || !titulo_tema || !contenido_tema) {
-          Swal.showValidationMessage('ID Categoría, Nombre Categoría, Título y Contenido son obligatorios');
-          return false;
-        }
-
-        if (isNaN(orden_categoria) || isNaN(orden_item)) {
-          Swal.showValidationMessage('Los campos de orden deben ser números válidos');
-          return false;
-        }
-
-        return { 
-          categoria_id, 
-          categoria_nombre, 
-          titulo_tema, 
-          contenido_tema, 
-          orden_categoria: Number(orden_categoria), 
-          orden_item: Number(orden_item), 
-          activo 
-        };
-      }
-    }).then(async (result) => {
-      if (result.isConfirmed && result.value) {
-        await handleSaveItem(item, result.value);
-      }
-    });
   };
 
-  // Función separada para guardar contenido educativo
-  const handleSaveItem = async (item, data) => {
+  useEffect(() => {
+    if (token) fetchContenidos();
+  }, [token]);
+
+  useEffect(() => {
+    if (!loading && contenidos.length > 0 && !tableInitialized) {
+      $(tableRef.current).DataTable({
+        language: {
+          search: 'Buscar:',
+          lengthMenu: 'Mostrar _MENU_ registros',
+          info: 'Mostrando _START_ a _END_ de _TOTAL_ contenidos',
+          paginate: { previous: 'Anterior', next: 'Siguiente' },
+          zeroRecords: 'No se encontraron contenidos educativos',
+        },
+        order: [[1, 'asc'], [3, 'asc']],
+        columnDefs: [{ orderable: false, targets: [5] }],
+      });
+      setTableInitialized(true);
+    }
+  }, [loading, contenidos, tableInitialized]);
+
+  const handleShowModal = (contenido = null) => {
+    if (contenido) {
+      setCurrentContenido(contenido);
+      setFormData({
+        categoria_id: contenido.categoria_id,
+        categoria_nombre: contenido.categoria_nombre,
+        titulo_tema: contenido.titulo_tema,
+        contenido_tema: contenido.contenido_tema,
+        orden_categoria: contenido.orden_categoria,
+        orden_item: contenido.orden_item,
+        activo: contenido.activo,
+        medios: [], // Reiniciar medios al editar
+        paso_asociado: '', // Reiniciar paso asociado
+      });
+    } else {
+      setCurrentContenido(null);
+      setFormData({
+        categoria_id: '',
+        categoria_nombre: '',
+        titulo_tema: '',
+        contenido_tema: '',
+        orden_categoria: 0,
+        orden_item: 0,
+        activo: true,
+        medios: [],
+        paso_asociado: '',
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => setShowModal(false);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked, files } = e.target;
+    if (name === 'medios') {
+      const fileArray = Array.from(files);
+      setFormData((prev) => ({ ...prev, medios: fileArray }));
+    } else if (name === 'paso_asociado') {
+      setFormData((prev) => ({ ...prev, paso_asociado: value }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : (name === 'orden_categoria' || name === 'orden_item') ? parseInt(value) : value,
+      }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const { categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item } = formData;
+
+    if (!categoria_id.trim() || !categoria_nombre.trim() || !titulo_tema.trim() || !contenido_tema.trim()) {
+      Swal.fire('Campos incompletos', 'Todos los campos excepto los de orden son obligatorios.', 'warning');
+      return;
+    }
+    if (isNaN(orden_categoria) || isNaN(orden_item)) {
+      Swal.fire('Error de validación', 'Los campos de orden deben ser números válidos.', 'warning');
+      return;
+    }
     if (!token) {
       Swal.fire('Error', 'No autenticado. No se puede guardar.', 'error');
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      
-      const url = item 
-        ? `http://localhost:3001/api/admin/educacion/${item.id}` 
-        : 'http://localhost:3001/api/admin/educacion';
-      
-      const method = item ? 'put' : 'post';
-      const response = await axios[method](url, data, getAuthHeaders());
-
-      // Actualizar el estado de items de forma inmutable
-      if (item) {
-        // Editar item existente
-        setItems(prevItems => 
-          prevItems.map(prevItem => 
-            prevItem.id === item.id ? { ...response.data } : prevItem
-          )
-        );
-      } else {
-        // Crear nuevo item
-        setItems(prevItems => [...prevItems, response.data]);
-      }
-
-      Swal.fire({
-        icon: 'success',
-        title: item ? '¡Contenido actualizado correctamente!' : '¡Contenido creado correctamente!',
-        showConfirmButton: false,
-        timer: 1500
+    const formDataToSend = new FormData();
+    formDataToSend.append('categoria_id', categoria_id);
+    formDataToSend.append('categoria_nombre', categoria_nombre);
+    formDataToSend.append('titulo_tema', titulo_tema);
+    formDataToSend.append('contenido_tema', contenido_tema);
+    formDataToSend.append('orden_categoria', orden_categoria);
+    formDataToSend.append('orden_item', orden_item);
+    formDataToSend.append('activo', formData.activo);
+    formDataToSend.append('paso_asociado', formData.paso_asociado);
+    if (formData.medios.length > 0) {
+      formData.medios.forEach((file) => {
+        formDataToSend.append('medios', file);
       });
+    }
 
-    } catch (err) {
-      console.error("Error al guardar contenido educativo:", err);
-      const errorMessage = err.response?.data?.message || "Error al guardar el contenido.";
+    try {
+      if (currentContenido) {
+        await axios.put(`http://localhost:3001/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
+        Swal.fire('Actualizado', 'El contenido educativo fue actualizado correctamente.', 'success');
+      } else {
+        await axios.post('http://localhost:3001/api/admin/educacion', formDataToSend, getAuthHeaders());
+        Swal.fire('Creado', 'El contenido educativo fue creado exitosamente.', 'success');
+      }
+      fetchContenidos();
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error al guardar contenido educativo:', error);
+      const errorMessage = error.response?.data?.message || 'No se pudo guardar el contenido educativo.';
       Swal.fire('Error', errorMessage, 'error');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  // Eliminar contenido educativo con confirmación
-  const handleDeleteItem = (itemId, tituloTema) => {
+  const handleDeleteContenido = async (id, titulo) => {
     if (!token) {
       Swal.fire('Error', 'No autenticado. No se puede eliminar.', 'error');
       return;
     }
-
     Swal.fire({
-      title: '¿Eliminar Contenido?',
-      text: `"${tituloTema}" se eliminará permanentemente.`,
+      title: '¿Estás seguro?',
+      text: `"${titulo}" se eliminará permanentemente.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      cancelButtonText: 'Cancelar',
     }).then(async (result) => {
       if (result.isConfirmed) {
-        await handleConfirmDelete(itemId, tituloTema);
+        try {
+          await axios.delete(`http://localhost:3001/api/admin/educacion/${id}`, getAuthHeaders());
+          Swal.fire('Eliminado', 'El contenido educativo fue eliminado correctamente.', 'success');
+          fetchContenidos();
+        } catch (error) {
+          console.error('Error al eliminar contenido educativo:', error);
+          const errorMessage = error.response?.data?.message || 'No se pudo eliminar el contenido educativo.';
+          Swal.fire('Error', errorMessage, 'error');
+        }
       }
     });
   };
 
-  // Función separada para confirmar eliminación
-  const handleConfirmDelete = async (itemId, tituloTema) => {
-    try {
-      setIsSubmitting(true);
-      
-      await axios.delete(`http://localhost:3001/api/admin/educacion/${itemId}`, getAuthHeaders());
-      
-      // Actualizar el estado de items de forma inmutable
-      setItems(prevItems => prevItems.filter(item => item.id !== itemId));
-
-      Swal.fire({
-        icon: 'success',
-        title: '¡Contenido eliminado correctamente!',
-        text: `"${tituloTema}" ha sido eliminado.`,
-        showConfirmButton: false,
-        timer: 1500
-      });
-
-    } catch (err) {
-      console.error("Error eliminando contenido:", err);
-      const errorMessage = err.response?.data?.message || "Error al eliminar el contenido.";
-      Swal.fire('Error', errorMessage, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) {
+  if (!token) {
     return (
-      <div className="content-header">
-        <div className="container-fluid">
-          <div className="text-center p-5">
-            <i className="fas fa-spinner fa-spin fa-2x text-primary"></i>
-            <p className="mt-2">Cargando contenido...</p>
-          </div>
+      <div className="container mt-4">
+        <div className="alert alert-warning">
+          <h4>Acceso Restringido</h4>
+          <p>Debe estar autenticado para acceder a esta sección.</p>
         </div>
       </div>
     );
   }
 
-  // Renderizado JSX del componente principal
   return (
-    <>
-      <div className="content-header">
-        <div className="container-fluid">
-          <div className="row mb-2">
-            <div className="col-sm-6"><h1 className="m-0">Gestionar Educación</h1></div>
-            <div className="col-sm-6">
-              <ol className="breadcrumb float-sm-right">
-                <li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li>
-                <li className="breadcrumb-item active">Contenido Educativo</li>
-              </ol>
-            </div>
-          </div>
-        </div>
+    <div className="container mt-4">
+      <h3 className="mb-3">Gestión de Contenido Educativo</h3>
+
+      <div className="mb-3 text-right">
+        <button className="btn btn-success" onClick={() => handleShowModal()}>
+          <i className="fas fa-plus"></i> Nuevo Contenido
+        </button>
       </div>
 
-      <section className="content">
-        <div className="container-fluid">
-          <div className="card shadow-sm">
-            <div className="card-header">
-              <div className="card-tools">
-                <button 
-                  className="btn btn-primary btn-sm" 
-                  onClick={() => handleCreateOrEdit()} 
-                  disabled={isSubmitting || !token}
-                >
-                  <i className="fas fa-plus mr-1"></i> Crear Contenido
-                </button>
+      {loading ? (
+        <div className="text-center p-5">
+          <i className="fas fa-spinner fa-spin fa-2x text-primary"></i>
+          <p className="mt-2">Cargando contenidos...</p>
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table ref={tableRef} className="table table-bordered table-hover">
+            <thead className="thead-light">
+              <tr>
+                <th>Título del Tema</th>
+                <th>Categoría</th>
+                <th style={{ width: '10%', textAlign: 'center' }}>Orden Cat.</th>
+                <th style={{ width: '10%', textAlign: 'center' }}>Orden Item</th>
+                <th style={{ width: '8%', textAlign: 'center' }}>Activo</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contenidos.map((contenido) => (
+                <tr key={contenido.id}>
+                  <td>{contenido.titulo_tema}</td>
+                  <td>
+                    {contenido.categoria_nombre}
+                    <br />
+                    <small className="text-muted">({contenido.categoria_id})</small>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{contenido.orden_categoria}</td>
+                  <td style={{ textAlign: 'center' }}>{contenido.orden_item}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {contenido.activo ? <span className="badge badge-success">Sí</span> : <span className="badge badge-secondary">No</span>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button className="btn btn-sm btn-info mr-1" onClick={() => handleShowModal(contenido)}>
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteContenido(contenido.id, contenido.titulo_tema)}>
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal show={showModal} onHide={handleCloseModal} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>{currentContenido ? 'Editar Contenido Educativo' : 'Crear Contenido Educativo'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="row">
+              <div className="col-md-6">
+                <Form.Group controlId="formCategoriaId">
+                  <Form.Label>ID Categoría</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="categoria_id"
+                    value={formData.categoria_id}
+                    onChange={handleChange}
+                    placeholder="ej: rcp-info"
+                    required
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-6">
+                <Form.Group controlId="formCategoriaNombre">
+                  <Form.Label>Nombre Categoría</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="categoria_nombre"
+                    value={formData.categoria_nombre}
+                    onChange={handleChange}
+                    placeholder="ej: Reanimación Cardiopulmonar (RCP)"
+                    required
+                  />
+                </Form.Group>
               </div>
             </div>
-            <div className="card-body p-0">
-              {error ? (
-                <div className="alert alert-danger m-3">{error}</div>
-              ) : items.length === 0 ? (
-                <p className="p-3 text-center text-muted">No hay contenido educativo creado. ¡Crea el primero!</p>
-              ) : (
-                <div className="table-responsive">
-                  <table ref={tableRef} className="table table-striped table-hover">
-                    <thead className="thead-light">
-                      <tr>
-                        <th>Título del Tema</th>
-                        <th>Categoría</th>
-                        <th style={{textAlign: 'center'}}>Orden Categoría</th>
-                        <th style={{textAlign: 'center'}}>Orden Ítem</th>
-                        <th style={{textAlign: 'center'}}>Activo</th>
-                        <th style={{width: '120px', textAlign: 'center'}}>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.titulo_tema}</td>
-                          <td>
-                            {item.categoria_nombre}
-                            <br />
-                            <small className="text-muted">({item.categoria_id})</small>
-                          </td>
-                          <td style={{textAlign: 'center'}}>{item.orden_categoria}</td>
-                          <td style={{textAlign: 'center'}}>{item.orden_item}</td>
-                          <td style={{textAlign: 'center'}}>
-                            {item.activo ? 
-                              <span className="badge badge-success">Sí</span> : 
-                              <span className="badge badge-secondary">No</span>
-                            }
-                          </td>
-                          <td style={{textAlign: 'center'}}>
-                            <button 
-                              className="btn btn-xs btn-info mr-1" 
-                              title="Editar" 
-                              onClick={() => handleCreateOrEdit(item)} 
-                              disabled={isSubmitting}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button 
-                              className="btn btn-xs btn-danger" 
-                              title="Eliminar" 
-                              onClick={() => handleDeleteItem(item.id, item.titulo_tema)} 
-                              disabled={isSubmitting}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+
+            <Form.Group controlId="formTituloTema">
+              <Form.Label>Título del Tema</Form.Label>
+              <Form.Control
+                type="text"
+                name="titulo_tema"
+                value={formData.titulo_tema}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group controlId="formContenidoTema">
+              <Form.Label>Contenido del Tema</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={6}
+                name="contenido_tema"
+                value={formData.contenido_tema}
+                onChange={handleChange}
+                placeholder="Puede incluir HTML"
+                required
+              />
+            </Form.Group>
+
+            <div className="row">
+              <div className="col-md-4">
+                <Form.Group controlId="formOrdenCategoria">
+                  <Form.Label>Orden Categoría</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="orden_categoria"
+                    value={formData.orden_categoria}
+                    onChange={handleChange}
+                    required
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-4">
+                <Form.Group controlId="formOrdenItem">
+                  <Form.Label>Orden Ítem</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="orden_item"
+                    value={formData.orden_item}
+                    onChange={handleChange}
+                    required
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-4">
+                <Form.Group controlId="formActivo">
+                  <Form.Label> </Form.Label>
+                  <div>
+                    <Form.Check
+                      type="checkbox"
+                      name="activo"
+                      checked={formData.activo}
+                      onChange={handleChange}
+                      label="Contenido Activo"
+                    />
+                  </div>
+                </Form.Group>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-    </>
+
+            {/* Subidor de Archivos Múltiples */}
+            <Form.Group controlId="formMedios">
+              <Form.Label>Subir Imágenes o Video (máximo 10 archivos)</Form.Label>
+              <Form.Control
+                type="file"
+                name="medios"
+                accept="image/jpeg,image/png,image/gif,video/mp4,video/mov"
+                onChange={handleChange}
+                multiple
+              />
+              <Form.Text className="text-muted">
+                Selecciona múltiples archivos (imágenes o video). Asocia a un paso si aplica.
+              </Form.Text>
+            </Form.Group>
+
+            <Form.Group controlId="formPasoAsociado">
+              <Form.Label>Paso Asociado (opcional)</Form.Label>
+              <Form.Control
+                as="select"
+                name="paso_asociado"
+                value={formData.paso_asociado}
+                onChange={handleChange}
+              >
+                <option value="">Ninguno</option>
+                <option value="Asegura la escena">Asegura la escena</option>
+                <option value="Evalúa respuesta">Evalúa respuesta</option>
+                <option value="Pide ayuda y llama al 131. Pide un DEA">Pide ayuda y llama al 131. Pide un DEA</option>
+                <option value="Inicia compresiones torácicas">Inicia compresiones torácicas</option>
+                <option value="Si estás entrenado, realiza 30 compresiones y 2 ventilaciones">30 compresiones y 2 ventilaciones</option>
+                <option value="Continúa hasta que llegue ayuda">Continúa hasta que llegue ayuda</option>
+              </Form.Control>
+              <Form.Text className="text-muted">
+                Selecciona el paso al que asociar las imágenes o video.
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit">
+              {currentContenido ? 'Actualizar' : 'Crear'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+    </div>
   );
-}
+};
 
 export default GestionEducacion;

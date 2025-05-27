@@ -1,12 +1,14 @@
-// backend/index.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const db = require('./db');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken'); // Importar jsonwebtoken
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-dotenv.config(); // Cargar variables de entorno (importante para JWT_SECRET)
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,13 +16,45 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Configurar carpeta estática para servir imágenes y videos subidos
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Configurar multer para subida de imágenes y videos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, 'public/uploads');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /gif|png|jpg|jpeg|mp4|mov/;
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = filetypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Solo se permiten imágenes (GIF, PNG, JPG, JPEG) o videos (MP4, MOV).'));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB por archivo
+});
+
 // --- Middleware de AUTENTICACIÓN y AUTORIZACIÓN con JWT ---
 const autenticarYAutorizar = (rolesPermitidos = []) => {
   return (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (authHeader) {
-      const tokenParts = authHeader.split(' '); // Espera "Bearer <token>"
+      const tokenParts = authHeader.split(' ');
       if (tokenParts.length === 2 && tokenParts[0] === 'Bearer') {
         const token = tokenParts[1];
 
@@ -30,11 +64,9 @@ const autenticarYAutorizar = (rolesPermitidos = []) => {
             if (err.name === 'TokenExpiredError') {
               return res.status(401).json({ message: "Token expirado. Por favor, inicie sesión de nuevo." });
             }
-            return res.status(403).json({ message: "Token inválido o no autorizado." }); // 403 si el token es inválido
+            return res.status(403).json({ message: "Token inválido o no autorizado." });
           }
 
-          // Token es válido, ahora verificar el rol
-          // Asegurarse que rolesPermitidos sea siempre un array para .includes
           const rolesArray = Array.isArray(rolesPermitidos) ? rolesPermitidos : (rolesPermitidos ? [rolesPermitidos] : []);
 
           if (rolesArray.length > 0 && !rolesArray.includes(decodedUser.rol)) {
@@ -42,8 +74,8 @@ const autenticarYAutorizar = (rolesPermitidos = []) => {
             return res.status(403).json({ message: "Acceso denegado. No tiene los permisos necesarios." });
           }
 
-          req.user = decodedUser; // Adjuntar datos del usuario decodificado a la request
-          next(); // Permitir continuar
+          req.user = decodedUser;
+          next();
         });
       } else {
         res.status(401).json({ message: "Formato de token inválido. Se espera 'Bearer <token>'." });
@@ -54,8 +86,7 @@ const autenticarYAutorizar = (rolesPermitidos = []) => {
   };
 };
 
-
-// Test de conexión (ruta pública, no necesita protección)
+// Test de conexión
 app.get('/ping', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT 1');
@@ -65,7 +96,7 @@ app.get('/ping', async (req, res) => {
   }
 });
 
-// Login - Genera un token JWT al iniciar sesión exitosamente
+// Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -78,8 +109,8 @@ app.post('/login', async (req, res) => {
     }
     const user = rows[0];
     if (!user.hashedPassword) {
-        console.error("Error crítico: Usuario sin contraseña hasheada en DB:", user.email);
-        return res.status(500).json({ message: 'Error de configuración de cuenta. Contacte al administrador.' });
+      console.error("Error crítico: Usuario sin contraseña hasheada en DB:", user.email);
+      return res.status(500).json({ message: 'Error de configuración de cuenta. Contacte al administrador.' });
     }
     const passwordIsValid = await bcrypt.compare(password, user.hashedPassword);
     if (passwordIsValid) {
@@ -95,7 +126,7 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign(
           tokenPayload,
           process.env.JWT_SECRET,
-          { expiresIn: '1h' } // Configura la expiración como necesites (ej. '7d', '24h')
+          { expiresIn: '1h' }
         );
 
         return res.json({
@@ -115,12 +146,11 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// --- CRUD DE USUARIOS ---
+const rolesAdminNivel = ['administrador', 'superadministrador'];
 
-// --- CRUD DE USUARIOS (Protegido - Solo Superadministrador) ---
-
-// LEER todos los usuarios (GET)
 app.get('/api/usuarios', autenticarYAutorizar(['superadministrador']), async (req, res) => {
-  console.log("Usuario autenticado para GET /api/usuarios:", req.user.email); // req.user está disponible
+  console.log("Usuario autenticado para GET /api/usuarios:", req.user.email);
   try {
     const [rows] = await db.query('SELECT id, nombre, email, rol, fecha_creacion FROM usuarios ORDER BY id ASC');
     res.json(rows);
@@ -130,14 +160,13 @@ app.get('/api/usuarios', autenticarYAutorizar(['superadministrador']), async (re
   }
 });
 
-// CREAR un nuevo usuario (POST)
 app.post('/api/usuarios', autenticarYAutorizar(['superadministrador']), async (req, res) => {
   const { nombre, email, password, rol } = req.body;
   if (!nombre || !email || !password || !rol) {
     return res.status(400).json({ message: "Todos los campos son requeridos (nombre, email, password, rol)." });
   }
   if (!['administrador', 'superadministrador', 'usuario'].includes(rol)) {
-      return res.status(400).json({ message: "Rol inválido proporcionado." });
+    return res.status(400).json({ message: "Rol inválido proporcionado." });
   }
   try {
     const [existingUser] = await db.query('SELECT id FROM usuarios WHERE email = ?', [email]);
@@ -157,7 +186,6 @@ app.post('/api/usuarios', autenticarYAutorizar(['superadministrador']), async (r
   }
 });
 
-// ACTUALIZAR un usuario existente (PUT)
 app.put('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), async (req, res) => {
   const { id } = req.params;
   const { nombre, email, rol, password } = req.body;
@@ -166,18 +194,18 @@ app.put('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), async
     return res.status(400).json({ message: "Nombre, email y rol son requeridos para la actualización." });
   }
   if (!['administrador', 'superadministrador', 'usuario'].includes(rol)) {
-      return res.status(400).json({ message: "Rol inválido proporcionado." });
+    return res.status(400).json({ message: "Rol inválido proporcionado." });
   }
   try {
     const [currentUser] = await db.query('SELECT email FROM usuarios WHERE id = ?', [id]);
     if (currentUser.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado para actualizar." });
+      return res.status(404).json({ message: "Usuario no encontrado para actualizar." });
     }
     if (email !== currentUser[0].email) {
-        const [existingEmail] = await db.query('SELECT id FROM usuarios WHERE email = ? AND id != ?', [email, id]);
-        if (existingEmail.length > 0) {
-            return res.status(409).json({ message: "El nuevo correo electrónico ya está en uso por otro usuario." });
-        }
+      const [existingEmail] = await db.query('SELECT id FROM usuarios WHERE email = ? AND id != ?', [email, id]);
+      if (existingEmail.length > 0) {
+        return res.status(409).json({ message: "El nuevo correo electrónico ya está en uso por otro usuario." });
+      }
     }
     let queryParams = [nombre, email, rol];
     let sqlQuery = 'UPDATE usuarios SET nombre = ?, email = ?, rol = ?';
@@ -200,10 +228,8 @@ app.put('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), async
   }
 });
 
-// ELIMINAR un usuario (DELETE)
 app.delete('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), async (req, res) => {
   const { id } = req.params;
-  // Evitar que el superadmin actual se elimine (req.user viene del token JWT)
   if (req.user && req.user.id === parseInt(id) && req.user.rol === 'superadministrador') {
     return res.status(403).json({ message: "Un superadministrador no puede eliminarse a sí mismo." });
   }
@@ -219,13 +245,7 @@ app.delete('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), as
   }
 });
 
-
-// --- OTRAS RUTAS (DEAs, Estadísticas, Clics, etc.) ---
-// Aplicar autenticarYAutorizar según sea necesario
-
-const rolesAdminNivel = ['administrador', 'superadministrador'];
-
-// Obtener todos los DEA ACTIVOS (ruta pública)
+// --- RUTAS DE DEAs ---
 app.get('/defibriladores', async (req, res) => {
   try {
     const [rows] = await db.query("SELECT id_tramite AS id, gl_nombre_fantasia AS nombre, CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion, gl_instalacion_latitud AS lat, gl_instalacion_longitud AS lng FROM tramites WHERE bo_activo = 1 AND bo_eliminado = 'N'");
@@ -236,7 +256,6 @@ app.get('/defibriladores', async (req, res) => {
   }
 });
 
-// Solicitudes DEA POST (ruta pública, cualquiera puede enviar una solicitud)
 app.post('/solicitudes-dea', async (req, res) => {
   const { nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, lat, lng, solicitante, rut } = req.body;
   if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut) {
@@ -253,7 +272,6 @@ app.post('/solicitudes-dea', async (req, res) => {
   }
 });
 
-// Solicitudes DEA GET (pendientes - protegida para admins)
 app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [rows] = await db.query(`SELECT id_tramite AS id, gl_nombre_fantasia AS nombre, CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion_completa, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, gl_instalacion_latitud AS lat, gl_instalacion_longitud AS lng, gl_solicitante_nombre AS solicitante, gl_solicitante_rut AS rut, fc_creacion FROM tramites WHERE bo_activo = 0 AND bo_eliminado = 'N' ORDER BY fc_creacion DESC`);
@@ -264,7 +282,6 @@ app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, r
   }
 });
 
-// Aprobar Solicitud DEA (protegida para admins)
 app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
@@ -277,7 +294,6 @@ app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), 
   }
 });
 
-// Rechazar Solicitud DEA (protegida para admins)
 app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
@@ -290,14 +306,14 @@ app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel
   }
 });
 
-// Estadísticas Dashboard (protegida para admins)
+// Estadísticas Dashboard
 app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [visitasResult] = await db.query("SELECT COUNT(*) as totalVisitas FROM clicks WHERE seccion = 'VisitaHomePage'");
     const totalVisitas = visitasResult[0]?.totalVisitas || 0;
     const [deasActivosResult] = await db.query("SELECT COUNT(*) as totalDeasActivos FROM tramites WHERE bo_activo = 1 AND bo_eliminado = 'N'");
     const totalDeasActivos = deasActivosResult[0]?.totalDeasActivos || 0;
-    const totalEmergencias = 0; // Placeholder
+    const totalEmergencias = 0;
     res.json({ visitasPagina: totalVisitas, deasRegistrados: totalDeasActivos, emergenciasEsteMes: totalEmergencias });
   } catch (error) {
     console.error('❌ Error al obtener estadísticas:', error);
@@ -305,12 +321,9 @@ app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, 
   }
 });
 
-// --- CRUD DE FAQs (Protegido - Admin y Superadmin) ---
-
-// LEER todas las FAQs (GET)
-app.get('/api/faqs', async (req, res) => { // Ruta pública para mostrar FAQs
+// --- CRUD DE FAQs ---
+app.get('/api/faqs', async (req, res) => {
   try {
-    // Ordenar por 'orden' si existe y luego por 'id' o 'fecha_creacion'
     const [rows] = await db.query('SELECT id, pregunta, respuesta, categoria, orden FROM faqs ORDER BY orden ASC, id ASC');
     res.json(rows);
   } catch (error) {
@@ -319,7 +332,6 @@ app.get('/api/faqs', async (req, res) => { // Ruta pública para mostrar FAQs
   }
 });
 
-// LEER todas las FAQs para ADMIN (podría ser la misma que la pública o tener más datos si fuera necesario)
 app.get('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [rows] = await db.query('SELECT id, pregunta, respuesta, categoria, orden, fecha_creacion, fecha_actualizacion FROM faqs ORDER BY orden ASC, id ASC');
@@ -330,8 +342,6 @@ app.get('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, re
   }
 });
 
-
-// CREAR una nueva FAQ (POST)
 app.post('/api/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { pregunta, respuesta, categoria, orden } = req.body;
 
@@ -351,7 +361,6 @@ app.post('/api/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) =>
   }
 });
 
-// ACTUALIZAR una FAQ existente (PUT)
 app.put('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   const { pregunta, respuesta, categoria, orden } = req.body;
@@ -376,7 +385,6 @@ app.put('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res)
   }
 });
 
-// ELIMINAR una FAQ (DELETE)
 app.delete('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
 
@@ -393,9 +401,8 @@ app.delete('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, r
   }
 });
 
-// --- CRUD DE CONTENIDO EDUCATIVO (Protegido - Admin y Superadmin, con ruta pública para lectura) ---
-
-// LEER todo el contenido educativo (público, solo activo)
+// --- CRUD DE CONTENIDO EDUCATIVO ---
+// Obtener contenido educativo público
 app.get('/api/educacion', async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -411,11 +418,24 @@ app.get('/api/educacion', async (req, res) => {
   }
 });
 
+// Nuevo endpoint para obtener medios asociados (imágenes y videos)
+app.get('/api/educacion/medios', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, contenido_id, tipo_medio, url_medio, orden, paso_asociado 
+       FROM educacion_medios 
+       ORDER BY contenido_id, orden ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener medios de contenido educativo:', error);
+    res.status(500).json({ message: 'Error interno al obtener los medios.', detalle: error.message });
+  }
+});
 
-// LEER todo el contenido educativo para ADMIN (GET - Protegida)
+// Obtener contenido educativo para admin
 app.get('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
-    // Todo el contenido (activo e inactivo), ordenado
     const [rows] = await db.query(
       `SELECT id, categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item, activo, created_at, updated_at 
        FROM educacion_contenido 
@@ -428,8 +448,8 @@ app.get('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (re
   }
 });
 
-// CREAR nuevo contenido educativo (POST - Protegida)
-app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+// Crear contenido educativo con soporte para medios múltiples
+app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), upload.array('medios', 10), async (req, res) => {
   const {
     categoria_id,
     categoria_nombre,
@@ -437,14 +457,22 @@ app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (r
     contenido_tema,
     orden_categoria,
     orden_item,
-    activo
+    activo,
+    paso_asociado
   } = req.body;
 
   if (!categoria_id || !categoria_nombre || !titulo_tema || !contenido_tema) {
+    // Eliminar archivos subidos si hay error
+    if (req.files) {
+      req.files.forEach(file => {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+      });
+    }
     return res.status(400).json({ message: "Los campos: ID de categoría, nombre de categoría, título del tema y contenido del tema son requeridos." });
   }
 
   try {
+    // Insertar el contenido educativo
     const [result] = await db.query(
       'INSERT INTO educacion_contenido (categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
       [
@@ -457,10 +485,31 @@ app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (r
         activo !== undefined ? (typeof activo === 'string' ? activo === 'true' : Boolean(activo)) : true
       ]
     );
+
+    const contenidoId = result.insertId;
+
+    // Insertar medios asociados si existen
+    if (req.files && req.files.length > 0) {
+      const medios = req.files.map((file, index) => ({
+        contenido_id: contenidoId,
+        tipo_medio: file.mimetype.includes('video') ? 'video' : 'imagen',
+        url_medio: `/uploads/${file.filename}`,
+        orden: index,
+        paso_asociado: paso_asociado || null,
+      }));
+
+      for (const medio of medios) {
+        await db.query(
+          'INSERT INTO educacion_medios (contenido_id, tipo_medio, url_medio, orden, paso_asociado, fecha_creacion) VALUES (?, ?, ?, ?, ?, NOW())',
+          [medio.contenido_id, medio.tipo_medio, medio.url_medio, medio.orden, medio.paso_asociado]
+        );
+      }
+    }
+
     res.status(201).json({
       message: 'Contenido educativo creado exitosamente.',
-      item: { // Devolver el item completo o su ID para actualizar la UI
-        id: result.insertId,
+      item: {
+        id: contenidoId,
         categoria_id,
         categoria_nombre,
         titulo_tema,
@@ -471,13 +520,19 @@ app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), async (r
       }
     });
   } catch (error) {
+    // Eliminar archivos subidos si hay error
+    if (req.files) {
+      req.files.forEach(file => {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+      });
+    }
     console.error("❌ Error al crear contenido educativo:", error);
     res.status(500).json({ message: "Error interno al crear el contenido educativo.", detalle: error.message });
   }
 });
 
-// ACTUALIZAR contenido educativo existente (PUT - Protegida)
-app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+// Actualizar contenido educativo con soporte para medios múltiples
+app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), upload.array('medios', 10), async (req, res) => {
   const { id } = req.params;
   const {
     categoria_id,
@@ -486,14 +541,32 @@ app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async
     contenido_tema,
     orden_categoria,
     orden_item,
-    activo
+    activo,
+    paso_asociado
   } = req.body;
 
   if (!categoria_id || !categoria_nombre || !titulo_tema || !contenido_tema) {
+    if (req.files) {
+      req.files.forEach(file => {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+      });
+    }
     return res.status(400).json({ message: "Los campos: ID de categoría, nombre de categoría, título del tema y contenido del tema son requeridos." });
   }
 
   try {
+    // Verificar si el contenido existe
+    const [existing] = await db.query('SELECT id FROM educacion_contenido WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      if (req.files) {
+        req.files.forEach(file => {
+          fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+        });
+      }
+      return res.status(404).json({ message: "Contenido educativo no encontrado." });
+    }
+
+    // Actualizar el contenido educativo
     const [result] = await db.query(
       `UPDATE educacion_contenido
        SET categoria_id = ?, categoria_nombre = ?, titulo_tema = ?, contenido_tema = ?,
@@ -512,11 +585,48 @@ app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async
     );
 
     if (result.affectedRows === 0) {
+      if (req.files) {
+        req.files.forEach(file => {
+          fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+        });
+      }
       return res.status(404).json({ message: "Contenido educativo no encontrado o datos sin cambios." });
     }
+
+    // Si se subieron nuevos medios, eliminar los anteriores y agregar los nuevos
+    if (req.files && req.files.length > 0) {
+      // Obtener medios existentes
+      const [existingMedios] = await db.query('SELECT url_medio FROM educacion_medios WHERE contenido_id = ?', [id]);
+      // Eliminar archivos físicos
+      existingMedios.forEach(medio => {
+        const filePath = path.join(__dirname, 'public', medio.url_medio);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
+      // Eliminar registros de medios en la base de datos
+      await db.query('DELETE FROM educacion_medios WHERE contenido_id = ?', [id]);
+
+      // Insertar nuevos medios
+      const medios = req.files.map((file, index) => ({
+        contenido_id: id,
+        tipo_medio: file.mimetype.includes('video') ? 'video' : 'imagen',
+        url_medio: `/uploads/${file.filename}`,
+        orden: index,
+        paso_asociado: paso_asociado || null,
+      }));
+
+      for (const medio of medios) {
+        await db.query(
+          'INSERT INTO educacion_medios (contenido_id, tipo_medio, url_medio, orden, paso_asociado, fecha_creacion) VALUES (?, ?, ?, ?, ?, NOW())',
+          [medio.contenido_id, medio.tipo_medio, medio.url_medio, medio.orden, medio.paso_asociado]
+        );
+      }
+    }
+
     res.json({
       message: 'Contenido educativo actualizado exitosamente.',
-      item: { // Devolver el item actualizado
+      item: {
         id: parseInt(id),
         categoria_id,
         categoria_nombre,
@@ -528,16 +638,31 @@ app.put('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async
       }
     });
   } catch (error) {
+    if (req.files) {
+      req.files.forEach(file => {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', file.filename));
+      });
+    }
     console.error("❌ Error al actualizar contenido educativo:", error);
     res.status(500).json({ message: "Error interno al actualizar el contenido educativo.", detalle: error.message });
   }
 });
 
-// ELIMINAR contenido educativo (DELETE - Protegida)
+// Eliminar contenido educativo y sus medios asociados
 app.delete('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
 
   try {
+    // Obtener medios asociados para eliminar los archivos físicos
+    const [medios] = await db.query('SELECT url_medio FROM educacion_medios WHERE contenido_id = ?', [id]);
+    medios.forEach(medio => {
+      const filePath = path.join(__dirname, 'public', medio.url_medio);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    // Eliminar el contenido educativo (los medios se eliminarán automáticamente por la restricción ON DELETE CASCADE)
     const [result] = await db.query('DELETE FROM educacion_contenido WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
@@ -550,15 +675,142 @@ app.delete('/api/admin/educacion/:id', autenticarYAutorizar(rolesAdminNivel), as
   }
 });
 
+// --- CRUD DE RCP INSTRUCCIONES ---
+app.get('/api/rcp', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, instruccion, gif_url, orden, categoria FROM rcp_instrucciones ORDER BY orden ASC, id ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener instrucciones RCP:', error);
+    res.status(500).json({ message: 'Error interno al obtener las instrucciones RCP.', detalle: error.message });
+  }
+});
 
-// --- FIN DE CRUD DE CONTENIDO EDUCATIVO ---
+app.get('/api/admin/rcp', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, instruccion, gif_url, orden, categoria, fecha_creacion, fecha_actualizacion FROM rcp_instrucciones ORDER BY orden ASC, id ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener instrucciones RCP para admin:', error);
+    res.status(500).json({ message: 'Error interno al obtener las instrucciones RCP para admin.', detalle: error.message });
+  }
+});
 
+app.post('/api/admin/rcp', autenticarYAutorizar(rolesAdminNivel), upload.single('gif'), async (req, res) => {
+  const { instruccion, orden, categoria } = req.body;
+  const gif_url = req.file ? `/uploads/${req.file.filename}` : null;
 
+  if (!instruccion) {
+    if (req.file) {
+      fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+    }
+    return res.status(400).json({ message: "La instrucción es requerida." });
+  }
 
+  try {
+    const [result] = await db.query(
+      'INSERT INTO rcp_instrucciones (instruccion, gif_url, orden, categoria, fecha_creacion) VALUES (?, ?, ?, ?, NOW())',
+      [instruccion, gif_url, orden || 0, categoria || 'RCP Adultos']
+    );
+    res.status(201).json({
+      message: 'Instrucción RCP creada exitosamente.',
+      instruccion: { id: result.insertId, instruccion, gif_url, orden: orden || 0, categoria: categoria || 'RCP Adultos' }
+    });
+  } catch (error) {
+    if (req.file) {
+      fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+    }
+    console.error("❌ Error al crear instrucción RCP:", error);
+    res.status(500).json({ message: "Error interno al crear la instrucción RCP.", detalle: error.message });
+  }
+});
+
+app.put('/api/admin/rcp/:id', autenticarYAutorizar(rolesAdminNivel), upload.single('gif'), async (req, res) => {
+  const { id } = req.params;
+  const { instruccion, orden, categoria } = req.body;
+  const new_gif_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  if (!instruccion) {
+    if (new_gif_url) {
+      fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+    }
+    return res.status(400).json({ message: "La instrucción es requerida." });
+  }
+
+  try {
+    const [existing] = await db.query('SELECT gif_url FROM rcp_instrucciones WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      if (new_gif_url) {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+      }
+      return res.status(404).json({ message: "Instrucción RCP no encontrada." });
+    }
+
+    let gif_url = existing[0].gif_url;
+    if (new_gif_url) {
+      if (gif_url) {
+        const oldFilePath = path.join(__dirname, 'public', gif_url);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+      gif_url = new_gif_url;
+    }
+
+    const [result] = await db.query(
+      'UPDATE rcp_instrucciones SET instruccion = ?, gif_url = ?, orden = ?, categoria = ?, fecha_actualizacion = NOW() WHERE id = ?',
+      [instruccion, gif_url, orden || 0, categoria || 'RCP Adultos', id]
+    );
+
+    if (result.affectedRows === 0) {
+      if (new_gif_url) {
+        fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+      }
+      return res.status(404).json({ message: "Instrucción RCP no encontrada o datos sin cambios." });
+    }
+    res.json({
+      message: 'Instrucción RCP actualizada exitosamente.',
+      instruccion: { id: parseInt(id), instruccion, gif_url, orden: orden || 0, categoria: categoria || 'RCP Adultos' }
+    });
+  } catch (error) {
+    if (new_gif_url) {
+      fs.unlinkSync(path.join(__dirname, 'public/uploads', req.file.filename));
+    }
+    console.error("❌ Error al actualizar instrucción RCP:", error);
+    res.status(500).json({ message: "Error interno al actualizar la instrucción RCP.", detalle: error.message });
+  }
+});
+
+app.delete('/api/admin/rcp/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [existing] = await db.query('SELECT gif_url FROM rcp_instrucciones WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: "Instrucción RCP no encontrada." });
+    }
+
+    if (existing[0].gif_url) {
+      const filePath = path.join(__dirname, 'public', existing[0].gif_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    const [result] = await db.query('DELETE FROM rcp_instrucciones WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Instrucción RCP no encontrada." });
+    }
+    res.json({ message: 'Instrucción RCP eliminada exitosamente.' });
+  } catch (error) {
+    console.error("❌ Error al eliminar instrucción RCP:", error);
+    res.status(500).json({ message: "Error interno al eliminar la instrucción RCP.", detalle: error.message });
+  }
+});
 
 // Clicks API
-// Registro de clic puede ser público o requerir autenticación general de usuario (no admin)
-app.post('/api/registro-clic', async (req, res) => { // Ejemplo: ruta pública
+app.post('/api/registro-clic', async (req, res) => {
   const { seccion } = req.body;
   if (!seccion) return res.status(400).json({ mensaje: 'Sección requerida' });
   try {
@@ -570,7 +822,6 @@ app.post('/api/registro-clic', async (req, res) => { // Ejemplo: ruta pública
   }
 });
 
-// Obtener clics (protegida para admins)
 app.get('/api/obtener-clics', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [resultados] = await db.query(`SELECT seccion, COUNT(*) as cantidad FROM clicks GROUP BY seccion`);
@@ -582,8 +833,6 @@ app.get('/api/obtener-clics', autenticarYAutorizar(rolesAdminNivel), async (req,
     res.status(500).json({ mensaje: 'Error al obtener datos' });
   }
 });
-// --- FIN DE OTRAS RUTAS ---
-
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);

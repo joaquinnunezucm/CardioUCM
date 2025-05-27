@@ -1,10 +1,14 @@
-// src/pages/ControlUsuarios.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Link } from 'react-router-dom';
+import $ from 'jquery';
+import 'datatables.net-bs4';
+import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
+import { Modal, Button, Form } from 'react-bootstrap';
+import Swal from 'sweetalert2';
 
-// --- UserForm Component (sin cambios significativos recientes, debe estar como lo tenías) ---
+// Componente para el formulario de usuario
 const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmitting }) => {
   const [formData, setFormData] = useState({
     nombre: initialData.nombre || '',
@@ -16,10 +20,10 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
 
   useEffect(() => {
     setFormData({
-        nombre: initialData.nombre || '',
-        email: initialData.email || '',
-        password: '', // Siempre limpiar al abrir/cambiar
-        rol: initialData.rol || (posiblesRoles.length > 0 ? posiblesRoles[0] : '')
+      nombre: initialData.nombre || '',
+      email: initialData.email || '',
+      password: '',
+      rol: initialData.rol || (posiblesRoles.length > 0 ? posiblesRoles[0] : '')
     });
     setFormError('');
   }, [initialData, posiblesRoles]);
@@ -36,86 +40,113 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
       setFormError('Nombre, email y rol son requeridos.');
       return;
     }
-    if (!initialData.id && !formData.password) { // Password requerida solo al crear
+    if (!initialData.id && !formData.password) {
       setFormError('La contraseña es requerida para nuevos usuarios.');
       return;
     }
     if (formData.password && formData.password.length < 6 && !initialData.id) {
-        setFormError('La nueva contraseña debe tener al menos 6 caracteres.');
-        return;
+      setFormError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
     }
 
-    const result = await onSubmit(formData, initialData.id); // onSubmit es asíncrono
+    const result = await onSubmit(formData, initialData.id);
     if (result && result.error) {
       setFormError(result.message || 'Ocurrió un error.');
     } else if (result && result.success) {
-      onClose(); // Cerrar modal solo si la operación fue exitosa
+      onClose();
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <Form onSubmit={handleSubmit}>
       {formError && <div className="alert alert-danger p-2 mb-3" role="alert">{formError}</div>}
-      <div className="form-group mb-3">
-        <label htmlFor="nombreUserFormCU">Nombre</label>
-        <input type="text" className="form-control" id="nombreUserFormCU" name="nombre" value={formData.nombre} onChange={handleChange} required disabled={isSubmitting} />
-      </div>
-      <div className="form-group mb-3">
-        <label htmlFor="emailUserFormCU">Email</label>
-        <input type="email" className="form-control" id="emailUserFormCU" name="email" value={formData.email} onChange={handleChange} required disabled={isSubmitting} />
-      </div>
-      <div className="form-group mb-3">
-        <label htmlFor="passwordUserFormCU">Contraseña</label>
-        <input type="password" className="form-control" id="passwordUserFormCU" name="password" value={formData.password} onChange={handleChange} placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"} disabled={isSubmitting} />
-        {initialData.id && <small className="form-text text-muted">Si dejas este campo vacío, la contraseña actual no se modificará.</small>}
-      </div>
-      <div className="form-group mb-4">
-        <label htmlFor="rolUserFormCU">Rol</label>
-        <select className="form-control" id="rolUserFormCU" name="rol" value={formData.rol} onChange={handleChange} required disabled={isSubmitting}>
-          {posiblesRoles.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
-        </select>
-      </div>
-      <div className="modal-footer justify-content-end p-0 border-top-0 pt-3"> {/* Ajuste de clases para el footer del modal */}
-        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>Cancelar</button>
-        <button type="submit" className="btn btn-primary ml-2" disabled={isSubmitting}>
-          {isSubmitting ? (initialData.id ? 'Actualizando...' : 'Creando...') : (initialData.id ? 'Actualizar Usuario' : 'Crear Usuario')}
-        </button>
-      </div>
-    </form>
+      <Form.Group controlId="formNombre" className="mb-3">
+        <Form.Label>Nombre</Form.Label>
+        <Form.Control
+          type="text"
+          name="nombre"
+          value={formData.nombre}
+          onChange={handleChange}
+          required
+          disabled={isSubmitting}
+        />
+      </Form.Group>
+      <Form.Group controlId="formEmail" className="mb-3">
+        <Form.Label>Email</Form.Label>
+        <Form.Control
+          type="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          required
+          disabled={isSubmitting}
+        />
+      </Form.Group>
+      <Form.Group controlId="formPassword" className="mb-3">
+        <Form.Label>Contraseña</Form.Label>
+        <Form.Control
+          type="password"
+          name="password"
+          value={formData.password}
+          onChange={handleChange}
+          placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"}
+          disabled={isSubmitting}
+        />
+        {initialData.id && <Form.Text className="text-muted">Si dejas este campo vacío, la contraseña actual no se modificará.</Form.Text>}
+      </Form.Group>
+      <Form.Group controlId="formRol" className="mb-3">
+        <Form.Label>Rol</Form.Label>
+        <Form.Control
+          as="select"
+          name="rol"
+          value={formData.rol}
+          onChange={handleChange}
+          required
+          disabled={isSubmitting}
+        >
+          {posiblesRoles.map(r => (
+            <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+          ))}
+        </Form.Control>
+      </Form.Group>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          Cancelar
+        </Button>
+        <Button variant="primary" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? (initialData.id ? 'Actualizando...' : 'Creando...') : (initialData.id ? 'Actualizar' : 'Crear')}
+        </Button>
+      </Modal.Footer>
+    </Form>
   );
 };
 
-
-// --- Componente Principal ControlUsuarios ---
+// Componente principal ControlUsuarios
 function ControlUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const { user } = useAuth();
-
-  const userRol = user ? user.rol : null;
-  const currentUserId = user ? user.id : null; // ID del usuario logueado
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [tableInitialized, setTableInitialized] = useState(false);
+  const tableRef = useRef(null);
+  const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState({ type: '', text: '' });
-
+  const { user } = useAuth();
+  const userRol = user ? user.rol : null;
+  const currentUserId = user ? user.id : null;
   const posiblesRoles = ['usuario', 'administrador', 'superadministrador'];
 
   const fetchUsuarios = useCallback(async () => {
-    setLoading(true);
-    setFeedbackMessage({ type: '', text: '' });
     try {
+      setLoading(true);
+      if ($.fn.dataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
+        setTableInitialized(false);
+      }
       const response = await axios.get('http://localhost:3001/api/usuarios');
       setUsuarios(response.data);
-      setError('');
     } catch (err) {
-      console.error("Error fetching usuarios:", err);
-      const errorMessage = err.response?.data?.message || 'Error al cargar la lista de usuarios.';
-      setError(errorMessage); // Establecer error general si la carga inicial falla
-      // setFeedbackMessage({ type: 'error', text: errorMessage }); // Opcional: mostrar en feedback también
+      console.error('Error al obtener usuarios:', err);
+      Swal.fire('Error', 'No se pudieron cargar los usuarios.', 'error');
       setUsuarios([]);
     } finally {
       setLoading(false);
@@ -125,197 +156,191 @@ function ControlUsuarios() {
   useEffect(() => {
     if (userRol === 'superadministrador') {
       fetchUsuarios();
-    } else if (userRol) {
-      setError('Acceso denegado. Esta sección es solo para superadministradores.');
-      setLoading(false);
     } else {
       setLoading(false);
     }
-  }, [userRol, fetchUsuarios, refreshTrigger]);
+  }, [userRol, fetchUsuarios]);
 
-  const handleOpenModal = (usuarioParaEditar = null) => {
-    setEditingUser(usuarioParaEditar);
-    setFeedbackMessage({ type: '', text: '' }); // Limpiar feedback anterior al abrir modal
-    setIsModalOpen(true);
+  useEffect(() => {
+    if (!loading && usuarios.length > 0 && !tableInitialized) {
+      $(tableRef.current).DataTable({
+        language: {
+          search: 'Buscar:',
+          lengthMenu: 'Mostrar _MENU_ registros',
+          info: 'Mostrando _START_ a _END_ de _TOTAL_ usuarios',
+          paginate: { previous: 'Anterior', next: 'Siguiente' },
+          zeroRecords: 'No se encontraron usuarios'
+        },
+        order: [[0, 'asc']], // Ordenar por ID por defecto
+        columnDefs: [
+          { orderable: false, targets: [5] } // Deshabilitar orden en columna de acciones
+        ]
+      });
+      setTableInitialized(true);
+    }
+  }, [loading, usuarios, tableInitialized]);
+
+  const handleShowModal = (usuario = null) => {
+    setEditingUser(usuario);
+    setShowModal(true);
   };
 
   const handleCloseModal = () => {
-    if (isSubmitting) return;
-    setIsModalOpen(false);
-    setEditingUser(null);
+    if (!isSubmitting) {
+      setShowModal(false);
+      setEditingUser(null);
+    }
   };
 
   const handleSubmitUserForm = async (formData, formUserId) => {
     setIsSubmitting(true);
-    setFeedbackMessage({ type: '', text: '' });
     try {
       const userData = { ...formData };
-      if (formUserId && !userData.password) { // No enviar password si está vacía para editar
+      if (formUserId && !userData.password) {
         delete userData.password;
       }
-      let response;
       if (formUserId) {
-        response = await axios.put(`http://localhost:3001/api/usuarios/${formUserId}`, userData);
+        await axios.put(`http://localhost:3001/api/usuarios/${formUserId}`, userData);
+        Swal.fire('Actualizado', 'El usuario fue actualizado correctamente.', 'success');
       } else {
-        response = await axios.post('http://localhost:3001/api/usuarios', userData);
+        await axios.post('http://localhost:3001/api/usuarios', userData);
+        Swal.fire('Creado', 'El usuario fue creado exitosamente.', 'success');
       }
-      setFeedbackMessage({ type: 'success', text: response.data.message || (formUserId ? 'Usuario actualizado con éxito.' : 'Usuario creado con éxito.') });
-      setRefreshTrigger(prev => prev + 1); // Forzar recarga de la lista
+      fetchUsuarios();
       setIsSubmitting(false);
-      return { success: true }; // Indicar éxito para que UserForm cierre el modal
+      return { success: true };
     } catch (err) {
-      console.error("Error guardando usuario:", err.response?.data || err.message);
-      const errorMessage = err.response?.data?.message || "Error al guardar el usuario.";
-      // El error se mostrará dentro del UserForm
+      console.error('Error al guardar usuario:', err);
+      const errorMessage = err.response?.data?.message || 'No se pudo guardar el usuario.';
+      Swal.fire('Error', errorMessage, 'error');
       setIsSubmitting(false);
-      return { error: true, message: errorMessage }; // Devolver error para UserForm
+      return { error: true, message: errorMessage };
     }
   };
 
   const handleDeleteUser = async (deleteUserId, userName) => {
-    setFeedbackMessage({ type: '', text: '' });
-    if (window.confirm(`¿Estás seguro de que quieres eliminar al usuario "${userName}" (ID: ${deleteUserId})? Esta acción no se puede deshacer.`)) {
-      if (currentUserId === deleteUserId && userRol === 'superadministrador') {
-        setFeedbackMessage({ type: 'error', text: "Un superadministrador no puede eliminarse a sí mismo."});
-        return;
-      }
-      setIsSubmitting(true); // Deshabilitar botones mientras se procesa
-      try {
-        await axios.delete(`http://localhost:3001/api/usuarios/${deleteUserId}`);
-        setFeedbackMessage({ type: 'success', text: `Usuario "${userName}" eliminado exitosamente.`});
-        setRefreshTrigger(prev => prev + 1);
-      } catch (err) {
-        console.error("Error eliminando usuario:", err.response?.data || err.message);
-        const errorMessage = err.response?.data?.message || "Error al eliminar el usuario.";
-        setFeedbackMessage({ type: 'error', text: errorMessage});
-      } finally {
-        setIsSubmitting(false);
-      }
+    if (currentUserId === deleteUserId && userRol === 'superadministrador') {
+      Swal.fire('Error', 'Un superadministrador no puede eliminarse a sí mismo.', 'error');
+      return;
     }
+
+    Swal.fire({
+      title: '¿Estás seguro?',
+      text: `"${userName}" se eliminará permanentemente.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await axios.delete(`http://localhost:3001/api/usuarios/${deleteUserId}`);
+          Swal.fire('Eliminado', 'El usuario fue eliminado correctamente.', 'success');
+          fetchUsuarios();
+        } catch (error) {
+          console.error('Error al eliminar usuario:', error);
+          const errorMessage = error.response?.data?.message || 'No se pudo eliminar el usuario.';
+          Swal.fire('Error', errorMessage, 'error');
+        }
+      }
+    });
   };
 
-  // Renderizado principal del componente
   if (userRol !== 'superadministrador') {
-    // Esto se renderizará dentro del <Outlet /> del layout principal (Dashboard.jsx)
     return (
-      <>
+      <div className="container mt-4">
         <div className="content-header">
-          <div className="container-fluid"><div className="row mb-2"><div className="col-sm-6"><h1 className="m-0">Acceso Denegado</h1></div><div className="col-sm-6"><ol className="breadcrumb float-sm-right"><li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li><li className="breadcrumb-item active">Error</li></ol></div></div></div>
+          <div className="container-fluid">
+            <div className="row mb-2">
+              <div className="col-sm-6">
+                <h1 className="m-0">Acceso Denegado</h1>
+              </div>
+              <div className="col-sm-6">
+                <ol className="breadcrumb float-sm-right">
+                  <li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li>
+                  <li className="breadcrumb-item active">Error</li>
+                </ol>
+              </div>
+            </div>
+          </div>
         </div>
-        <section className="content"><div className="container-fluid"><div className="alert alert-warning">No tiene permisos para acceder a esta sección.</div></div></section>
-      </>
+        <section className="content">
+          <div className="container-fluid">
+            <div className="alert alert-warning">No tiene permisos para acceder a esta sección.</div>
+          </div>
+        </section>
+      </div>
     );
   }
-  
+
   return (
-    <>
-      <div className="content-header">
-        <div className="container-fluid">
-          <div className="row mb-2">
-            <div className="col-sm-6"><h1 className="m-0">Control de Usuarios</h1></div>
-            <div className="col-sm-6">
-              <ol className="breadcrumb float-sm-right">
-                <li className="breadcrumb-item"><Link to="/admin">Dashboard</Link></li>
-                <li className="breadcrumb-item active">Usuarios</li>
-              </ol>
-            </div>
-          </div>
-        </div>
+    <div className="container mt-4">
+      <h3 className="mb-3">Gestión de Usuarios</h3>
+
+      <div className="mb-3 text-right">
+        <button className="btn btn-success" onClick={() => handleShowModal()} disabled={isSubmitting}>
+          <i className="fas fa-plus"></i> Nuevo Usuario
+        </button>
       </div>
 
-      <section className="content">
-        <div className="container-fluid">
-          {/* Modal de Bootstrap */}
-          <div className={`modal fade ${isModalOpen ? 'show d-block' : ''}`} id="userFormModalCUPage" tabIndex="-1" role="dialog" aria-labelledby="userFormModalCULabel" aria-hidden={!isModalOpen} style={{ backgroundColor: isModalOpen ? 'rgba(0,0,0,0.4)' : 'transparent' }}>
-            <div className="modal-dialog modal-dialog-centered" role="document"> {/* modal-lg para un modal más ancho si se necesita */}
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title" id="userFormModalCULabel">{editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</h5>
-                  <button type="button" className="close" onClick={handleCloseModal} aria-label="Close" disabled={isSubmitting}>
-                    <span aria-hidden="true">×</span>
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <UserForm
-                    onSubmit={handleSubmitUserForm}
-                    onClose={handleCloseModal}
-                    initialData={editingUser || {}}
-                    posiblesRoles={posiblesRoles}
-                    isSubmitting={isSubmitting}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          {isModalOpen && <div className="modal-backdrop fade show"></div>}
-
-          {feedbackMessage.text && (
-            <div className={`alert ${feedbackMessage.type === 'success' ? 'alert-success' : 'alert-danger'} alert-dismissible fade show my-3`} role="alert">
-              {feedbackMessage.text}
-              <button type="button" className="close" data-dismiss="alert" aria-label="Close" onClick={() => setFeedbackMessage({ type: '', text: '' })}>
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          )}
-
-          <div className="card shadow-sm">
-            <div className="card-header">
-              <h3 className="card-title">Lista de Usuarios del Sistema</h3>
-              <div className="card-tools">
-                <button className="btn btn-primary btn-sm" onClick={() => handleOpenModal()} disabled={isSubmitting}>
-                  <i className="fas fa-plus mr-1"></i> Crear Usuario
-                </button>
-              </div>
-            </div>
-            <div className="card-body p-0">
-              {loading && usuarios.length === 0 ? (
-                 <div className="text-center p-5"><i className="fas fa-spinner fa-spin fa-2x"></i><p className="mt-2">Cargando...</p></div>
-              ) : error && usuarios.length === 0 ? ( // Mostrar error solo si no hay datos y hubo un error de carga
-                <div className="alert alert-danger m-3">{error}</div>
-              ) : usuarios.length === 0 ? (
-                <p className="p-3 text-center text-muted">No se encontraron usuarios.</p>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-striped table-hover table-bordered">
-                    <thead className="thead-light">
-                      <tr>
-                        <th style={{ width: '5%' }}>ID</th>
-                        <th style={{ width: '25%' }}>Nombre</th>
-                        <th style={{ width: '30%' }}>Email</th>
-                        <th style={{ width: '15%' }}>Rol</th>
-                        <th style={{ width: '15%' }}>Creación</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {usuarios.map((u) => (
-                        <tr key={u.id}>
-                          <td>{u.id}</td>
-                          <td>{u.nombre}</td>
-                          <td>{u.email}</td>
-                          <td>{u.rol ? u.rol.charAt(0).toUpperCase() + u.rol.slice(1) : 'N/D'}</td>
-                          <td>{u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString('es-ES') : 'N/D'}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button className="btn btn-xs btn-info mr-1" title="Editar" onClick={() => handleOpenModal(u)} disabled={isSubmitting}>
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            {!(currentUserId === u.id && userRol === 'superadministrador') && (
-                               <button className="btn btn-xs btn-danger" title="Eliminar" onClick={() => handleDeleteUser(u.id, u.nombre)} disabled={isSubmitting}>
-                                 <i className="fas fa-trash"></i>
-                               </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+      {loading ? (
+        <div className="text-center p-5">
+          <i className="fas fa-spinner fa-spin fa-2x text-primary"></i>
+          <p className="mt-2">Cargando usuarios...</p>
         </div>
-      </section>
-    </>
+      ) : (
+        <div className="table-responsive">
+          <table ref={tableRef} className="table table-bordered table-hover">
+            <thead className="thead-light">
+              <tr>
+                <th style={{ width: '5%' }}>ID</th>
+                <th style={{ width: '25%' }}>Nombre</th>
+                <th style={{ width: '30%' }}>Email</th>
+                <th style={{ width: '15%' }}>Rol</th>
+                <th style={{ width: '15%' }}>Creación</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usuarios.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.id}</td>
+                  <td>{u.nombre}</td>
+                  <td>{u.email}</td>
+                  <td>{u.rol ? u.rol.charAt(0).toUpperCase() + u.rol.slice(1) : 'N/D'}</td>
+                  <td>{u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString('es-ES') : 'N/D'}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button className="btn btn-sm btn-info mr-1" title="Editar" onClick={() => handleShowModal(u)} disabled={isSubmitting}>
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    {!(currentUserId === u.id && userRol === 'superadministrador') && (
+                      <button className="btn btn-sm btn-danger" title="Eliminar" onClick={() => handleDeleteUser(u.id, u.nombre)} disabled={isSubmitting}>
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <UserForm
+            onSubmit={handleSubmitUserForm}
+            onClose={handleCloseModal}
+            initialData={editingUser || {}}
+            posiblesRoles={posiblesRoles}
+            isSubmitting={isSubmitting}
+          />
+        </Modal.Body>
+      </Modal>
+    </div>
   );
 }
 

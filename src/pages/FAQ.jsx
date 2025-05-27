@@ -76,18 +76,21 @@ const FAQ = () => {
                 <div className="space-y-4">
                 {faqsEnCategoria.map((faq) => (
                     <details key={faq.id} className="group bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-                    <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 group-hover:text-blue-600">
-                        {faq.pregunta}
-                        <span className="text-blue-500 group-open:rotate-90 transform transition-transform duration-200 ml-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-chevron-right" viewBox="0 0 16 16">
-                                <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                            </svg>
-                        </span>
-                    </summary>
-                    <p className="text-gray-700 mt-2 pt-2 border-t border-gray-200">
-                        {faq.respuesta}
-                    </p>
-                    </details>
+  <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 group-hover:text-blue-600">
+    {faq.pregunta}
+    <span className="text-blue-500 group-open:rotate-90 transform transition-transform duration-200 ml-2">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-chevron-right" viewBox="0 0 16 16">
+        <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+      </svg>
+    </span>
+  </summary>
+  <p 
+    className="text-gray-700 mt-2 pt-2 border-t border-gray-200"
+    style={{ whiteSpace: 'pre-wrap' }}
+  >
+    {faq.respuesta}
+  </p>
+</details>
                 ))}
                 </div>
             </div>

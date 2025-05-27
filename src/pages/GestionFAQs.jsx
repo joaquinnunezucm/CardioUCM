@@ -1,145 +1,138 @@
+// src/components/GestionFAQs.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import Swal from 'sweetalert2';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
+import { Modal, Button, Form } from 'react-bootstrap';
+import Swal from 'sweetalert2';
 
 const GestionFAQs = () => {
   const [faqs, setFAQs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const tableRef = useRef();
+  const [tableInitialized, setTableInitialized] = useState(false);
+  const tableRef = useRef(null);
 
-  // Fetch FAQs
-  useEffect(() => {
-    const fetchFAQs = async () => {
-      try {
-        const response = await axios.get('http://localhost:3001/api/faqs');
-        setFAQs(response.data);
-      } catch (err) {
-        console.error("Error al obtener FAQs:", err);
-      } finally {
-        setLoading(false);
+  const [showModal, setShowModal] = useState(false);
+  const [currentFAQ, setCurrentFAQ] = useState(null);
+  const [formData, setFormData] = useState({
+    pregunta: '',
+    respuesta: '',
+    categoria: '',
+    orden: 0
+  });
+
+  // Cargar FAQs
+  const fetchFAQs = async () => {
+    try {
+      setLoading(true);
+      if ($.fn.dataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
+        setTableInitialized(false);
       }
-    };
-
-    fetchFAQs();
-  }, [refreshTrigger]);
-
-  // Inicializar DataTables después de cargar datos
-  useEffect(() => {
-    if (!loading && faqs.length > 0) {
-      const table = $(tableRef.current).DataTable({
-        destroy: true,
-        language: {
-          search: "Buscar:",
-          lengthMenu: "Mostrar _MENU_ registros",
-          info: "Mostrando _START_ a _END_ de _TOTAL_ FAQs",
-          paginate: { previous: "Anterior", next: "Siguiente" },
-          zeroRecords: "No se encontraron FAQs"
-        }
-      });
-
-      return () => {
-        table.destroy();
-      };
+      const response = await axios.get('http://localhost:3001/api/faqs');
+      setFAQs(response.data);
+    } catch (error) {
+      console.error('Error al obtener FAQs:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [faqs, loading]);
-
-  // Crear o Editar FAQ con SweetAlert2
-  const handleCreateOrEdit = (faq = null) => {
-    Swal.fire({
-      title: faq ? 'Editar FAQ' : 'Crear Pregunta Frecuente',
-      html: `
-        <div style="display: flex; flex-direction: column; gap: 15px; max-width: 800px; margin: auto;">
-          <input id="swal-input-pregunta" class="swal2-input" placeholder="Pregunta" value="${faq?.pregunta || ''}" style="width: 100%;">
-          <textarea id="swal-input-respuesta" class="swal2-textarea" placeholder="Respuesta" style="width: 100%;">${faq?.respuesta || ''}</textarea>
-          <input id="swal-input-categoria" class="swal2-input" placeholder="Categoría" value="${faq?.categoria || ''}" style="width: 100%;">
-          <input id="swal-input-orden" class="swal2-input" placeholder="Orden" type="number" value="${faq?.orden || 0}" style="width: 100%;">
-        </div>
-      `,
-      customClass: {
-        popup: 'swal-wide'
-      },
-      width: '900px',
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: faq ? 'Actualizar' : 'Crear',
-      cancelButtonText: 'Cancelar',
-      preConfirm: () => {
-        const pregunta = document.getElementById('swal-input-pregunta').value.trim();
-        const respuesta = document.getElementById('swal-input-respuesta').value.trim();
-        const categoria = document.getElementById('swal-input-categoria').value.trim();
-        const orden = parseInt(document.getElementById('swal-input-orden').value.trim());
-
-        if (!pregunta || !respuesta || isNaN(orden)) {
-          Swal.showValidationMessage('Todos los campos excepto categoría son obligatorios');
-          return false;
-        }
-
-        return { pregunta, respuesta, categoria, orden };
-      }
-    }).then(async (result) => {
-      if (result.isConfirmed && result.value) {
-        try {
-          setIsSubmitting(true);
-          const url = faq ? `http://localhost:3001/api/faqs/${faq.id}` : 'http://localhost:3001/api/faqs';
-          const method = faq ? 'put' : 'post';
-          const response = await axios[method](url, result.value);
-
-          // Actualizar el estado de FAQs directamente
-          if (faq) {
-            setFAQs(faqs.map(item => (item.id === faq.id ? response.data : item)));
-          } else {
-            setFAQs([...faqs, response.data]);
-          }
-
-          Swal.fire({
-            icon: 'success',
-            title: faq ? '¡FAQ actualizada correctamente!' : '¡FAQ creada correctamente!',
-            showConfirmButton: false,
-            timer: 1500
-          });
-        } catch (err) {
-          console.error("Error al guardar FAQ:", err);
-          Swal.fire('Error', 'No se pudo guardar la FAQ.', 'error');
-        } finally {
-          setIsSubmitting(false);
-        }
-      }
-    });
   };
 
-  // Eliminar FAQ con confirmación
-  const handleDeleteFAQ = (faqId, pregunta) => {
+  useEffect(() => {
+    fetchFAQs();
+  }, []);
+
+  useEffect(() => {
+    if (!loading && faqs.length > 0 && !tableInitialized) {
+      $(tableRef.current).DataTable({
+        language: {
+          search: 'Buscar:',
+          lengthMenu: 'Mostrar _MENU_ registros',
+          info: 'Mostrando _START_ a _END_ de _TOTAL_ FAQs',
+          paginate: { previous: 'Anterior', next: 'Siguiente' },
+          zeroRecords: 'No se encontraron FAQs'
+        }
+      });
+      setTableInitialized(true);
+    }
+  }, [loading, faqs, tableInitialized]);
+
+  const handleShowModal = (faq = null) => {
+    if (faq) {
+      setCurrentFAQ(faq);
+      setFormData({
+        pregunta: faq.pregunta,
+        respuesta: faq.respuesta,
+        categoria: faq.categoria || '',
+        orden: faq.orden
+      });
+    } else {
+      setCurrentFAQ(null);
+      setFormData({
+        pregunta: '',
+        respuesta: '',
+        categoria: '',
+        orden: 0
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'orden' ? parseInt(value) : value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const { pregunta, respuesta, orden } = formData;
+
+    if (!pregunta.trim() || !respuesta.trim() || isNaN(orden)) {
+      Swal.fire('Campos incompletos', 'Todos los campos excepto categoría son obligatorios.', 'warning');
+      return;
+    }
+
+    try {
+      if (currentFAQ) {
+        await axios.put(`http://localhost:3001/api/faqs/${currentFAQ.id}`, formData);
+        Swal.fire('Actualizado', 'La FAQ fue actualizada correctamente.', 'success');
+      } else {
+        await axios.post('http://localhost:3001/api/faqs', formData);
+        Swal.fire('Creado', 'La FAQ fue creada exitosamente.', 'success');
+      }
+      fetchFAQs();
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error al guardar FAQ:', error);
+      Swal.fire('Error', 'No se pudo guardar la FAQ.', 'error');
+    }
+  };
+
+  const handleDeleteFAQ = async (id, pregunta) => {
     Swal.fire({
-      title: `¿Eliminar FAQ?`,
+      title: '¿Estás seguro?',
       text: `"${pregunta}" se eliminará permanentemente.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar'
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`http://localhost:3001/api/faqs/${faqId}`);
-          
-          // Actualizar el estado de FAQs directamente
-          setFAQs(faqs.filter(item => item.id !== faqId));
-
-          Swal.fire({
-            icon: 'success',
-            title: '¡FAQ eliminada correctamente!',
-            showConfirmButton: false,
-            timer: 1500
-          });
-        } catch (err) {
-          console.error("Error eliminando FAQ:", err.response?.data || err.message);
-          Swal.fire('Error', err.response?.data?.message || "Error al eliminar la FAQ.", 'error');
+          await axios.delete(`http://localhost:3001/api/faqs/${id}`);
+          Swal.fire('Eliminado', 'La FAQ fue eliminada correctamente.', 'success');
+          fetchFAQs();
+        } catch (error) {
+          console.error('Error al eliminar FAQ:', error);
+          Swal.fire('Error', 'No se pudo eliminar la FAQ.', 'error');
         }
       }
     });
@@ -147,41 +140,109 @@ const GestionFAQs = () => {
 
   return (
     <div className="container mt-4">
-      <div className="mb-3 d-flex justify-content-end">
-        <button className="btn btn-success" onClick={() => handleCreateOrEdit()} disabled={isSubmitting}>
+      <h3 className="mb-3">Gestión de FAQs</h3>
+
+      <div className="mb-3 text-right">
+        <button className="btn btn-success" onClick={() => handleShowModal()}>
           <i className="fas fa-plus"></i> Nueva Pregunta
         </button>
       </div>
 
-      <div className="table-responsive">
-        <table ref={tableRef} id="faqsTable" className="table table-bordered table-hover">
-          <thead className="thead-light">
-            <tr>
-              <th>Pregunta</th>
-              <th>Categoría</th>
-              <th style={{ width: '10%', textAlign: 'center' }}>Orden</th>
-              <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {faqs.map(faq => (
-              <tr key={faq.id}>
-                <td>{faq.pregunta}</td>
-                <td>{faq.categoria || '-'}</td>
-                <td style={{ textAlign: 'center' }}>{faq.orden}</td>
-                <td style={{ textAlign: 'center' }}>
-                  <button className="btn btn-xs btn-info mr-1" onClick={() => handleCreateOrEdit(faq)} disabled={isSubmitting}>
-                    <i className="fas fa-edit"></i>
-                  </button>
-                  <button className="btn btn-xs btn-danger" onClick={() => handleDeleteFAQ(faq.id, faq.pregunta)} disabled={isSubmitting}>
-                    <i className="fas fa-trash"></i>
-                  </button>
-                </td>
+      {loading ? (
+        <div>Cargando FAQs...</div>
+      ) : (
+        <div className="table-responsive">
+          <table ref={tableRef} className="table table-bordered table-hover">
+            <thead className="thead-light">
+              <tr>
+                <th>Pregunta</th>
+                <th>Categoría</th>
+                <th style={{ width: '10%', textAlign: 'center' }}>Orden</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {faqs.map(faq => (
+                <tr key={faq.id}>
+                  <td>{faq.pregunta}</td>
+                  <td>{faq.categoria || '-'}</td>
+                  <td style={{ textAlign: 'center' }}>{faq.orden}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button className="btn btn-sm btn-info mr-1" onClick={() => handleShowModal(faq)}>
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteFAQ(faq.id, faq.pregunta)}>
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal de Bootstrap para Crear/Editar FAQ */}
+      <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>{currentFAQ ? 'Editar FAQ' : 'Crear Pregunta Frecuente'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <Form.Group controlId="formPregunta">
+              <Form.Label>Pregunta</Form.Label>
+              <Form.Control
+                type="text"
+                name="pregunta"
+                value={formData.pregunta}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group controlId="formRespuesta">
+              <Form.Label>Respuesta</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                name="respuesta"
+                value={formData.respuesta}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group controlId="formCategoria">
+              <Form.Label>Categoría</Form.Label>
+              <Form.Control
+                type="text"
+                name="categoria"
+                value={formData.categoria}
+                onChange={handleChange}
+              />
+            </Form.Group>
+
+            <Form.Group controlId="formOrden">
+              <Form.Label>Orden</Form.Label>
+              <Form.Control
+                type="number"
+                name="orden"
+                value={formData.orden}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit">
+              {currentFAQ ? 'Actualizar' : 'Crear'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
     </div>
   );
 };

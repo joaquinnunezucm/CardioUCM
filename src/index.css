@@ -5,14 +5,21 @@
 .home-page-icon-container i.fa-solid,
 .home-page-icon-container i.fa-regular,
 .home-page-icon-container i.fa-brands {
-    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important; /* Asegurar la familia de fuentes */
-    font-weight: 900 !important; /* Para iconos sólidos, ajusta para otros estilos si es necesario */
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+    font-weight: 900 !important;
     font-style: normal !important;
     font-variant: normal !important;
     text-rendering: auto !important;
     -webkit-font-smoothing: antialiased !important;
-    /* Puedes necesitar más propiedades de Font Awesome aquí si son anuladas */
 }
+
+/* ✅ Clase para igualar tamaño de botones de acción */
+/* Clase para igualar ancho de botones */
+.btn-fixed-width {
+  min-width: 110px;
+  width: 100%;
+}
+
 
 @tailwind base;
 @tailwind components;
