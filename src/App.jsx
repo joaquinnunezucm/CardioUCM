@@ -18,8 +18,8 @@ import ValidacionDeas from './pages/ValidacionDeas';
 import ControlUsuarios from './pages/ControlUsuarios';
 import GestionFAQs from './pages/GestionFAQs.jsx';
 import GestionEducacion from './pages/GestionEducacion';
-import GestionRCP from './pages/GestionRCP'; // Nueva importación para GestionRCP
-
+import GestionRCP from './pages/GestionRCP'; 
+import GestionContactanos from './pages/GestionContactanos';
 // --- Componente Wrapper para Contenido Interno de Páginas de Admin ---
 // Este wrapper añade el content-header (título, breadcrumbs) y la section.content
 // a los componentes de página que solo devuelven su JSX específico.
@@ -113,7 +113,8 @@ function AppContent() {
         <Route path="reportes" element={<ReportesAdmin />} />
         <Route path="gestion-faq" element={<GestionFAQs />} />
         <Route path="gestion-educacion" element={<GestionEducacion />} />
-        <Route path="gestion-rcp" element={<GestionRCP />} /> {/* Nueva ruta para GestionRCP */}
+        <Route path="gestion-rcp" element={<GestionRCP />} /> 
+        <Route path="gestion-contactanos" element={<GestionContactanos />} /> 
         
         <Route
           path="control-usuarios"

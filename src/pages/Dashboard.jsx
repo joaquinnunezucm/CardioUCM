@@ -17,7 +17,7 @@ export default function Dashboard() { // Este componente es el Layout principal 
   });
 
   // Definición de módulos para las INFO-BOXES que se pasarán y mostrarán en DashboardActualContent
-  // Esta lista AHORA incluye "Educación y Prevención" para que tenga su propia tarjeta.
+
   const modulosParaInfoBoxes = React.useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
@@ -90,9 +90,9 @@ export default function Dashboard() { // Este componente es el Layout principal 
   const modulosHomeNavegablesSidebar = [
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
     { nombre: "DEAs", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
-    { nombre: "Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
-    { nombre: "Ver FAQs", icono: "far fa-eye", ruta: "/admin/faq" }, // Vista de FAQs públicas
     { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" },
+    { nombre: "Preguntas Frecuentes", icono: "far fa-eye", ruta: "/admin/faq" }, 
+     { nombre: "Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
   ];
 
   // Estado para los módulos del sidebar de "ADMINISTRACIÓN" (sección inferior)
@@ -102,10 +102,11 @@ export default function Dashboard() { // Este componente es el Layout principal 
     // Este useEffect es solo para actualizar la parte dinámica del sidebar (Control Usuarios)
     console.log("Dashboard (Layout): Updating admin-specific sidebar modules for user role:", user?.rol);
     let baseAdminItems = [
+      { nombre: "Gestionar RCP", icono: "fas fa-heartbeat", ruta: "/admin/gestion-rcp" },
       { nombre: "Validación DEA", icono: "fas fa-check-circle", ruta: "/admin/validacion-deas" },
-      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" },
       { nombre: "Gestionar Educación", icono: "fas fa-graduation-cap", ruta: "/admin/gestion-educacion" },
-      { nombre: "Gestionar RCP", icono: "fas fa-heartbeat", ruta: "/admin/gestion-rcp" }, // Nueva entrada para Gestión RCP
+      { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/gestion-faq" },
+      { nombre: "Gestionar Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/gestion-contactanos" }, 
       { nombre: "Reportes", icono: "fas fa-chart-bar", ruta: "/admin/reportes" },
     ];
     if (user && user.rol === 'superadministrador') {
@@ -116,7 +117,7 @@ export default function Dashboard() { // Este componente es el Layout principal 
       });
     }
     // Ordenar alfabéticamente para consistencia (opcional)
-    baseAdminItems.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    
     setModulosAdminDinamicosSidebar(baseAdminItems);
   }, [user]); // Depende de 'user' para reconstruir esta parte del sidebar si el rol cambia
 
