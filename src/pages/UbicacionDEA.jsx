@@ -5,6 +5,8 @@ import L from 'leaflet';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
+import BackButton from '../pages/BackButton.jsx';
+
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -116,7 +118,6 @@ const UbicacionDEA = () => {
         (position) => {
           const userPos = [position.coords.latitude, position.coords.longitude];
           setUserLocation(userPos);
-          // El popup se manejará en el Marker
           if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
             setCenter(userPos);
           }
@@ -248,232 +249,243 @@ const UbicacionDEA = () => {
   };
 
   return (
-    <div className="container mt-4">
-      <h3 className="mb-3">Mapa de Desfibriladores</h3>
-
-      <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
-        <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          <CenterMap position={center} />
-          <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
-          {userLocation && (
-            <Marker
-              position={userLocation}
-              icon={userIcon}
-              ref={(ref) => {
-                userMarkerRef.current = ref;
-                if (ref) {
-                  setTimeout(() => {
-                    ref.openPopup();
-                  }, 500);
+    <div className="relative min-h-screen">
+      <BackButton />
+      <div className="content-header py-3 md:py-5 bg-white-50 pt-12">
+        <div className="container-fluid">
+          <div className="row mb-2">
+            <div className="col-sm-12 text-center">
+              <h1 className="m-0 text-3xl md:text-4xl font-bold text-Black-700">
+                Mapa de Desfibriladores
+              </h1>
+            </div>
+          </div>
+        </div>
+      </div>
+      <section className="content py-5">
+        <div className="container-fluid">
+          <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
+            <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <CenterMap position={center} />
+              <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
+              {userLocation && (
+                <Marker
+                  position={userLocation}
+                  icon={userIcon}
+                  ref={(ref) => {
+                    userMarkerRef.current = ref;
+                    if (ref) {
+                      setTimeout(() => {
+                        ref.openPopup();
+                      }, 500);
+                    }
+                  }}
+                >
+                  <Popup>
+                    <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1>
+                  </Popup>
+                </Marker>
+              )}
+              {cercanos.map((d) => (
+                <Marker
+                  key={d.id}
+                  position={[parseFloat(d.lat), parseFloat(d.lng)]}
+                  icon={customIcon}
+                  ref={(ref) => (markersRef.current[d.id] = ref)}
+                >
+                  <Popup>
+                    <b>{d.nombre}</b>
+                    <br />
+                    {d.direccion}
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+            <button
+              onClick={handleShowModal}
+              className="btn btn-success"
+              style={{ ...mapButtonStyle, top: 10, right: 10 }}
+            >
+              <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
+            </button>
+            <button
+              onClick={() => {
+                if (userLocation) {
+                  setCenter([...userLocation]);
+                  if (userMarkerRef.current) {
+                    userMarkerRef.current.openPopup();
+                  }
+                } else {
+                  Swal.fire('Error', 'No se ha podido obtener tu ubicación actual.', 'error');
                 }
               }}
+              className="btn btn-info"
+              style={{ ...mapButtonStyle, top: 60, right: 10 }}
             >
-              <Popup>
-                <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1>
-              </Popup>
-            </Marker>
-          )}
-          {cercanos.map((d) => (
-            <Marker
-              key={d.id}
-              position={[parseFloat(d.lat), parseFloat(d.lng)]}
-              icon={customIcon}
-              ref={(ref) => (markersRef.current[d.id] = ref)}
-            >
-              <Popup>
-                <b>{d.nombre}</b>
-                <br />
-                {d.direccion}
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
-
-        <button
-          onClick={handleShowModal}
-          className="btn btn-success"
-          style={{ ...mapButtonStyle, top: 10, right: 10 }}
-        >
-          <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
-        </button>
-        <button
-          onClick={() => {
-            if (userLocation) {
-              setCenter([...userLocation]);
-              if (userMarkerRef.current) {
-                userMarkerRef.current.openPopup();
-              }
-            } else {
-              Swal.fire('Error', 'No se ha podido obtener tu ubicación actual.', 'error');
-            }
-          }}
-          className="btn btn-info"
-          style={{ ...mapButtonStyle, top: 60, right: 10 }}
-        >
-          Mi Ubicación
-        </button>
-      </div>
-
-      <div className="card shadow-sm">
-        <div className="card-header">
-          <h3 className="card-title">10 Desfibriladores Activos más Cercanos</h3>
+              Mi Ubicación
+            </button>
+          </div>
+          <div className="card shadow-sm">
+            <div className="card-header">
+              <h3 className="card-title">10 Desfibriladores Activos más Cercanos</h3>
+            </div>
+            <div className="card-body">
+              {cercanos.length > 0 ? (
+                <ul className="list-group">
+                  {cercanos.map((d) => (
+                    <li key={d.id} className="list-group-item">
+                      <button
+                        onClick={() => focusMarker(d.id, d.lat, d.lng)}
+                        className="btn btn-link p-0 text-left w-100"
+                        style={{ color: '#007bff', textDecoration: 'none' }}
+                      >
+                        <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
+                        <span className="float-right text-muted">
+                          {typeof d.distancia === 'number' && !isNaN(d.distancia)
+                            ? `(${d.distancia.toFixed(2)} km)`
+                            : '(Dist. no disp.)'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : userLocation ? (
+                <p className="text-muted">
+                  No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
+                </p>
+              ) : (
+                <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
+              )}
+            </div>
+          </div>
+          <Modal show={showModal} onHide={handleCloseModal}>
+            <Modal.Header closeButton>
+              <Modal.Title>Sugerir Nuevo DEA</Modal.Title>
+            </Modal.Header>
+            <Form onSubmit={handleSubmit}>
+              <Modal.Body>
+                {formError && (
+                  <div className="alert alert-danger p-2 mb-2" role="alert">
+                    {formError}
+                  </div>
+                )}
+                <Form.Group controlId="formNombre" className="mb-2">
+                  <Form.Label>Nombre del Lugar</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="nombre"
+                    value={formData.nombre}
+                    onChange={handleChange}
+                    placeholder="Ej: Centro Comercial XYZ"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <h5 className="mt-4 mb-2">Dirección de Instalación</h5>
+                <Form.Group controlId="formCalle" className="mb-2">
+                  <Form.Label>Calle</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="calle"
+                    value={formData.calle}
+                    onChange={handleChange}
+                    placeholder="Ej: Av. Siempre Viva"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <Form.Group controlId="formNumero" className="mb-2">
+                  <Form.Label>Número</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="numero"
+                    value={formData.numero}
+                    onChange={handleChange}
+                    placeholder="Ej: 742 (opcional si no aplica)"
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <Form.Group controlId="formComuna" className="mb-2">
+                  <Form.Label>Comuna</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="comuna"
+                    value={formData.comuna}
+                    onChange={handleChange}
+                    placeholder="Ej: Springfield"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <h5 className="mt-4 mb-2">Coordenadas Geográficas (Clic en mapa para auto-rellenar)</h5>
+                <Form.Group controlId="formLatitud" className="mb-2">
+                  <Form.Label>Latitud</Form.Label>
+                  <Form.Control
+                    type="number"
+                    step="any"
+                    name="lat"
+                    value={formData.lat}
+                    onChange={handleChange}
+                    placeholder="Ej: -35.123456"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <Form.Group controlId="formLongitud" className="mb-2">
+                  <Form.Label>Longitud</Form.Label>
+                  <Form.Control
+                    type="number"
+                    step="any"
+                    name="lng"
+                    value={formData.lng}
+                    onChange={handleChange}
+                    placeholder="Ej: -71.123456"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <h5 className="mt-4 mb-2">Información del Solicitante</h5>
+                <Form.Group controlId="formSolicitante" className="mb-2">
+                  <Form.Label>Nombre del Solicitante</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="solicitante"
+                    value={formData.solicitante}
+                    onChange={handleChange}
+                    placeholder="Nombre completo"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+                <Form.Group controlId="formRut" className="mb-2">
+                  <Form.Label>RUT del Solicitante</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="rut"
+                    value={formData.rut}
+                    onChange={handleChange}
+                    placeholder="Ej: 12345678-9"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
+                  Cancelar
+                </Button>
+                <Button variant="primary" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
+                </Button>
+              </Modal.Footer>
+            </Form>
+          </Modal>
         </div>
-        <div className="card-body">
-          {cercanos.length > 0 ? (
-            <ul className="list-group">
-              {cercanos.map((d) => (
-                <li key={d.id} className="list-group-item">
-                  <button
-                    onClick={() => focusMarker(d.id, d.lat, d.lng)}
-                    className="btn btn-link p-0 text-left w-100"
-                    style={{ color: '#007bff', textDecoration: 'none' }}
-                  >
-                    <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
-                    <span className="float-right text-muted">
-                      {typeof d.distancia === 'number' && !isNaN(d.distancia)
-                        ? `(${d.distancia.toFixed(2)} km)`
-                        : '(Dist. no disp.)'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : userLocation ? (
-            <p className="text-muted">
-              No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
-            </p>
-          ) : (
-            <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
-          )}
-        </div>
-      </div>
-
-      <Modal show={showModal} onHide={handleCloseModal}>
-        <Modal.Header closeButton>
-          <Modal.Title>Sugerir Nuevo DEA</Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleSubmit}>
-          <Modal.Body>
-            {formError && (
-              <div className="alert alert-danger p-2 mb-3" role="alert">
-                {formError}
-              </div>
-            )}
-            <Form.Group controlId="formNombre" className="mb-3">
-              <Form.Label>Nombre del Lugar</Form.Label>
-              <Form.Control
-                type="text"
-                name="nombre"
-                value={formData.nombre}
-                onChange={handleChange}
-                placeholder="Ej: Centro Comercial XYZ"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <h5 className="mt-4 mb-3">Dirección de Instalación</h5>
-            <Form.Group controlId="formCalle" className="mb-3">
-              <Form.Label>Calle</Form.Label>
-              <Form.Control
-                type="text"
-                name="calle"
-                value={formData.calle}
-                onChange={handleChange}
-                placeholder="Ej: Av. Siempre Viva"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <Form.Group controlId="formNumero" className="mb-3">
-              <Form.Label>Número</Form.Label>
-              <Form.Control
-                type="text"
-                name="numero"
-                value={formData.numero}
-                onChange={handleChange}
-                placeholder="Ej: 742 (opcional si no aplica)"
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <Form.Group controlId="formComuna" className="mb-3">
-              <Form.Label>Comuna</Form.Label>
-              <Form.Control
-                type="text"
-                name="comuna"
-                value={formData.comuna}
-                onChange={handleChange}
-                placeholder="Ej: Springfield"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <h5 className="mt-4 mb-3">Coordenadas Geográficas (Clic en mapa para auto-rellenar)</h5>
-            <Form.Group controlId="formLatitud" className="mb-3">
-              <Form.Label>Latitud</Form.Label>
-              <Form.Control
-                type="number"
-                step="any"
-                name="lat"
-                value={formData.lat}
-                onChange={handleChange}
-                placeholder="Ej: -35.123456"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <Form.Group controlId="formLongitud" className="mb-3">
-              <Form.Label>Longitud</Form.Label>
-              <Form.Control
-                type="number"
-                step="any"
-                name="lng"
-                value={formData.lng}
-                onChange={handleChange}
-                placeholder="Ej: -71.123456"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <h5 className="mt-4 mb-3">Información del Solicitante</h5>
-            <Form.Group controlId="formSolicitante" className="mb-3">
-              <Form.Label>Nombre del Solicitante</Form.Label>
-              <Form.Control
-                type="text"
-                name="solicitante"
-                value={formData.solicitante}
-                onChange={handleChange}
-                placeholder="Nombre completo"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-            <Form.Group controlId="formRut" className="mb-3">
-              <Form.Label>RUT del Solicitante</Form.Label>
-              <Form.Control
-                type="text"
-                name="rut"
-                value={formData.rut}
-                onChange={handleChange}
-                placeholder="Ej: 12345678-9"
-                required
-                disabled={isSubmitting}
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button variant="primary" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+      </section>
     </div>
   );
 };

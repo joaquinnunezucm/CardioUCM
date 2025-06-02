@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
+import '@fortawesome/fontawesome-free/css/all.min.css';
 
 // --- Componentes de Páginas Públicas ---
 import Home from "./pages/Home";

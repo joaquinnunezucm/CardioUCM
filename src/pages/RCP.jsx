@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import axios from 'axios';
+import BackButton from '../pages/BackButton.jsx';
+
 
 const RCP = () => {
   const [metronomoActivo, setMetronomoActivo] = useState(false);
@@ -63,8 +65,8 @@ const RCP = () => {
           <i className="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i>
           <h1 className="text-2xl font-bold mb-3 text-red-700">Error al Cargar</h1>
           <p className="text-red-600">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             Intentar de Nuevo
@@ -75,7 +77,8 @@ const RCP = () => {
   }
 
   return (
-    <>
+    <div className="relative min-h-screen">
+      <BackButton />
       <div className="content-header py-3 md:py-5 bg-red-50">
         <div className="container-fluid">
           <div className="row mb-2">
@@ -87,7 +90,6 @@ const RCP = () => {
           </div>
         </div>
       </div>
-
       <section className="content py-5">
         <div className="container-fluid">
           <p className="text-center text-gray-600 mb-8 md:mb-12 text-base md:text-lg max-w-3xl mx-auto">
@@ -121,7 +123,14 @@ const RCP = () => {
                   {instrucciones.map((instruccion, index) => (
                     <li key={index} className="mt-4">
                       {instruccion.instruccion === 'Buscar DEA cercano' ? (
-                        <Link to={user && (user.rol === 'administrador' || user.rol === 'superadministrador') ? "/admin/deas" : "/dea"} className="text-blue-600 underline hover:text-blue-800">
+                        <Link
+                          to={
+                            user && (user.rol === 'administrador' || user.rol === 'superadministrador')
+                              ? '/admin/deas'
+                              : '/dea'
+                          }
+                          className="text-blue-600 underline hover:text-blue-800"
+                        >
                           Buscar DEA cercano
                         </Link>
                       ) : (
@@ -130,10 +139,16 @@ const RCP = () => {
                           {instruccion.medios && instruccion.medios.length > 0 && (
                             <div className="mt-4 flex flex-wrap justify-start gap-4">
                               {instruccion.medios.map((medio, medioIndex) => (
-                                <div key={medioIndex} className="flex flex-col items-center text-center max-w-[300px] w-full">
+                                <div
+                                  key={medioIndex}
+                                  className="flex flex-col items-center text-center max-w-[300px] w-full"
+                                >
                                   <img
                                     src={`${API_BASE_URL}${medio.url_medio}`}
-                                    alt={medio.subtitulo || `Ilustración ${medioIndex + 1} para ${instruccion.instruccion}`}
+                                    alt={
+                                      medio.subtitulo ||
+                                      `Ilustración ${medioIndex + 1} para ${instruccion.instruccion}`
+                                    }
                                     className="rounded-md object-contain mb-2 shadow-lg w-full"
                                     style={{ maxHeight: '300px', maxWidth: '100%' }}
                                     loading="lazy"
@@ -161,7 +176,7 @@ const RCP = () => {
           <audio ref={audioRef} src="/assets/metronome.mp3" preload="auto" />
         </div>
       </section>
-    </>
+    </div>
   );
 };
 

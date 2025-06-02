@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FaInstagram, FaEnvelope, FaGlobe, FaPhone, FaFacebook, FaTwitter, FaInfoCircle } from 'react-icons/fa'; // Importa todos los que podrías usar
 import { Link } from 'react-router-dom'; // Si algún enlace es interno
+import BackButton from '../pages/BackButton.jsx';
+
 
 // Mapeo de nombres de iconos de string a componentes de React Icons
 const iconComponents = {
@@ -107,6 +109,8 @@ const Contactanos = () => {
 
 
   return (
+  <div className="relative min-h-screen">
+      <BackButton />
     <div className="min-h-screen bg-pink-50 px-4 sm:px-6 py-8">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <h1 className="text-3xl sm:text-4xl font-bold text-pink-700 mb-4 text-center">Contáctanos</h1>
@@ -168,6 +172,7 @@ const Contactanos = () => {
         </div>
       </div>
     </div>
+  </div>
   );
 };
 

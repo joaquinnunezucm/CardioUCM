@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import BackButton from '../pages/BackButton.jsx';
+
 
 // Componente para renderizar contenido HTML o texto con saltos de línea
 const HtmlRenderer = ({ htmlString }) => {
@@ -142,7 +144,9 @@ const Educacion = () => {
   ];
 
   return (
-    <>
+
+    <div className="relative min-h-screen">
+      <BackButton />
       <div className="content-header py-3 md:py-5 bg-slate-50">
         <div className="container-fluid">
           <div className="row mb-2">
@@ -329,7 +333,7 @@ const Educacion = () => {
           <audio ref={audioRef} src="/assets/metronome.mp3" preload="auto" />
         </div>
       </section>
-    </>
+</div>
   );
 };
 

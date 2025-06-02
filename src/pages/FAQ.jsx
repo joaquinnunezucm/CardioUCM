@@ -1,6 +1,7 @@
 // src/pages/FAQ.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import BackButton from '../pages/BackButton.jsx';
 
 const FAQ = () => {
   const [faqs, setFaqs] = useState([]);
@@ -55,7 +56,8 @@ const FAQ = () => {
   }
 
   return (
-    // Asumiendo que quieres mantener los estilos de Tailwind que tenías
+  <div className="relative min-h-screen">
+      <BackButton />
     <div className="min-h-screen p-4 md:p-8 bg-gray-100">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl md:text-4xl font-bold mb-6 md:mb-8 text-center text-blue-700">
@@ -98,6 +100,7 @@ const FAQ = () => {
         )}
       </div>
     </div>
+  </div>
   );
 };
 
