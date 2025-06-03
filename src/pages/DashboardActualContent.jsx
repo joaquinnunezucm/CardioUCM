@@ -107,7 +107,7 @@ export default function DashboardActualContent() {
                       <div className="small-box bg-danger">
                         <div className="inner">
                           <h3>{estadisticasSistema.emergenciasEsteMes || 0}</h3>
-                          <p>Emergencias este mes</p>
+                          <p>Emergencias</p>
                         </div>
                         <div className="icon"><i className="fas fa-ambulance"></i></div>
                       </div>

@@ -1,25 +1,73 @@
 // src/pages/Reportes.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { Chart } from 'react-chartjs-2';
-import 'chart.js/auto'; // Importante para que Chart.js registre todos los componentes
-import { useAuth } from '../context/AuthContext'; // Ajusta la ruta si es necesario
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement, TimeScale } from 'chart.js';
+import { Chart } from 'react-chartjs-2'; // El componente de react-chartjs-2
+import 'chart.js/auto'; // Para asegurar que todos los elementos estén disponibles
+import 'chartjs-adapter-date-fns';
+import { es } from 'date-fns/locale';
+import { useAuth } from '../context/AuthContext';
+import { Button, Form, Table, Badge } from 'react-bootstrap'; // Modal no se usa aquí, la quité
 
-// Función helper para capitalizar texto
+// Registrar los componentes de Chart.js que se van a utilizar
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+  TimeScale
+);
+
+const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const capitalizeText = (str) => {
   if (!str) return '';
+  if (str === str.toUpperCase() && str.length <= 4) return str;
   return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
 };
 
-// Función para generar colores para gráficos
 const generateColors = (count) => {
   const colors = [];
-  const baseHue = Math.random() * 360; 
+  const baseHue = Math.floor(Math.random() * 360); 
   for (let i = 0; i < count; i++) {
-    const hue = (baseHue + i * 137.508) % 360; // Ángulo dorado para distribución
-    colors.push(`hsla(${hue}, 70%, 60%, 0.7)`);
+    const hue = (baseHue + i * (360 / (count < 2 ? 2 : count)) + i * 30) % 360;
+    colors.push(`hsla(${hue}, 70%, 60%, 0.8)`);
   }
   return colors;
+};
+
+const generateBorderColors = (colorsArray) => {
+    return colorsArray.map(color => color.replace('0.8', '1'));
+}
+
+const getTodayDateString = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const NOMBRE_SECCIONES_CLIC = {
+  'VISITAHOMEPAGE': 'Home',
+  'RCP': 'RCP',
+  'DEA': 'DEA',
+  'EDUCACIÓN': 'Educación',
+  'PREGUNTAS FRECUENTES': 'FAQs',
+  'CONTÁCTANOS': 'Contáctanos',
+  'LLAMADAEMERGENCIA131': 'Llamada 131 (Botón)',
+
+};
+
+const getNombreSeccionClicDisplay = (nombreBackend) => {
+  if (!nombreBackend) return 'Desconocida';
+  const upperNombreBackend = nombreBackend.toUpperCase();
+  return NOMBRE_SECCIONES_CLIC[upperNombreBackend] || capitalizeText(nombreBackend);
 };
 
 export default function Reportes() {
@@ -29,13 +77,17 @@ export default function Reportes() {
     deasPorComuna: [],
     estadoDeas: { aprobados: 0, inactivos: 0, pendientes: 0, rechazados: 0 },
     clics: {},
-    solicitudesPorPeriodo: {} 
+    solicitudesPorPeriodo: {},
+    filtroAplicado: false 
   });
 
-  const [periodoFiltro, setPeriodoFiltro] = useState('meses');
-  const [rangoFechas, setRangoFechas] = useState({ inicio: '', fin: '' });
+  const [rangoFechas, setRangoFechas] = useState({ 
+    inicio: '', 
+    fin: '' 
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filtrosActivosParaFetch, setFiltrosActivosParaFetch] = useState(false); // Para controlar el trigger del useEffect
 
   useEffect(() => {
     const fetchReportes = async () => {
@@ -47,11 +99,19 @@ export default function Reportes() {
       setLoading(true);
       setError(null);
       try {
-        const params = { periodo: periodoFiltro };
-        if (rangoFechas.inicio) params.inicio = rangoFechas.inicio;
-        if (rangoFechas.fin) params.fin = rangoFechas.fin;
+        const params = {};
+        // Solo enviar parámetros de fecha si filtrosActivosParaFetch es true Y las fechas tienen valor
+        if (filtrosActivosParaFetch) {
+            if (rangoFechas.inicio) params.inicio = rangoFechas.inicio;
+            if (rangoFechas.fin) params.fin = rangoFechas.fin;
+            // Si solo hay inicio, el backend podría usar hoy como fin por defecto
+            // O podrías forzarlo aquí:
+            // else if (rangoFechas.inicio && !rangoFechas.fin) params.fin = getTodayDateString();
+        }
+        // Si filtrosActivosParaFetch es false, no se envían parámetros de fecha,
+        // y el backend debe devolver datos históricos para DEAs y un default para clics/solicitudes.
         
-        const response = await axios.get('http://localhost:3001/api/reportes', {
+        const response = await axios.get(`${API_BASE_URL_FRONTEND}/api/reportes`, {
           headers: { Authorization: `Bearer ${token}` },
           params
         });
@@ -60,24 +120,21 @@ export default function Reportes() {
         console.log('Datos recibidos del backend para Reportes.jsx:', dataFromServer);
 
         setReportes({
-          // Asumiendo que el backend envía 'deasPorComuna' con {comuna, cantidad}
           deasPorComuna: dataFromServer.deasPorComuna || [],
-          // Asumiendo que el backend envía 'estadoDeas' con {aprobados, pendientes, rechazados}
-          // y el frontend mantiene 'inactivos' en su estado local si es necesario para el gráfico.
           estadoDeas: {
             aprobados: dataFromServer.estadoDeas?.aprobados || 0,
-            inactivos: 0, // Si no viene del backend, se mantiene como 0
+            inactivos: dataFromServer.estadoDeas?.inactivos || 0,
             pendientes: dataFromServer.estadoDeas?.pendientes || 0,
             rechazados: dataFromServer.estadoDeas?.rechazados || 0,
           },
-          // Asumiendo que el backend envía 'clics' con {SECCION: {periodo: cantidad}}
           clics: dataFromServer.clics || {},
-          solicitudesPorPeriodo: dataFromServer.solicitudesPorPeriodo || {}
+          solicitudesPorPeriodo: dataFromServer.solicitudesPorPeriodo || {},
+          filtroAplicado: dataFromServer.filtroAplicado || false
         });
 
       } catch (err) {
-        console.error('Error fetching reports:', err);
-        setError('No se pudieron cargar los reportes. Por favor, intenta de nuevo.');
+        console.error('Error fetching reports:', err.response?.data || err.message);
+        setError(err.response?.data?.message || 'No se pudieron cargar los reportes. Por favor, intenta de nuevo.');
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
           logout();
         }
@@ -85,42 +142,97 @@ export default function Reportes() {
         setLoading(false);
       }
     };
-    fetchReportes();
-  }, [periodoFiltro, rangoFechas, token, logout]);
+    
+    // Siempre llamar a fetchReportes si hay token,
+    // la lógica de si se envían o no las fechas está dentro de fetchReportes.
+    if (token) {
+        fetchReportes();
+    } else {
+        setLoading(false);
+        setError("No autenticado. No se pueden cargar los reportes.");
+    }
+  }, [token, logout, filtrosActivosParaFetch, rangoFechas.inicio, rangoFechas.fin]); // Depender explícitamente de las fechas y el flag
 
-  // --- CONFIGURACIÓN DE GRÁFICOS ---
+  const handleFechaChange = (e) => {
+    const { name, value } = e.target;
+    setRangoFechas(prev => ({ ...prev, [name]: value }));
+    // No cambiamos filtrosActivosParaFetch aquí, se hace con el botón "Aplicar"
+  };
+  
+  const aplicarFiltros = () => {
+    // Si el usuario ha ingresado al menos una fecha, consideramos que quiere aplicar filtros.
+    if (rangoFechas.inicio || rangoFechas.fin) {
+      setFiltrosActivosParaFetch(true);
+    } else {
+      // Si ambas fechas están vacías al aplicar, es como limpiar.
+      setFiltrosActivosParaFetch(false);
+    }
+    // El useEffect se disparará porque filtrosActivosParaFetch o rangoFechas cambió
+  };
 
-  const deasPorComunaChartData = useMemo(() => ({
-    labels: (reportes.deasPorComuna || []).map(item => capitalizeText(item.comuna)),
-    datasets: [{
-      label: 'Equipos DEA Registrados',
-      data: (reportes.deasPorComuna || []).map(item => item.cantidad),
-      backgroundColor: 'rgba(0, 123, 255, 0.7)',
-      borderColor: 'rgba(0, 123, 255, 1)',
-      borderWidth: 1
-    }]
-  }), [reportes.deasPorComuna]);
+  const limpiarFiltros = () => {
+    setRangoFechas({ inicio: '', fin: '' });
+    setFiltrosActivosParaFetch(false); 
+  };
+
+  const chartTitleSuffixDEA = useMemo(() => {
+    if (reportes.filtroAplicado) {
+      const inicioStr = rangoFechas.inicio || 'Principio';
+      const finStr = rangoFechas.fin || getTodayDateString(); 
+      return `(Trámites creados desde ${inicioStr} hasta ${finStr})`;
+    }
+    return '(Total Histórico)';
+  }, [reportes.filtroAplicado, rangoFechas.inicio, rangoFechas.fin]);
+  
+  const chartTitleSuffixClicsSolicitudes = useMemo(() => {
+    // Para clics y solicitudes, el filtro de fecha SIEMPRE se aplica en el backend
+    // (con default a hoy para 'fin' si no se especifica).
+    // El título debe reflejar el rango efectivo que usó el backend.
+    const inicioStr = rangoFechas.inicio || 'Principio'; // Si no se envió inicio, el backend no filtró por él.
+    const finStr = rangoFechas.fin || getTodayDateString(); // Si no se envió fin, backend usó hoy.
+    
+    if (rangoFechas.inicio || rangoFechas.fin) { // Si el usuario interactuó con los filtros
+        return `(Desde ${inicioStr} hasta ${finStr})`;
+    }
+    return `(Datos hasta ${getTodayDateString()})`; // Default si no hay interacción con filtros
+  }, [rangoFechas.inicio, rangoFechas.fin]);
+
+
+  const deasPorComunaChartData = useMemo(() => {
+    const dataItems = reportes.deasPorComuna || [];
+    const backgroundColors = generateColors(dataItems.length);
+    return {
+        labels: dataItems.map(item => capitalizeText(item.comuna)),
+        datasets: [{
+        label: 'Equipos DEA Aprobados',
+        data: dataItems.map(item => item.cantidad),
+        backgroundColor: backgroundColors,
+        borderColor: generateBorderColors(backgroundColors),
+        borderWidth: 1
+        }]
+    };
+  }, [reportes.deasPorComuna]);
 
   const deasPorComunaChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     scales: {
-      y: { beginAtZero: true, title: { display: true, text: 'Cantidad de Equipos DEA' }, ticks: { precision: 0 } },
+      y: { beginAtZero: true, title: { display: true, text: 'Cantidad de Equipos DEA' }, ticks: { precision: 0, stepSize: 1 } },
       x: { title: { display: true, text: 'Comuna' } }
     },
     plugins: {
       legend: { display: true, position: 'top' },
-      title: { display: true, text: 'Distribución de Equipos DEA por Comuna' }
+      title: { display: true, text: `Distribución de DEAs Aprobados por Comuna ${chartTitleSuffixDEA}` }
     }
-  }), []);
+  }), [chartTitleSuffixDEA]);
 
   const estadoDeasChartData = useMemo(() => ({
-    labels: ['DEAs Aprobados', 'DEAs Pendientes', 'DEAs Rechazados'], // Sin 'Inactivos' si no se maneja
+    labels: ['DEAs Aprobados', 'DEAs Pendientes', 'DEAs Rechazados'],
     datasets: [{
+      label: 'Estado de Solicitudes DEA',
       data: [
         reportes.estadoDeas?.aprobados || 0,
         reportes.estadoDeas?.pendientes || 0,
-        reportes.estadoDeas?.rechazados || 0
+        reportes.estadoDeas?.rechazados || 0,
       ],
       backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
       borderColor: ['#ffffff', '#ffffff', '#ffffff'],
@@ -129,108 +241,99 @@ export default function Reportes() {
   }), [reportes.estadoDeas]);
 
   const estadoDeasChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: {
       legend: { position: 'right' },
-      title: { display: true, text: 'Estado de DEAs (Conteo Individual)' }
+      title: { display: true, text: `Estado de Solicitudes DEA ${chartTitleSuffixDEA}` }
     }
-  }), []);
+  }), [chartTitleSuffixDEA]);
   
-  const clicsPorSeccionTotalChartData = useMemo(() => {
+  const clicsPorSeccionChartData = useMemo(() => {
     const clicsData = reportes.clics || {};
-    const labels = [];
-    const dataPoints = [];
-
-    for (const seccion in clicsData) {
-      let totalClicksSeccion = 0;
-      if (clicsData[seccion] && typeof clicsData[seccion] === 'object') {
-        for (const periodoItem in clicsData[seccion]) {
-          totalClicksSeccion += (Number(clicsData[seccion][periodoItem]) || 0);
+    let labels = [];
+    let dataPoints = [];
+    if (Object.keys(clicsData).length > 0) {
+        for (const seccionBackend in clicsData) {
+            labels.push(getNombreSeccionClicDisplay(seccionBackend));
+            dataPoints.push(clicsData[seccionBackend] || 0);
         }
-      }
-      if (totalClicksSeccion > 0) {
-        labels.push(capitalizeText(seccion));
-        dataPoints.push(totalClicksSeccion);
-      }
+        const combined = labels.map((label, index) => ({ label, data: dataPoints[index] }));
+        combined.sort((a, b) => b.data - a.data);
+        labels = combined.map(item => item.label);
+        dataPoints = combined.map(item => item.data);
     }
-    
-    const combined = labels.map((label, index) => ({ label, data: dataPoints[index] }));
-    combined.sort((a, b) => b.data - a.data);
-
+    const backgroundColors = generateColors(labels.length);
     return {
-      labels: combined.map(item => item.label),
+      labels: labels,
       datasets: [{
-        label: `Total Clics`,
-        data: combined.map(item => item.data),
-        backgroundColor: generateColors(combined.length),
-        borderColor: 'rgba(0,0,0,0.1)',
+        label: `Clics por Sección`,
+        data: dataPoints,
+        backgroundColor: backgroundColors,
+        borderColor: generateBorderColors(backgroundColors),
         borderWidth: 1
       }]
     };
   }, [reportes.clics]);
 
-  const clicsPorSeccionTotalChartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    indexAxis: 'y',
+  const clicsPorSeccionChartOptions = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
     scales: {
-      x: { beginAtZero: true, title: { display: true, text: 'Total de Clics Acumulados' }, ticks: { precision: 0 } },
-      y: { title: { display: true, text: 'Sección' }, ticks: { autoSkip: false } } // autoSkip: false para mostrar todas las etiquetas de sección
+      x: { beginAtZero: true, title: { display: true, text: 'Total de Clics' }, ticks: { precision: 0, stepSize: 1 } },
+      y: { title: { display: true, text: 'Sección' }, ticks: { autoSkip: false } }
     },
-    plugins: {
-      legend: { display: false },
-      title: { 
-        display: true, 
-        text: `Interacción por Sección (${capitalizeText(periodoFiltro)}${rangoFechas.inicio && rangoFechas.fin ? ` de ${rangoFechas.inicio} a ${rangoFechas.fin}` : ''})`
-      }
-    }
-  }), [periodoFiltro, rangoFechas.inicio, rangoFechas.fin]);
+    plugins: { legend: { display: false }, title: { display: true, text: `Interacción por Sección ${chartTitleSuffixClicsSolicitudes}` } }
+  }), [chartTitleSuffixClicsSolicitudes]);
 
-
-  // --- RENDERIZADO DE TABLAS ---
-  const renderClicsTable = () => {
-    const clicsData = reportes.clics || {};
-    if (Object.keys(clicsData).length === 0) {
-      return <p className="text-center text-muted mt-3">No hay datos de clics disponibles.</p>;
-    }
-    const sortedSecciones = Object.entries(clicsData).sort(([seccionA], [seccionB]) => seccionA.localeCompare(seccionB));
-
-    return sortedSecciones.map(([seccion, periodos]) => (
-      <div key={seccion} className="card mb-3 shadow-sm">
-        <div className="card-header bg-light py-2"><h5 className="card-title mb-0 font-weight-bold" style={{fontSize: '1rem'}}>{capitalizeText(seccion)}</h5></div>
-        <div className="card-body p-0">
-          {Object.keys(periodos).length === 0 ? (<p className="text-center text-muted p-3">No hay clics.</p>) : (
-            <ul className="list-group list-group-flush" style={{ maxHeight: '250px', overflowY: 'auto' }}>
-              {Object.entries(periodos).sort(([pA], [pB]) => pB.localeCompare(pA)).map(([pItem, cant]) => (
-                <li key={pItem} className="list-group-item d-flex justify-content-between align-items-center py-2">{pItem}<span className="badge bg-primary rounded-pill">{cant}</span></li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    ));
-  };
-
-  const renderSolicitudesTramitesTable = () => {
+  const solicitudesPorDiaChartData = useMemo(() => {
     const solicitudesData = reportes.solicitudesPorPeriodo || {};
-    if (Object.keys(solicitudesData).length === 0) {
-      return <p className="text-center text-muted mt-3">No hay datos de solicitudes.</p>;
+    let labels = [];
+    let dataPoints = [];
+    if (Object.keys(solicitudesData).length > 0) {
+        labels = Object.keys(solicitudesData).sort((a,b) => new Date(a) - new Date(b));
+        dataPoints = labels.map(fecha => solicitudesData[fecha]);
     }
-     const sortedPeriodos = Object.entries(solicitudesData).sort(([periodoA], [periodoB]) => periodoB.localeCompare(periodoA));
+    return {
+      labels: labels,
+      datasets: [{
+        label: 'Nuevas Solicitudes de Trámite',
+        data: dataPoints,
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        fill: true,
+        tension: 0.1
+      }]
+    };
+  }, [reportes.solicitudesPorPeriodo]);
+
+  const solicitudesPorDiaChartOptions = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: 'Cantidad de Solicitudes' }, ticks: { precision: 0, stepSize: 1 } },
+      x: { 
+        title: { display: true, text: 'Fecha de Creación' }, type: 'time', 
+        time: { unit: 'day', tooltipFormat: 'dd MMM yyyy', displayFormats: { day: 'dd MMM' }, adapters: { date: { locale: es } } }
+      }
+    },
+    plugins: { legend: { display: true, position: 'top' }, title: { display: true, text: `Evolución de Solicitudes ${chartTitleSuffixClicsSolicitudes}` } }
+  }), [chartTitleSuffixClicsSolicitudes]);
+
+  if (!token && loading) {
     return (
-      <div className="card mb-3 shadow-sm">
-        <div className="card-header bg-light py-2"><h5 className="card-title mb-0 font-weight-bold" style={{fontSize: '1rem'}}>Nuevas Solicitudes de Trámite</h5></div>
-         <div className="card-body p-0">
-            <ul className="list-group list-group-flush" style={{ maxHeight: '250px', overflowY: 'auto' }}>
-              {sortedPeriodos.map(([periodoItem, cantidad]) => (
-                <li key={periodoItem} className="list-group-item d-flex justify-content-between align-items-center py-2">Periodo: {periodoItem}<span className="badge bg-success rounded-pill">{cantidad}</span></li>
-              ))}
-            </ul>
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '300px' }}>
+            <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Cargando...</span></div>
+        </div>
+    );
+  }
+  if (!token && !error) {
+    return (
+      <div className="container mt-4">
+        <div className="alert alert-warning text-center">
+          <h4><i className="fas fa-exclamation-triangle me-2"></i>Acceso Restringido</h4>
+          <p>Debe estar autenticado para acceder a esta sección.</p>
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <section className="content py-4">
@@ -240,26 +343,50 @@ export default function Reportes() {
         </div>
 
         <div className="card shadow mb-4">
-            <div className="card-header py-3"> <h6 className="m-0 font-weight-bold text-primary">Filtros</h6> </div>
-            <div className="card-body">
-                <div className="row">
-                    <div className="col-md-4 mb-3">
-                        <label htmlFor="periodoSelectReportes" className="form-label">Agrupar Datos Por:</label>
-                        <select id="periodoSelectReportes" className="form-control" value={periodoFiltro} onChange={(e) => setPeriodoFiltro(e.target.value)}>
-                            <option value="meses">Meses</option>
-                            <option value="semanas">Semanas</option>
-                            <option value="dias">Días</option>
-                        </select>
-                    </div>
-                    <div className="col-md-4 mb-3">
-                        <label htmlFor="fechaInicioReportes" className="form-label">Desde:</label>
-                        <input id="fechaInicioReportes" type="date" className="form-control" value={rangoFechas.inicio} onChange={(e) => setRangoFechas({ ...rangoFechas, inicio: e.target.value })}/>
-                    </div>
-                    <div className="col-md-4 mb-3">
-                        <label htmlFor="fechaFinReportes" className="form-label">Hasta:</label>
-                        <input id="fechaFinReportes" type="date" className="form-control" value={rangoFechas.fin} onChange={(e) => setRangoFechas({ ...rangoFechas, fin: e.target.value })} />
-                    </div>
+            <div className="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 className="m-0 font-weight-bold text-primary">Filtros de Fecha</h6>
+                <div>
+                    
+                    <Button variant="outline-secondary" size="sm" onClick={limpiarFiltros}>
+                        Limpiar Fechas y Ver Histórico/Default
+                    </Button>
                 </div>
+            </div>
+            <div className="card-body">
+                <form onSubmit={(e) => { e.preventDefault(); aplicarFiltros(); }}>
+                    <div className="row">
+                        <div className="col-md-5 mb-3">
+                            <label htmlFor="fechaInicioReportes" className="form-label">Desde:</label>
+                            <input 
+                                id="fechaInicioReportes" 
+                                type="date" 
+                                className="form-control" 
+                                name="inicio"
+                                value={rangoFechas.inicio} 
+                                onChange={handleFechaChange}
+                                max={rangoFechas.fin || getTodayDateString()}
+                            />
+                        </div>
+                        <div className="col-md-5 mb-3">
+                            <label htmlFor="fechaFinReportes" className="form-label">Hasta:</label>
+                            <input 
+                                id="fechaFinReportes" 
+                                type="date" 
+                                className="form-control" 
+                                name="fin"
+                                value={rangoFechas.fin} 
+                                onChange={handleFechaChange}
+                                min={rangoFechas.inicio}
+                                max={getTodayDateString()}
+                            />
+                        </div>
+                        <div className="col-md-2 mb-3 d-flex align-items-end">
+                             <Button variant="primary" type="submit" className="w-100"> {/* Botón dentro del form */}
+                                Aplicar
+                            </Button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
         
@@ -271,68 +398,84 @@ export default function Reportes() {
             <p className="ms-3 mb-0">Cargando reportes...</p>
           </div>
         )}
-        {error && <div className="alert alert-danger">{error}</div>}
+        {error && <div className="alert alert-danger text-center">{error}</div>}
         
         {!loading && !error && (
           <>
             <div className="row">
-              {/* Gráfico DEAs por Comuna */}
               <div className="col-xl-7 col-lg-6 mb-4">
                 <div className="card shadow">
-                  <div className="card-header py-3"> <h6 className="m-0 font-weight-bold text-primary">Equipos DEA por Comuna</h6> </div>
+                  <div className="card-header py-3"> <h6 className="m-0 font-weight-bold text-primary">Equipos DEA por Comuna {chartTitleSuffixDEA}</h6> </div>
                   <div className="card-body">
-                    {(reportes.deasPorComuna || []).length > 0 ? (
-                      <div style={{ height: '400px' }}>
-                        <Chart type="bar" data={deasPorComunaChartData} options={deasPorComunaChartOptions} />
-                      </div>
-                    ) : ( <p className="text-muted text-center py-5">No hay datos para mostrar.</p> )}
+                    {(() => {
+                      const tieneDatos = (reportes.deasPorComuna || []).length > 0;
+                      if (tieneDatos) {
+                        return ( <div style={{ height: '400px' }}> <Chart type="bar" data={deasPorComunaChartData} options={deasPorComunaChartOptions} /> </div> );
+                      } else {
+                        return (<p className="text-muted text-center py-5">No hay datos de DEAs por comuna {reportes.filtroAplicado ? "para el rango seleccionado." : "disponibles."}</p>);
+                      }
+                    })()}
                   </div>
                 </div>
               </div>
 
-              {/* Gráfico Estado de DEAs */}
               <div className="col-xl-5 col-lg-6 mb-4">
                 <div className="card shadow">
-                  <div className="card-header py-3"> <h6 className="m-0 font-weight-bold text-primary">Estado General de DEAs</h6> </div>
+                  <div className="card-header py-3"> <h6 className="m-0 font-weight-bold text-primary">Estado Solicitudes DEA {chartTitleSuffixDEA}</h6> </div>
                   <div className="card-body">
-                    {(reportes.estadoDeas.aprobados > 0 || reportes.estadoDeas.pendientes > 0 || reportes.estadoDeas.rechazados > 0) ? (
-                       <div style={{ height: '400px' }}>
-                        <Chart type="doughnut" data={estadoDeasChartData} options={estadoDeasChartOptions} />
-                      </div>
-                    ) : ( <p className="text-muted text-center py-5">No hay datos para mostrar.</p> )}
+                    {(() => {
+                      const tieneDatos = reportes.estadoDeas.aprobados > 0 || reportes.estadoDeas.pendientes > 0 || reportes.estadoDeas.rechazados > 0;
+                      if (tieneDatos) {
+                        return ( <div style={{ height: '400px' }}> <Chart type="doughnut" data={estadoDeasChartData} options={estadoDeasChartOptions} /> </div> );
+                      } else {
+                        return (<p className="text-muted text-center py-5">No hay datos de estado de DEAs {reportes.filtroAplicado ? "para el rango seleccionado." : "disponibles."}</p>);
+                      }
+                    })()}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* NUEVO GRÁFICO: Clics por Sección */}
             <div className="row mt-2">
-              <div className="col-lg-12 mb-4">
+              <div className="col-xl-6 col-lg-12 mb-4">
                 <div className="card shadow">
                   <div className="card-header py-3">
                     <h6 className="m-0 font-weight-bold text-primary">
-                      Interacción por Sección ({capitalizeText(periodoFiltro)}
-                      {rangoFechas.inicio && rangoFechas.fin ? ` desde ${rangoFechas.inicio} hasta ${rangoFechas.fin}` : ''})
+                      Interacción por Sección
                     </h6>
                   </div>
                   <div className="card-body">
-                    {(clicsPorSeccionTotalChartData.labels?.length || 0) > 0 ? (
-                       <div style={{ height: '450px' }}>
-                        <Chart 
-                          type="bar" 
-                          data={clicsPorSeccionTotalChartData} 
-                          options={clicsPorSeccionTotalChartOptions} 
-                        />
-                      </div>
-                    ) : (
-                      <p className="text-muted text-center py-5">No hay datos de clics para los filtros aplicados.</p>
-                    )}
+                    {(() => {
+                      const tieneDatos = (clicsPorSeccionChartData.labels?.length || 0) > 0;
+                      if (tieneDatos) {
+                        return ( <div style={{ height: '450px' }}> <Chart type="bar" data={clicsPorSeccionChartData} options={clicsPorSeccionChartOptions} /> </div> );
+                      } else {
+                        return (<p className="text-muted text-center py-5">No hay datos de clics para el rango de fechas seleccionado.</p>);
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+              <div className="col-xl-6 col-lg-12 mb-4">
+                <div className="card shadow">
+                  <div className="card-header py-3">
+                    <h6 className="m-0 font-weight-bold text-primary">
+                      Evolución de Solicitudes de Trámite
+                    </h6>
+                  </div>
+                  <div className="card-body">
+                    {(() => {
+                      const tieneDatos = (solicitudesPorDiaChartData.labels?.length || 0) > 0;
+                      if (tieneDatos) {
+                        return ( <div style={{ height: '450px' }}> <Chart type="line" data={solicitudesPorDiaChartData} options={solicitudesPorDiaChartOptions} /> </div> );
+                      } else {
+                        return (<p className="text-muted text-center py-5">No hay datos de solicitudes para el rango de fechas seleccionado.</p>);
+                      }
+                    })()}
                   </div>
                 </div>
               </div>
             </div>
-            
-    
           </>
         )}
       </div>

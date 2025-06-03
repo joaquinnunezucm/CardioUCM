@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 
 const BackButton = () => {
   const handleClick = () => {
-    console.log('BackButton clicked! Navigating to /');
   };
 
   return (

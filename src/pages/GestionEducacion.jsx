@@ -237,8 +237,7 @@ const GestionEducacion = () => {
         };
       });
 
-      // Depuración: Mostrar los datos enviados para medios existentes
-      console.log("Datos enviados para medios existentes:", datosMediosExistentes);
+   
 
       formDataToSend.append('datos_medios_existentes', JSON.stringify(datosMediosExistentes));
       formDataToSend.append('pasos_asociados_nuevos_medios', JSON.stringify(pasosAsociadosNuevosMedios));

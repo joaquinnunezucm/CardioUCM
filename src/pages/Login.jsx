@@ -1,7 +1,6 @@
 // src/pages/Login.jsx
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import ForgotPasswordFlow from "./ForgotPasswordFlow"; 
 
 // Importar el CSS si creas un archivo CSS separado (Opción 2)
 // import './Login.css'; 
@@ -123,12 +122,7 @@ function Login() {
         </form>
       </div>
       
-      {showForgotPasswordModal && (
-        <ForgotPasswordFlow
-          show={showForgotPasswordModal}
-          onClose={() => setShowForgotPasswordModal(false)}
-        />
-      )}
+      
     </>
   );
 }
