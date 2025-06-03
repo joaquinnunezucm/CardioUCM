@@ -8,6 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+
 dotenv.config();
 
 const app = express();
@@ -150,7 +151,7 @@ app.post('/login', async (req, res) => {
 const rolesAdminNivel = ['administrador', 'superadministrador'];
 
 app.get('/api/usuarios', autenticarYAutorizar(['superadministrador']), async (req, res) => {
-  console.log("Usuario autenticado para GET /api/usuarios:", req.user.email);
+  //console.log("Usuario autenticado para GET /api/usuarios:", req.user.email);
   try {
     const [rows] = await db.query('SELECT id, nombre, email, rol, fecha_creacion FROM usuarios ORDER BY id ASC');
     res.json(rows);
@@ -245,81 +246,7 @@ app.delete('/api/usuarios/:id', autenticarYAutorizar(['superadministrador']), as
   }
 });
 
-// --- RUTAS DE DEAs ---
-app.get('/defibriladores', async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT id_tramite AS id, gl_nombre_fantasia AS nombre, CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion, gl_instalacion_latitud AS lat, gl_instalacion_longitud AS lng FROM tramites WHERE bo_activo = 1 AND bo_eliminado = 'N'");
-    res.json(rows);
-  } catch (error) {
-    console.error('❌ Error al obtener desfibriladores:', error);
-    res.status(500).json({ mensaje: 'Error al obtener datos desde la base' });
-  }
-});
 
-app.post('/solicitudes-dea', async (req, res) => {
-  const { nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, lat, lng, solicitante, rut } = req.body;
-  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut) {
-    return res.status(400).json({ mensaje: 'Faltan datos obligatorios' });
-  }
-  const valoresParaInsertar = [nombre, gl_instalacion_calle, (nr_instalacion_numero && nr_instalacion_numero.trim() !== '') ? nr_instalacion_numero.trim() : null, gl_instalacion_comuna, lat, lng, solicitante, rut];
-  try {
-    const sqlQuery = `INSERT INTO tramites (gl_nombre_fantasia, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, gl_instalacion_latitud, gl_instalacion_longitud, gl_solicitante_nombre, gl_solicitante_rut, bo_activo, bo_eliminado, fc_creacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'N', NOW())`;
-    const [result] = await db.query(sqlQuery, valoresParaInsertar);
-    res.status(201).json({ mensaje: 'Solicitud de DEA registrada.', solicitud_creada_id: result.insertId });
-  } catch (error) {
-    console.error("❌ ERROR AL INSERTAR SOLICITUD DE DEA:", error);
-    res.status(500).json({ mensaje: 'Error al guardar la solicitud', detalle: error.message });
-  }
-});
-
-app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
-  try {
-    const [rows] = await db.query(`SELECT id_tramite AS id, gl_nombre_fantasia AS nombre, CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion_completa, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, gl_instalacion_latitud AS lat, gl_instalacion_longitud AS lng, gl_solicitante_nombre AS solicitante, gl_solicitante_rut AS rut, fc_creacion FROM tramites WHERE bo_activo = 0 AND bo_eliminado = 'N' ORDER BY fc_creacion DESC`);
-    res.json(rows);
-  } catch (error) {
-    console.error('❌ Error al obtener solicitudes pendientes:', error);
-    res.status(500).json({ mensaje: 'Error al obtener datos de solicitudes' });
-  }
-});
-
-app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
-  const { id } = req.params;
-  try {
-    const [result] = await db.query("UPDATE tramites SET bo_activo = 1, fc_actualiza = NOW() WHERE id_tramite = ? AND bo_activo = 0 AND bo_eliminado = 'N'", [id]);
-    if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Solicitud no encontrada o ya procesada.' });
-    res.json({ mensaje: 'Solicitud de DEA aprobada.' });
-  } catch (error) {
-    console.error('❌ Error al aprobar solicitud:', error);
-    res.status(500).json({ mensaje: 'Error al aprobar la solicitud.' });
-  }
-});
-
-app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
-  const { id } = req.params;
-  try {
-    const [result] = await db.query("DELETE FROM tramites WHERE id_tramite = ? AND bo_activo = 0 AND bo_eliminado = 'N'", [id]);
-    if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Solicitud no encontrada o ya procesada.' });
-    res.json({ mensaje: 'Solicitud de DEA rechazada.' });
-  } catch (error) {
-    console.error('❌ Error al rechazar solicitud:', error);
-    res.status(500).json({ mensaje: 'Error al rechazar la solicitud.' });
-  }
-});
-
-// Estadísticas Dashboard
-app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
-  try {
-    const [visitasResult] = await db.query("SELECT COUNT(*) as totalVisitas FROM clicks WHERE seccion = 'VisitaHomePage'");
-    const totalVisitas = visitasResult[0]?.totalVisitas || 0;
-    const [deasActivosResult] = await db.query("SELECT COUNT(*) as totalDeasActivos FROM tramites WHERE bo_activo = 1 AND bo_eliminado = 'N'");
-    const totalDeasActivos = deasActivosResult[0]?.totalDeasActivos || 0;
-    const totalEmergencias = 0;
-    res.json({ visitasPagina: totalVisitas, deasRegistrados: totalDeasActivos, emergenciasEsteMes: totalEmergencias });
-  } catch (error) {
-    console.error('❌ Error al obtener estadísticas:', error);
-    res.status(500).json({ mensaje: 'Error al obtener estadísticas' });
-  }
-});
 
 // --- CRUD DE FAQs ---
 app.get('/api/faqs', async (req, res) => {
@@ -1107,6 +1034,301 @@ app.get('/api/obtener-clics', autenticarYAutorizar(rolesAdminNivel), async (req,
     res.status(500).json({ mensaje: 'Error al obtener datos' });
   }
 });
+
+
+
+// --- RUTAS DE DEAs (Gestión y Públicas ) ---
+app.get('/defibriladores', async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        id_tramite AS id, 
+        gl_nombre_fantasia AS nombre, 
+        CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion, 
+        gl_instalacion_latitud AS lat, 
+        gl_instalacion_longitud AS lng,
+        COALESCE(nr_equipos_cantidad, 1) AS cantidad_equipos
+      FROM tramites 
+      WHERE estado = 'aprobado' AND bo_eliminado = 'N' 
+        AND gl_instalacion_latitud IS NOT NULL 
+        AND gl_instalacion_longitud IS NOT NULL
+    `);
+    const defibriladores = rows.map(dea => ({
+      ...dea,
+      lat: parseFloat(dea.lat),
+      lng: parseFloat(dea.lng),
+      cantidad_equipos: parseInt(dea.cantidad_equipos, 10) || 1
+    }));
+    res.json(defibriladores);
+  } catch (error) {
+    console.error('❌ Error al obtener desfibriladores:', error);
+    res.status(500).json({ mensaje: 'Error al obtener datos desde la base', detalle: error.message });
+  }
+});
+
+app.post('/solicitudes-dea', async (req, res) => {
+  const { 
+    nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, 
+    lat, lng, solicitante, rut
+  } = req.body;
+
+  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut) {
+    return res.status(400).json({ mensaje: 'Faltan datos obligatorios: nombre, calle, comuna, lat, lng, solicitante, rut.' });
+  }
+
+  const valoresParaInsertar = [
+    nombre, 
+    gl_instalacion_calle, 
+    (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
+    gl_instalacion_comuna, 
+    parseFloat(lat), 
+    parseFloat(lng), 
+    solicitante, 
+    rut
+  ];
+
+  try {
+    const sqlQuery = `
+      INSERT INTO tramites (
+        gl_nombre_fantasia, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, 
+        gl_instalacion_latitud, gl_instalacion_longitud, gl_solicitante_nombre, gl_solicitante_rut, 
+        nr_equipos_cantidad, 
+        bo_activo, bo_eliminado, estado, fc_creacion, fc_actualiza
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 'N', 'pendiente', NOW(), NOW())
+    `;
+    const [result] = await db.query(sqlQuery, valoresParaInsertar);
+    res.status(201).json({ mensaje: 'Solicitud de DEA registrada exitosamente.', id_tramite: result.insertId });
+  } catch (error) {
+    console.error("❌ ERROR AL INSERTAR SOLICITUD DE DEA:", error);
+    res.status(500).json({ mensaje: 'Error al guardar la solicitud', detalle: error.message });
+  }
+});
+
+app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        id_tramite AS id, 
+        gl_nombre_fantasia AS nombre, 
+        CONCAT(gl_instalacion_calle, ' ', IFNULL(nr_instalacion_numero, ''), ', ', gl_instalacion_comuna) AS direccion_completa, 
+        gl_instalacion_calle, 
+        nr_instalacion_numero,
+        nr_equipos_cantidad,
+        gl_instalacion_comuna, 
+        gl_instalacion_latitud AS lat, 
+        gl_instalacion_longitud AS lng, 
+        gl_solicitante_nombre AS solicitante, 
+        gl_solicitante_rut AS rut, 
+        fc_creacion,
+        estado
+      FROM tramites 
+      WHERE (estado = 'pendiente' OR estado IS NULL)
+        AND bo_eliminado = 'N' 
+      ORDER BY fc_creacion DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener solicitudes pendientes:', error);
+    res.status(500).json({ mensaje: 'Error al obtener datos de solicitudes', detalle: error.message });
+  }
+});
+
+app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [solicitudRows] = await db.query(
+      "SELECT estado FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", 
+      [id]
+    );
+
+    if (solicitudRows.length === 0) {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
+    }
+    const solicitudActual = solicitudRows[0];
+    if (solicitudActual.estado !== 'pendiente' && solicitudActual.estado !== null) {
+        return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitudActual.estado}' y no puede ser aprobada.` });
+    }
+    
+    const cantidadFinalAprobada = 1; // Siempre 1 al aprobar
+
+    const [result] = await db.query(
+      "UPDATE tramites SET bo_activo = 1, estado = 'aprobado', nr_equipos_cantidad = ?, fc_actualiza = NOW() WHERE id_tramite = ?",
+      [cantidadFinalAprobada, id]
+    );
+
+    if (result.affectedRows === 0) { 
+      return res.status(409).json({ mensaje: 'No se pudo actualizar la solicitud.' });
+    }
+    res.json({ mensaje: 'Solicitud de DEA aprobada exitosamente.', equipos_aprobados: cantidadFinalAprobada });
+  } catch (error) {
+    console.error('❌ Error al aprobar solicitud:', error);
+    res.status(500).json({ mensaje: 'Error interno del servidor al aprobar la solicitud.', detalle: error.message });
+  }
+});
+
+app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [solicitudRows] = await db.query(
+      "SELECT estado FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'",
+      [id]
+    );
+    if (solicitudRows.length === 0) {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
+    }
+    if (solicitudRows[0].estado !== 'pendiente' && solicitudRows[0].estado !== null) {
+        return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitudRows[0].estado}' y no puede ser rechazada.` });
+    }
+    const [result] = await db.query(
+      `UPDATE tramites SET estado = 'rechazado', bo_activo = 0, nr_equipos_cantidad = COALESCE(nr_equipos_cantidad, 0), fc_actualiza = NOW() WHERE id_tramite = ?`,
+      [id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ mensaje: 'No se pudo actualizar la solicitud.' });
+    }
+    res.json({ mensaje: 'Solicitud rechazada exitosamente.' });
+  } catch (error) {
+    console.error('❌ Error al rechazar solicitud:', error);
+    res.status(500).json({ mensaje: 'Error al rechazar solicitud', detalle: error.message });
+  }
+});
+
+// Estadísticas Dashboard (para las "small-box" del DashboardActualContent)
+app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    const [[visitasResult]] = await db.query("SELECT COUNT(*) as totalVisitas FROM clicks WHERE UPPER(seccion) = 'VISITAHOMEPAGE'");
+    const totalVisitas = visitasResult?.totalVisitas || 0;
+
+    const [[deasActivosResult]] = await db.query(
+        `SELECT SUM(CASE 
+                        WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad 
+                        ELSE 1 
+                     END) as totalDeasActivos 
+         FROM tramites WHERE estado = 'aprobado' AND bo_eliminado = 'N'`
+    );
+    const totalDeasActivos = deasActivosResult?.totalDeasActivos || 0;
+
+    const [[llamadas131Result]] = await db.query("SELECT COUNT(*) as totalLlamadas FROM clicks WHERE UPPER(seccion) = 'LLAMADAEMERGENCIA131' OR UPPER(seccion) = 'LLAMAR 131'");
+    const totalLlamadas131 = llamadas131Result?.totalLlamadas || 0;
+
+    res.json({ 
+        visitasPagina: parseInt(totalVisitas, 10), 
+        deasRegistrados: parseInt(totalDeasActivos, 10), 
+        emergenciasEsteMes: parseInt(totalLlamadas131, 10) // Renombrar esto si es más adecuado
+    });
+  } catch (error) {
+    console.error('❌ Error al obtener estadísticas:', error);
+    res.status(500).json({ mensaje: 'Error al obtener estadísticas', detalle: error.message });
+  }
+});
+
+
+// --- Reportes para el Dashboard ---
+app.get('/api/reportes', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { periodo = 'meses', inicio, fin } = req.query;
+
+  let fechaInicio = inicio;
+  let fechaFin = fin;
+
+  if (inicio) {
+    if (!/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(inicio)) {
+      return res.status(400).json({ mensaje: 'Formato de fecha de inicio inválido. Usar YYYY-MM-DD o YYYY-MM-DD HH:MM:SS.' });
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(inicio)) fechaInicio = `${inicio} 00:00:00`;
+  }
+  if (fin) {
+    if (!/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(fin)) {
+      return res.status(400).json({ mensaje: 'Formato de fecha de fin inválido. Usar YYYY-MM-DD o YYYY-MM-DD HH:MM:SS.' });
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fin)) fechaFin = `${fin} 23:59:59`;
+  }
+
+  try {
+    const [deasPorComunaRaw] = await db.query(`
+      SELECT
+        UPPER(gl_instalacion_comuna) AS comuna,
+        SUM(CASE WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad ELSE 1 END) AS cantidad
+      FROM tramites
+      WHERE estado = 'aprobado' AND bo_eliminado = 'N' 
+      GROUP BY UPPER(gl_instalacion_comuna)
+      HAVING SUM(CASE WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad ELSE 1 END) > 0
+      ORDER BY cantidad DESC
+    `);
+    const deasPorComuna = deasPorComunaRaw.map(item => ({
+        comuna: item.comuna,
+        cantidad: parseInt(item.cantidad, 10) || 0
+    }));
+
+    const [estadoDeasRaw] = await db.query(`
+      SELECT
+        SUM(CASE WHEN estado = 'aprobado' AND bo_eliminado = 'N' THEN CASE WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad ELSE 1 END ELSE 0 END) AS aprobados_count,
+        SUM(CASE WHEN estado = 'pendiente' AND bo_eliminado = 'N' THEN CASE WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad ELSE 1 END ELSE 0 END) AS pendientes_count,
+        SUM(CASE WHEN estado = 'rechazado' AND bo_eliminado = 'N' THEN CASE WHEN nr_equipos_cantidad IS NOT NULL AND nr_equipos_cantidad > 0 THEN nr_equipos_cantidad ELSE 1 END ELSE 0 END) AS rechazados_count
+      FROM tramites
+      WHERE bo_eliminado = 'N' AND estado IN ('aprobado', 'pendiente', 'rechazado')
+    `);
+    const estadoDeas = { 
+      aprobados: parseInt(estadoDeasRaw[0]?.aprobados_count, 10) || 0,
+      pendientes: parseInt(estadoDeasRaw[0]?.pendientes_count, 10) || 0,
+      rechazados: parseInt(estadoDeasRaw[0]?.rechazados_count, 10) || 0,
+      inactivos: 0
+    };
+
+    let dateFormatSqlClics;
+    if (periodo === 'dias') dateFormatSqlClics = '%Y-%m-%d';
+    else if (periodo === 'semanas') dateFormatSqlClics = '%x-W%v';
+    else dateFormatSqlClics = '%Y-%m';
+
+    let clicsQuery = `SELECT UPPER(seccion) AS seccion, COUNT(*) as cantidad, DATE_FORMAT(fecha, ?) AS periodo_click FROM clicks`;
+    const clicsQueryParams = [dateFormatSqlClics];
+    let clicsWhereClauses = []; // Asegurarse que es array
+    if (fechaInicio) { clicsWhereClauses.push('fecha >= ?'); clicsQueryParams.push(fechaInicio); }
+    if (fechaFin) { clicsWhereClauses.push('fecha <= ?'); clicsQueryParams.push(fechaFin); }
+    if (clicsWhereClauses.length > 0) clicsQuery += ' WHERE ' + clicsWhereClauses.join(' AND ');
+    clicsQuery += ` GROUP BY UPPER(seccion), periodo_click ORDER BY periodo_click DESC, seccion ASC`;
+    
+    const [clicsResultRaw] = await db.query(clicsQuery, clicsQueryParams);
+    const clics = clicsResultRaw.reduce((acc, row) => {
+      if (!acc[row.seccion]) acc[row.seccion] = {};
+      acc[row.seccion][row.periodo_click] = parseInt(row.cantidad, 10) || 0;
+      return acc;
+    }, {});
+
+    let dateFormatSqlTramites;
+    if (periodo === 'dias') dateFormatSqlTramites = '%Y-%m-%d';
+    else if (periodo === 'semanas') dateFormatSqlTramites = '%x-W%v';
+    else dateFormatSqlTramites = '%Y-%m';
+
+    let solicitudesQuery = `SELECT COUNT(id_tramite) as cantidad_solicitudes, DATE_FORMAT(fc_creacion, ?) AS periodo_creacion FROM tramites`;
+    const solicitudesQueryParams = [dateFormatSqlTramites];
+    let solicitudesWhereClauses = []; // Asegurarse que es array
+    if (fechaInicio) { solicitudesWhereClauses.push('fc_creacion >= ?'); solicitudesQueryParams.push(fechaInicio); }
+    if (fechaFin) { solicitudesWhereClauses.push('fc_creacion <= ?'); solicitudesQueryParams.push(fechaFin); }
+    if (solicitudesWhereClauses.length > 0) solicitudesQuery += ' WHERE ' + solicitudesWhereClauses.join(' AND ');
+    solicitudesQuery += ` GROUP BY periodo_creacion ORDER BY periodo_creacion DESC`;
+
+    const [solicitudesResultRaw] = await db.query(solicitudesQuery, solicitudesQueryParams);
+    const solicitudesPorPeriodo = solicitudesResultRaw.reduce((acc, row) => {
+      acc[row.periodo_creacion] = parseInt(row.cantidad_solicitudes, 10) || 0;
+      return acc;
+    }, {});
+
+    res.json({
+      deasPorComuna,
+      estadoDeas,
+      clics, // Clave 'clics' para que coincida con tu frontend original
+      solicitudesPorPeriodo 
+    });
+
+  } catch (error) {
+    console.error('❌ Error al obtener reportes:', error);
+    res.status(500).json({ mensaje: 'Error al obtener los reportes', detalle: error.message });
+  }
+});
+
+
+
+
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
