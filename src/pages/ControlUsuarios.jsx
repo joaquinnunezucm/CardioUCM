@@ -133,7 +133,7 @@ function ControlUsuarios() {
   const { user } = useAuth();
   const userRol = user ? user.rol : null;
   const currentUserId = user ? user.id : null;
-  const posiblesRoles = ['usuario', 'administrador', 'superadministrador'];
+  const posiblesRoles = ['administrador', 'superadministrador'];
 
   const fetchUsuarios = useCallback(async () => {
     try {

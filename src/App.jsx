@@ -16,6 +16,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard"; // Este actúa como el Layout principal del Admin
 import DashboardActualContent from "./pages/DashboardActualContent"; // Contenido específico para la ruta /admin (index)
 import ValidacionDeas from './pages/ValidacionDeas';
+import GestionDEAs from './pages/GestionDEAs';
 import ControlUsuarios from './pages/ControlUsuarios';
 import GestionFAQs from './pages/GestionFAQs.jsx';
 import GestionEducacion from './pages/GestionEducacion';
@@ -113,7 +114,8 @@ function AppContent() {
         <Route path="educacion" element={<Educacion_Public />} />
         
         <Route path="validacion-deas" element={<ValidacionDeas />} />
-        <Route path="gestion-faq" element={<GestionFAQs />} />
+        <Route path="gestion-deas" element={<GestionDEAs />} />
+        <Route path="faqs" element={<GestionFAQs />} />
         <Route path="gestion-educacion" element={<GestionEducacion />} />
         <Route path="gestion-rcp" element={<GestionRCP />} /> 
         <Route path="gestion-contactanos" element={<GestionContactanos />} /> 

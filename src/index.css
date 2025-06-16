@@ -1,4 +1,24 @@
 /* En index.css o un CSS específico para Home */
+
+/* Custom pulse animation for metronome heartbeat */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 0.5s ease-in-out infinite;
+}
 .home-page-icon-container i.fas,
 .home-page-icon-container i.far,
 .home-page-icon-container i.fab,

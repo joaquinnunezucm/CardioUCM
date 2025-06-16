@@ -1,12 +1,32 @@
+import React from 'react';
+import Swal from 'sweetalert2';
+
 const Emergencia = () => {
-  const numeroEmergencia = "991670040"; // 🔁 Cambia este número por el que tú quieras
+  const numeroEmergencia = "131"; // 🔁 Cambia este número por el que tú quieras
 
   const llamar = () => {
-    // Intenta realizar la llamada (funciona solo en móviles)
-    window.location.href = `tel:${numeroEmergencia}`;
+    // Intentar realizar la llamada (funciona solo en móviles)
+    const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = `tel:${numeroEmergencia}`;
+    }
 
-    // También puedes dejar el alert como confirmación:
-    alert(`Simulación de llamada al ${numeroEmergencia} 📞`);
+    // Mostrar alerta de confirmación con SweetAlert2
+    Swal.fire({
+      title: 'Llamada de Emergencia',
+      text: isMobile
+        ? `Simulación de llamada al ${numeroEmergencia} 📞`
+        : `No se puede realizar la llamada en un ordenador. Número: ${numeroEmergencia} 📞`,
+      icon: 'info',
+      confirmButtonText: 'OK',
+      confirmButtonColor: '#dc2626', // Color rojo que combina con bg-red-600
+      background: '#fef2f2', // Fondo claro que combina con bg-red-50
+      customClass: {
+        popup: 'rounded-lg',
+        title: 'text-red-800 font-bold',
+        content: 'text-gray-800',
+      },
+    });
   };
 
   return (

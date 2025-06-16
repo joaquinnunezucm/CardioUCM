@@ -297,9 +297,14 @@ app.get('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, re
 });
 
 // RUTA ADMIN para OBTENER todas las categorías de FAQ (NUEVA - para el dropdown del frontend)
-app.get('/api/faq-categorias', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.get('/api/admin/faqs/categorias', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
-    const [categorias] = await db.query('SELECT id, nombre FROM faq_categorias ORDER BY nombre ASC');
+    const [categorias] = await db.query(`
+      SELECT DISTINCT fc.id, fc.nombre 
+      FROM faq_categorias fc
+      INNER JOIN faqs f ON f.categoria_id = fc.id
+      ORDER BY fc.nombre ASC
+    `);
     res.json(categorias);
   } catch (error) {
     console.error('Error al obtener categorías de FAQ:', error);
@@ -308,7 +313,7 @@ app.get('/api/faq-categorias', autenticarYAutorizar(rolesAdminNivel), async (req
 });
 
 // RUTA ADMIN para CREAR una FAQ (MODIFICADA para crear categoría si no existe)
-app.post('/api/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.post('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { pregunta, respuesta, categoria: categoriaNombre, orden } = req.body; // categoriaNombre es el texto del input
 
   if (!pregunta || !pregunta.trim() || !respuesta || !respuesta.trim()) {
@@ -381,7 +386,7 @@ app.post('/api/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, res) =>
 });
 
 // RUTA ADMIN para ACTUALIZAR una FAQ (MODIFICADA para crear categoría si no existe)
-app.put('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.put('/api/admin/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   const { pregunta, respuesta, categoria: categoriaNombre, orden } = req.body;
 
@@ -455,7 +460,7 @@ app.put('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res)
 });
 
 // RUTA ADMIN para ELIMINAR una FAQ (Sin cambios directos en la consulta, pero es parte del CRUD)
-app.delete('/api/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.delete('/api/admin/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
     const [result] = await db.query('DELETE FROM faqs WHERE id = ?', [id]);
@@ -1451,6 +1456,151 @@ app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel
     res.status(500).json({ mensaje: 'Error al rechazar solicitud', detalle: error.message });
   }
 });
+
+// RUTA ADMIN para obtener TODOS los DEAs (independiente del estado)
+app.get('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        t.id_tramite AS id, 
+        t.gl_nombre_fantasia AS nombre, 
+        t.gl_instalacion_calle, 
+        t.nr_instalacion_numero,
+        c.nombre AS gl_instalacion_comuna, 
+        t.gl_instalacion_latitud AS lat, 
+        t.gl_instalacion_longitud AS lng,
+        t.nr_equipos_cantidad,
+        t.gl_solicitante_nombre AS solicitante, 
+        t.gl_solicitante_rut AS rut, 
+        t.fc_creacion, 
+        t.estado
+      FROM tramites t
+      LEFT JOIN comunas c ON t.comuna_id = c.id
+      WHERE t.bo_eliminado = 'N'  -- Traer todos los que no estén eliminados lógicamente
+      ORDER BY t.fc_creacion DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener la lista completa de DEAs para admin:', error);
+    res.status(500).json({ message: 'Error interno al obtener la lista de DEAs.', detalle: error.message });
+  }
+});
+
+app.post('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  // CORRECCIÓN: Ya no esperamos `nr_equipos_cantidad` del body.
+  const { 
+    nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna,
+    lat, lng, solicitante, rut, estado
+  } = req.body;
+
+  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado) {
+    return res.status(400).json({ message: 'Faltan datos obligatorios para crear el DEA.' });
+  }
+
+  try {
+    const [comunaRows] = await db.query('SELECT id FROM comunas WHERE nombre = ?', [gl_instalacion_comuna]);
+    if (comunaRows.length === 0) {
+      return res.status(400).json({ message: `La comuna '${gl_instalacion_comuna}' no es válida.` });
+    }
+    const comunaId = comunaRows[0].id;
+    
+    const bo_activo = (estado === 'aprobado') ? 1 : 0;
+
+    const sqlQuery = `
+      INSERT INTO tramites (
+        gl_nombre_fantasia, gl_instalacion_calle, nr_instalacion_numero, comuna_id, 
+        gl_instalacion_latitud, gl_instalacion_longitud, gl_solicitante_nombre, gl_solicitante_rut, 
+        nr_equipos_cantidad, estado, bo_activo, bo_eliminado, fc_creacion, fc_actualiza
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N', NOW(), NOW())`;
+      
+    const valoresParaInsertar = [
+      nombre, gl_instalacion_calle, 
+      (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
+      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut,
+      1, // CORRECCIÓN: Asignamos el valor por defecto 1 directamente aquí.
+      estado, bo_activo
+    ];
+
+    const [result] = await db.query(sqlQuery, valoresParaInsertar);
+    res.status(201).json({ message: 'DEA creado exitosamente.', id_tramite: result.insertId });
+
+  } catch (error) {
+    console.error("❌ ERROR AL CREAR DEA (ADMIN):", error);
+    res.status(500).json({ message: 'Error al guardar el nuevo DEA.', detalle: error.message });
+  }
+});
+
+
+// RUTA ADMIN para ACTUALIZAR un DEA
+app.put('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+  const { id } = req.params;
+  // CORRECCIÓN: Ya no esperamos `nr_equipos_cantidad` del body.
+  const { 
+    nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna,
+    lat, lng, solicitante, rut, estado
+  } = req.body;
+
+  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado) {
+    return res.status(400).json({ message: 'Faltan datos obligatorios para actualizar el DEA.' });
+  }
+
+  try {
+    const [comunaRows] = await db.query('SELECT id FROM comunas WHERE nombre = ?', [gl_instalacion_comuna]);
+    if (comunaRows.length === 0) {
+      return res.status(400).json({ message: `La comuna '${gl_instalacion_comuna}' no es válida.` });
+    }
+    const comunaId = comunaRows[0].id;
+    const bo_activo = (estado === 'aprobado') ? 1 : 0;
+
+    // CORRECCIÓN: La consulta UPDATE ya no modifica `nr_equipos_cantidad`.
+    // Si un admin necesitara cambiarlo, se debería añadir un campo específico en el futuro.
+    const sqlQuery = `
+      UPDATE tramites SET
+        gl_nombre_fantasia = ?, gl_instalacion_calle = ?, nr_instalacion_numero = ?, comuna_id = ?,
+        gl_instalacion_latitud = ?, gl_instalacion_longitud = ?, gl_solicitante_nombre = ?, gl_solicitante_rut = ?,
+        estado = ?, bo_activo = ?, fc_actualiza = NOW()
+      WHERE id_tramite = ?
+    `;
+
+    const valoresParaActualizar = [
+      nombre, gl_instalacion_calle, 
+      (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
+      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut,
+      estado, bo_activo,
+      id
+    ];
+
+    const [result] = await db.query(sqlQuery, valoresParaActualizar);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "DEA no encontrado o ningún dato fue modificado." });
+    }
+    res.json({ message: 'DEA actualizado exitosamente.' });
+  } catch (error) {
+    console.error("❌ ERROR AL ACTUALIZAR DEA (ADMIN):", error);
+    res.status(500).json({ message: 'Error al actualizar el DEA.', detalle: error.message });
+  }
+});
+
+// RUTA ADMIN para ELIMINAR un DEA (Borrado lógico)
+app.delete('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await db.query(
+            "UPDATE tramites SET bo_eliminado = 'S', estado = 'inactivo', bo_activo = 0, fc_actualiza = NOW() WHERE id_tramite = ?", 
+            [id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "DEA no encontrado para eliminar." });
+        }
+        res.json({ message: 'DEA eliminado exitosamente.' });
+    } catch (error) {
+        console.error("❌ ERROR AL ELIMINAR DEA (ADMIN):", error);
+        res.status(500).json({ message: "Error interno al eliminar el DEA.", detalle: error.message });
+    }
+});
+
+
 
 // Estadísticas Dashboard
 app.get('/api/estadisticas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {

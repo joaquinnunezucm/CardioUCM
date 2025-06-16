@@ -6,7 +6,7 @@ import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
-
+import RoutingControl from '../pages/RoutingControl';
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -79,6 +79,7 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 const UbicacionDEA = () => {
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
     calle: '',
@@ -90,6 +91,7 @@ const UbicacionDEA = () => {
     rut: '',
   });
   const [formError, setFormError] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
@@ -97,6 +99,7 @@ const UbicacionDEA = () => {
   const [cercanos, setCercanos] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const userMarkerRef = useRef(null);
+  const [destinoRuta, setDestinoRuta] = useState(null);
 
   // Cargar DEAs
   useEffect(() => {
@@ -111,20 +114,28 @@ const UbicacionDEA = () => {
       });
   }, []);
 
-  // Obtener ubicación del usuario
+  // Obtener ubicación del usuario con alta precisión
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const userPos = [position.coords.latitude, position.coords.longitude];
-          setUserLocation(userPos);
-          if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
-            setCenter(userPos);
+          const coords = [position.coords.latitude, position.coords.longitude];
+          setUserLocation(coords);
+          if (
+            center[0] === initialCenter.current[0] &&
+            center[1] === initialCenter.current[1]
+          ) {
+            setCenter(coords);
           }
         },
         (error) => {
           console.error('Error obteniendo ubicación del usuario:', error);
           Swal.fire('Error', 'No se pudo obtener tu ubicación.', 'error');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
         }
       );
     }
@@ -133,35 +144,30 @@ const UbicacionDEA = () => {
   // Calcular DEAs cercanos
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
-      setCercanos(getClosestDEA(desfibriladores, userLocation));
+      const cercanosCalculados = desfibriladores
+        .map((dea) => {
+          const lat = parseFloat(dea.lat);
+          const lng = parseFloat(dea.lng);
+          if (isNaN(lat) || isNaN(lng)) {
+            return { ...dea, distancia: Infinity };
+          }
+          return {
+            ...dea,
+            distancia: getDistance(userLocation[0], userLocation[1], lat, lng),
+          };
+        })
+        .sort((a, b) => a.distancia - b.distancia)
+        .slice(0, 10);
+      setCercanos(cercanosCalculados);
     } else {
       setCercanos([]);
     }
   }, [userLocation, desfibriladores]);
 
-  const getClosestDEA = (allDeas, currentUserLocation) => {
-    if (!currentUserLocation || allDeas.length === 0) {
-      return [];
-    }
-    return [...allDeas]
-      .map((dea) => {
-        const lat = parseFloat(dea.lat);
-        const lng = parseFloat(dea.lng);
-        if (isNaN(lat) || isNaN(lng)) {
-          return { ...dea, distancia: Infinity };
-        }
-        return {
-          ...dea,
-          distancia: getDistance(currentUserLocation[0], currentUserLocation[1], lat, lng),
-        };
-      })
-      .sort((a, b) => a.distancia - b.distancia)
-      .slice(0, 10);
-  };
-
   const handleShowModal = () => {
     setShowModal(true);
     setFormError('');
+    setTermsAccepted(false);
   };
 
   const handleCloseModal = () => {
@@ -178,12 +184,20 @@ const UbicacionDEA = () => {
         rut: '',
       });
       setFormError('');
+      setTermsAccepted(false);
     }
   };
+
+  const handleShowTermsModal = () => setShowTermsModal(true);
+  const handleCloseTermsModal = () => setShowTermsModal(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleTermsChange = (e) => {
+    setTermsAccepted(e.target.checked);
   };
 
   const handleSubmit = async (e) => {
@@ -198,6 +212,11 @@ const UbicacionDEA = () => {
 
     if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) {
       setFormError('Las coordenadas deben ser valores numéricos válidos.');
+      return;
+    }
+
+    if (!termsAccepted) {
+      setFormError('Debes aceptar los términos y condiciones para continuar.');
       return;
     }
 
@@ -230,8 +249,9 @@ const UbicacionDEA = () => {
     }
   };
 
-  const focusMarker = (id, lat, lng) => {
+  const focusMarkerYRuta = (id, lat, lng) => {
     setCenter([parseFloat(lat), parseFloat(lng)]);
+    setDestinoRuta([parseFloat(lat), parseFloat(lng)]);
     setTimeout(() => {
       markersRef.current[id]?.openPopup();
     }, 300);
@@ -301,9 +321,22 @@ const UbicacionDEA = () => {
                     <b>{d.nombre}</b>
                     <br />
                     {d.direccion}
+                    {userLocation && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="mt-2"
+                        onClick={() => setDestinoRuta([parseFloat(d.lat), parseFloat(d.lng)])}
+                      >
+                        Ver Ruta desde mi ubicación
+                      </Button>
+                    )}
                   </Popup>
                 </Marker>
               ))}
+              {userLocation && destinoRuta && (
+                <RoutingControl from={userLocation} to={destinoRuta} />
+              )}
             </MapContainer>
             <button
               onClick={handleShowModal}
@@ -329,19 +362,17 @@ const UbicacionDEA = () => {
               Mi Ubicación
             </button>
           </div>
-          <div className="card shadow-sm">
-            <div className="card-header">
-              <h3 className="card-title">10 Desfibriladores Activos más Cercanos</h3>
-            </div>
-            <div className="card-body">
+          <div className="row">
+            <div className="col-md-6 mb-4">
+              <h4 className="mb-3">DEAs más cercanos</h4>
               {cercanos.length > 0 ? (
                 <ul className="list-group">
                   {cercanos.map((d) => (
-                    <li key={d.id} className="list-group-item">
+                    <li key={d.id} className="list-group-item d-flex justify-content-between align-items-center">
                       <button
-                        onClick={() => focusMarker(d.id, d.lat, d.lng)}
                         className="btn btn-link p-0 text-left w-100"
                         style={{ color: '#007bff', textDecoration: 'none' }}
+                        onClick={() => focusMarkerYRuta(d.id, d.lat, d.lng)}
                       >
                         <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
                         <span className="float-right text-muted">
@@ -361,10 +392,11 @@ const UbicacionDEA = () => {
                 <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
               )}
             </div>
+            
           </div>
-          <Modal show={showModal} onHide={handleCloseModal}>
+          <Modal show={showModal} onHide={handleCloseModal} centered>
             <Modal.Header closeButton>
-              <Modal.Title>Sugerir Nuevo DEA</Modal.Title>
+              <Modal.Title>Sugerir nuevo DEA</Modal.Title>
             </Modal.Header>
             <Form onSubmit={handleSubmit}>
               <Modal.Body>
@@ -373,8 +405,8 @@ const UbicacionDEA = () => {
                     {formError}
                   </div>
                 )}
-                <Form.Group controlId="formNombre" className="mb-2">
-                  <Form.Label>Nombre del Lugar</Form.Label>
+                <Form.Group controlId="formNombre">
+                  <Form.Label>Nombre del lugar*</Form.Label>
                   <Form.Control
                     type="text"
                     name="nombre"
@@ -386,8 +418,8 @@ const UbicacionDEA = () => {
                   />
                 </Form.Group>
                 <h5 className="mt-4 mb-2">Dirección de Instalación</h5>
-                <Form.Group controlId="formCalle" className="mb-2">
-                  <Form.Label>Calle</Form.Label>
+                <Form.Group controlId="formCalle">
+                  <Form.Label>Calle*</Form.Label>
                   <Form.Control
                     type="text"
                     name="calle"
@@ -398,7 +430,7 @@ const UbicacionDEA = () => {
                     disabled={isSubmitting}
                   />
                 </Form.Group>
-                <Form.Group controlId="formNumero" className="mb-2">
+                <Form.Group controlId="formNumero">
                   <Form.Label>Número</Form.Label>
                   <Form.Control
                     type="text"
@@ -409,8 +441,8 @@ const UbicacionDEA = () => {
                     disabled={isSubmitting}
                   />
                 </Form.Group>
-                <Form.Group controlId="formComuna" className="mb-2">
-                  <Form.Label>Comuna</Form.Label>
+                <Form.Group controlId="formComuna">
+                  <Form.Label>Comuna*</Form.Label>
                   <Form.Control
                     type="text"
                     name="comuna"
@@ -422,8 +454,8 @@ const UbicacionDEA = () => {
                   />
                 </Form.Group>
                 <h5 className="mt-4 mb-2">Coordenadas Geográficas (Clic en mapa para auto-rellenar)</h5>
-                <Form.Group controlId="formLatitud" className="mb-2">
-                  <Form.Label>Latitud</Form.Label>
+                <Form.Group controlId="formLatitud">
+                  <Form.Label>Latitud*</Form.Label>
                   <Form.Control
                     type="number"
                     step="any"
@@ -435,8 +467,8 @@ const UbicacionDEA = () => {
                     disabled={isSubmitting}
                   />
                 </Form.Group>
-                <Form.Group controlId="formLongitud" className="mb-2">
-                  <Form.Label>Longitud</Form.Label>
+                <Form.Group controlId="formLongitud">
+                  <Form.Label>Longitud*</Form.Label>
                   <Form.Control
                     type="number"
                     step="any"
@@ -449,8 +481,8 @@ const UbicacionDEA = () => {
                   />
                 </Form.Group>
                 <h5 className="mt-4 mb-2">Información del Solicitante</h5>
-                <Form.Group controlId="formSolicitante" className="mb-2">
-                  <Form.Label>Nombre del Solicitante</Form.Label>
+                <Form.Group controlId="formSolicitante">
+                  <Form.Label>Nombre del Solicitante*</Form.Label>
                   <Form.Control
                     type="text"
                     name="solicitante"
@@ -461,8 +493,8 @@ const UbicacionDEA = () => {
                     disabled={isSubmitting}
                   />
                 </Form.Group>
-                <Form.Group controlId="formRut" className="mb-2">
-                  <Form.Label>RUT del Solicitante</Form.Label>
+                <Form.Group controlId="formRut">
+                  <Form.Label>RUT del Solicitante*</Form.Label>
                   <Form.Control
                     type="text"
                     name="rut"
@@ -473,21 +505,85 @@ const UbicacionDEA = () => {
                     disabled={isSubmitting}
                   />
                 </Form.Group>
+                <Form.Group className="mt-3">
+                  <Form.Check
+                    type="checkbox"
+                    label={
+                      <>
+                        Acepto los{' '}
+                        <span
+                          style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={handleShowTermsModal}
+                        >
+                          términos y condiciones
+                        </span>
+                        *
+                      </>
+                    }
+                    checked={termsAccepted}
+                    onChange={handleTermsChange}
+                    disabled={isSubmitting}
+                  />
+                </Form.Group>
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
                   Cancelar
                 </Button>
-                <Button variant="primary" type="submit" disabled={isSubmitting}>
+                <Button variant="success" type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
                 </Button>
               </Modal.Footer>
             </Form>
           </Modal>
+          <Modal show={showTermsModal} onHide={handleCloseTermsModal} size="lg">
+            <Modal.Header closeButton>
+              <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
+            </Modal.Header>
+            <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <h5>1. Generalidades</h5>
+              <p>
+                Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM, desarrollada por la Universidad Católica del Maule. Al enviar el formulario, aceptas estos términos, conforme a las leyes de la República de Chile, en particular la Ley N° 19.628 sobre Protección de la Vida Privada, la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y la Ley N° 19.799 sobre Documentos Electrónicos.
+              </p>
+              <h5>2. Recopilación y Uso de Datos Personales</h5>
+              <p>
+                Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad, asegurando la credibilidad de la solicitud. Estos datos no serán compartidos con terceros, salvo obligación legal (por ejemplo, requerimientos de autoridades competentes). Nos comprometemos a almacenar tus datos de forma segura.
+              </p>
+              <h5>3. Conservación de datos personales</h5>
+              <p>
+                Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm@ucm.cl.
+              </p>
+              <h5>4. Consentimiento</h5>
+              <p>
+                Al marcar la casilla de aceptación en el formulario, autorizas expresamente el uso de tus datos según lo descrito en este documento. Sin esta aceptación, no podrás enviar la solicitud.
+              </p>
+              <h5>5. Limitaciones de Responsabilidad</h5>
+              <p>
+                CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario, fallos técnicos en el envío del formulario o interrupciones en el servicio debido a causas ajenas a nuestro control. La aprobación de las sugerencias de DEA depende de un proceso de revisión y no garantizamos su aceptación.
+              </p>
+              <h5>6. Modificaciones a los Términos</h5>
+              <p>
+                Nos reservamos el derecho a modificar estos términos y condiciones. Cualquier cambio será notificado a través de la aplicación CardioUCM o por correo electrónico a los usuarios registrados.
+              </p>
+              <h5>7. Ley Aplicable y Resolución de Conflictos</h5>
+              <p>
+                Este acuerdo se rige por las leyes de la República de Chile. Cualquier disputa derivada de este documento será resuelta en los tribunales de la ciudad de Talca, Región del Maule.
+              </p>
+              <h5>8. Contacto</h5>
+              <p>
+                Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm@ucm.cl">cardioucm@ucm.cl</a>.
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={handleCloseTermsModal}>
+                Cerrar
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </div>
-      </section>
-    </div>
-  );
+        </section>
+      </div>
+    );
 };
 
 export default UbicacionDEA;

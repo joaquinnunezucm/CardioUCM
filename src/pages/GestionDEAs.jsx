@@ -14,23 +14,8 @@ const GestionDEAs = () => {
   const [deas, setDeas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [tableInitialized, setTableInitialized] = useState(false);
   const tableRef = useRef(null);
-  const dataTableInstance = useRef(null);
-  
-  // Estados del modal
-  const [showModal, setShowModal] = useState(false);
-  const [currentDEA, setCurrentDEA] = useState(null);
-  const [formData, setFormData] = useState({
-    nombre: '',
-    gl_instalacion_calle: '',
-    nr_instalacion_numero: '',
-    gl_instalacion_comuna: '',
-    lat: '',
-    lng: '',
-    solicitante: '',
-    rut: '',
-    estado: 'pendiente',
-  });
 
   const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/gestion-deas`;
 
@@ -38,22 +23,38 @@ const GestionDEAs = () => {
     headers: { Authorization: `Bearer ${token}` },
   }), [token]);
 
-  const fetchDEAs = useCallback(async () => {
+  const refreshData = useCallback(async () => {
+    try {
+      setIsProcessing(true);
+      if ($.fn.dataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
+        setTableInitialized(false);
+      }
+      const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
+      console.log('Datos de DEAs:', response.data); // Depuración
+      setDeas(response.data);
+    } catch (error) {
+      console.error('Error al refrescar los DEAs:', error);
+      Swal.fire('Error', 'No se pudo refrescar la lista de DEAs.', 'error');
+      setDeas([]);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [API_URL_ADMIN, getAuthHeaders]);
+
+  const fetchInitialDEAs = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
     }
-    
+    setLoading(true);
+    if ($.fn.dataTable.isDataTable(tableRef.current)) {
+      $(tableRef.current).DataTable().destroy();
+      setTableInitialized(false);
+    }
     try {
-      setLoading(true);
-      // Destruir DataTable existente
-      if (dataTableInstance.current) {
-        dataTableInstance.current.destroy();
-        dataTableInstance.current = null;
-      }
-      
       const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
-      console.log('Datos de DEAs:', response.data);
+      console.log('Datos iniciales de DEAs:', response.data); // Depuración
       setDeas(response.data);
     } catch (error) {
       console.error('Error al obtener los DEAs:', error.response?.data || error.message);
@@ -64,23 +65,14 @@ const GestionDEAs = () => {
     }
   }, [token, getAuthHeaders, API_URL_ADMIN]);
 
-  // Fetch inicial
   useEffect(() => {
-    fetchDEAs();
-  }, [fetchDEAs]);
+    fetchInitialDEAs();
+  }, [fetchInitialDEAs]);
 
-  // Inicializar DataTable
   useEffect(() => {
-    // Destruir DataTable existente
-    if (dataTableInstance.current) {
-      dataTableInstance.current.destroy();
-      dataTableInstance.current = null;
-    }
-
-    if (!loading && !isProcessing && deas.length > 0 && tableRef.current) {
-      console.log('Inicializando DataTables con deas:', deas);
-      
-      dataTableInstance.current = $(tableRef.current).DataTable({
+    if (!loading && !isProcessing && !tableInitialized && tableRef.current && deas.length > 0) {
+      console.log('Inicializando DataTables con deas:', deas); // Depuración
+      $(tableRef.current).DataTable({
         language: {
           search: 'Buscar:',
           lengthMenu: 'Mostrar _MENU_ registros',
@@ -94,35 +86,16 @@ const GestionDEAs = () => {
         columnDefs: [{ orderable: false, targets: [5] }],
         responsive: true,
         searching: true,
-        paging: true,
-        info: true,
-        lengthChange: true,
       });
-
-      // Event listeners para botones
-      $(tableRef.current).off('click', '.edit-btn .delete-btn'); // Remover listeners anteriores
-      
-      $(tableRef.current).on('click', '.edit-btn', function () {
-        const id = parseInt($(this).data('id'));
-        const dea = deas.find((d) => d.id === id);
-        if (dea) handleShowModal(dea);
-      });
-
-      $(tableRef.current).on('click', '.delete-btn', function () {
-        const id = parseInt($(this).data('id'));
-        const nombre = $(this).data('nombre');
-        handleDelete(id, nombre);
-      });
+      setTableInitialized(true);
     }
 
-    // Cleanup
     return () => {
-      if (dataTableInstance.current) {
-        dataTableInstance.current.destroy();
-        dataTableInstance.current = null;
+      if ($.fn.dataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
       }
     };
-  }, [loading, isProcessing, deas]);
+  }, [loading, isProcessing, tableInitialized, deas]);
 
   const handleShowModal = (dea = null) => {
     if (dea) {
@@ -158,17 +131,6 @@ const GestionDEAs = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setCurrentDEA(null);
-    setFormData({
-      nombre: '',
-      gl_instalacion_calle: '',
-      nr_instalacion_numero: '',
-      gl_instalacion_comuna: '',
-      lat: '',
-      lng: '',
-      solicitante: '',
-      rut: '',
-      estado: 'pendiente',
-    });
   };
 
   const handleChange = (e) => {
@@ -178,7 +140,6 @@ const GestionDEAs = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (
       !formData.nombre ||
       !formData.gl_instalacion_calle ||
@@ -190,17 +151,10 @@ const GestionDEAs = () => {
     ) {
       return Swal.fire('Campos incompletos', 'Por favor, complete todos los campos requeridos.', 'warning');
     }
+    setIsProcessing(true);
+    handleCloseModal();
 
     try {
-      Swal.fire({
-        title: currentDEA ? 'Actualizando...' : 'Creando...',
-        text: 'Por favor espera.',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        },
-      });
-
       let response;
       if (currentDEA) {
         response = await axios.put(`${API_URL_ADMIN}/${currentDEA.id}`, formData, getAuthHeaders());
@@ -209,24 +163,19 @@ const GestionDEAs = () => {
         response = await axios.post(API_URL_ADMIN, formData, getAuthHeaders());
         await Swal.fire('Creado', response.data.message || 'El nuevo DEA ha sido registrado.', 'success');
       }
-      
-      handleCloseModal();
-      await fetchDEAs(); // Recargar datos
+      await refreshData();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Ocurrió un error al guardar.';
       await Swal.fire('Error', errorMessage, 'error');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleDelete = async (id, nombre) => {
-    if (!token) {
-      Swal.fire('Error', 'No autenticado. No se puede eliminar.', 'error');
-      return;
-    }
-
     Swal.fire({
       title: '¿Estás seguro?',
-      html: `Se eliminará el DEA "<b>${nombre}</b>".`,
+      text: `Se eliminará el DEA "${nombre}".`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -234,25 +183,33 @@ const GestionDEAs = () => {
       confirmButtonText: 'Sí, eliminar',
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsProcessing(true);
         try {
-          Swal.fire({
-            title: 'Eliminando...',
-            text: 'Por favor espera.',
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-            },
-          });
-
           const response = await axios.delete(`${API_URL_ADMIN}/${id}`, getAuthHeaders());
           await Swal.fire('Eliminado', response.data.message || 'El DEA ha sido eliminado.', 'success');
-          await fetchDEAs(); // Recargar datos
+          await refreshData();
         } catch (error) {
           await Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar.', 'error');
+        } finally {
+          setIsProcessing(false);
         }
       }
     });
   };
+
+  const [showModal, setShowModal] = useState(false);
+  const [currentDEA, setCurrentDEA] = useState(null);
+  const [formData, setFormData] = useState({
+    nombre: '',
+    gl_instalacion_calle: '',
+    nr_instalacion_numero: '',
+    gl_instalacion_comuna: '',
+    lat: '',
+    lng: '',
+    solicitante: '',
+    rut: '',
+    estado: 'pendiente',
+  });
 
   if (!user) {
     return (
@@ -283,21 +240,21 @@ const GestionDEAs = () => {
       </div>
 
       <div className="table-responsive shadow-sm bg-white p-3 rounded">
-        {loading ? (
+        {loading || isProcessing ? (
           <div className="text-center p-5">
-            <div className="spinner-border text-primary"></div>
-            <p className="mt-2">Cargando datos...</p>
+            <i className="fas fa-spinner fa-spin fa-2x text-primary"></i>
+            <p className="mt-2">{loading ? 'Cargando datos...' : 'Procesando...'}</p>
           </div>
         ) : (
-          <Table ref={tableRef} striped bordered hover responsive id="tablaDEAs" className="w-100">
+          <Table ref={tableRef} id="tablaDEAs" className="table table-bordered table-hover w-100">
             <thead className="thead-light">
               <tr>
                 <th>Nombre Lugar</th>
                 <th>Dirección</th>
                 <th>Solicitante</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Estado</th>
+                <th className="text-center">Estado</th>
                 <th>Fecha Creación</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+                <th className="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -310,7 +267,7 @@ const GestionDEAs = () => {
                     <br />
                     <small className="text-muted">{dea.rut || 'N/A'}</small>
                   </td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="text-center">
                     <span
                       className={`badge bg-${
                         dea.estado === 'aprobado'
@@ -332,12 +289,11 @@ const GestionDEAs = () => {
                     </span>
                   </td>
                   <td>{dea.fc_creacion ? new Date(dea.fc_creacion).toLocaleString('es-CL') : 'N/A'}</td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="text-center">
                     <Button
                       variant="info"
                       size="sm"
-                      className="me-1 edit-btn"
-                      data-id={dea.id}
+                      className="me-1"
                       onClick={() => handleShowModal(dea)}
                       disabled={isProcessing}
                       title="Editar"
@@ -347,9 +303,6 @@ const GestionDEAs = () => {
                     <Button
                       variant="danger"
                       size="sm"
-                      className="delete-btn"
-                      data-id={dea.id}
-                      data-nombre={dea.nombre}
                       onClick={() => handleDelete(dea.id, dea.nombre)}
                       disabled={isProcessing}
                       title="Eliminar"
