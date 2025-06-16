@@ -1,161 +1,182 @@
-// src/utils/validators.js
-
 /**
- * =================================================================
- * SECCIÓN 1: REGLAS DE VALIDACIÓN
- * -----------------------------------------------------------------
- * Cada función aquí responde a la pregunta: "¿Es este valor válido?"
- * Devuelve `true` si es válido, o un `string` con el mensaje de error si no lo es.
- * Esto los hace compatibles con el hook `useForm`.
- * =================================================================
+ * ======================================================================
+ *  Archivo de Validaciones Reutilizables
+ * ======================================================================
+ *
+ * Cada función de validación:
+ * - Recibe el valor del campo como argumento.
+ * - Devuelve un `string` con el mensaje de error si la validación falla.
+ * - Devuelve `null` si la validación es exitosa.
+ *
+ * Funciones "factory" (como maxLength) reciben un parámetro y DEVUELVEN
+ * una función de validación.
  */
 
-// --- Reglas Básicas y de Composición ---
+// --- VALIDACIONES BÁSICAS ---
 
 export const isRequired = (value) => {
-  if (value === null || value === undefined || String(value).trim() === '') {
+  if (!value || value.trim() === '') {
     return 'Este campo es obligatorio.';
   }
-  return true;
-};
-
-// Validador de composición: permite usar validadores solo si el campo tiene un valor.
-// Útil para reglas que no deben aplicarse a campos vacíos opcionales.
-export const optional = (validator) => (value) => {
-    if (!value) {
-        return true; // Si el valor está vacío, la validación pasa.
-    }
-    return validator(value); // Si hay valor, aplica el validador.
-};
-
-// --- Reglas de Formato y Contenido ---
-
-export const isRutChileno = (rut) => {
-  if (typeof rut !== 'string' || !rut.trim()) {
-    return 'El RUT es obligatorio.';
-  }
-  
-  const rutLimpio = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-  if (!/^[0-9]+[0-9K]$/.test(rutLimpio)) {
-    return 'El formato del RUT no es válido.';
-  }
-  
-  const cuerpo = rutLimpio.slice(0, -1);
-  const dv = rutLimpio.slice(-1);
-  let suma = 0, multiplo = 2;
-
-  for (let i = cuerpo.length - 1; i >= 0; i--) {
-    suma += parseInt(cuerpo[i]) * multiplo;
-    multiplo = multiplo < 7 ? multiplo + 1 : 2;
-  }
-  
-  let dvEsperado = 11 - (suma % 11);
-  dvEsperado = dvEsperado === 11 ? '0' : dvEsperado === 10 ? 'K' : dvEsperado.toString();
-  
-  if (dv !== dvEsperado) {
-    return 'El RUT ingresado no es válido (dígito verificador incorrecto).';
-  }
-  return true;
-};
-
-export const isEmail = (email) => {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return 'El formato del email no es correcto.';
-  }
-  return true;
-};
-
-export const isNumber = (value) => {
-    if (isNaN(parseFloat(value))) {
-        return 'El valor debe ser un número.';
-    }
-    return true;
-};
-
-export const isSecurePassword = (password) => {
-  const
-   regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-  if (!regex.test(password)) {
-    return 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo (@$!%*#?&).';
-  }
-  return true;
-};
-
-export const isChileanPhone = (telefono) => {
-  if (!/^(\+56)?9\d{8}$/.test(telefono)) {
-    return 'El formato del teléfono debe ser +569xxxxxxxx.';
-  }
-  return true;
-};
-
-// --- Reglas de Longitud ---
-
-export const minLength = (min) => (value) => {
-  if (String(value).trim().length < min) {
-    return `Debe tener al menos ${min} caracteres.`;
-  }
-  return true;
+  return null;
 };
 
 export const maxLength = (max) => (value) => {
-  if (String(value).trim().length > max) {
-    return `No puede tener más de ${max} caracteres.`;
+  if (value && value.length > max) {
+    return `El campo no puede tener más de ${max} caracteres.`;
   }
-  return true;
+  return null;
+};
+
+export const minLength = (min) => (value) => {
+  if (value && value.length < min) {
+    return `El campo debe tener al menos ${min} caracteres.`;
+  }
+  return null;
+};
+
+// --- VALIDACIONES DE FORMATO Y CARACTERES ---
+
+/**
+ * Valida que el campo contenga únicamente números enteros.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isNumeric = (value) => {
+  if (value && !/^\d+$/.test(value)) {
+    return 'Este campo solo debe contener números enteros.';
+  }
+  return null;
 };
 
 /**
- * =================================================================
- * SECCIÓN 2: FUNCIONES DE SANITIZACIÓN Y FORMATEO
- * -----------------------------------------------------------------
- * Cada función aquí transforma un valor de entrada.
- * Se usan en el `onChange` de los inputs para mejorar la UX y limpiar los datos.
- * =================================================================
+ * Valida que el campo solo contenga letras (CON tildes/ñ) y espacios.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
  */
-
-// Formateador de RUT chileno (12.345.678-9)
-export const formatRut = (value) => {
-  if (!value) return '';
-  const rutLimpio = value.replace(/[^0-9kK]/g, '');
-  if (rutLimpio.length === 0) return '';
-
-  let cuerpo = rutLimpio.slice(0, -1);
-  let dv = rutLimpio.slice(-1);
-
-  if (rutLimpio.length <= 1) {
-    return rutLimpio;
-  }
-
-  cuerpo = new Intl.NumberFormat('es-CL').format(parseInt(cuerpo, 10));
-  return `${cuerpo}-${dv}`;
-};
-
-// Limpia el texto para que solo contenga letras (incl. tildes/ñ) y espacios.
-export const formatOnlyLetters = (value) => {
-  if (!value) return '';
-  return value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
-};
-
-// Limpia el texto para que solo contenga caracteres alfanuméricos.
-export const formatAlphanumeric = (value) => {
-  if (!value) return '';
-  return value.replace(/[^a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚüÜ]/g, '');
-};
-
-// Limpia el texto para que solo contenga números enteros.
-export const formatOnlyInt = (value) => {
-    if (!value) return '';
-    return value.replace(/[^0-9]/g, '');
-};
-
-// Limpia el texto para que solo contenga lo que podría ser un número decimal.
-export const formatDecimal = (value) => {
-    if (!value) return '';
-    let formattedValue = value.replace(/[^0-9.]/g, '');
-    // Asegura que solo haya un punto decimal
-    const parts = formattedValue.split('.');
-    if (parts.length > 2) {
-        formattedValue = parts[0] + '.' + parts.slice(1).join('');
+export const isAlphaWithSpaces = (value) => {
+    // \u00C0-\u017F permite caracteres latinos acentuados.
+    if (value && !/^[a-zA-Z\u00C0-\u017F\s]+$/.test(value)) {
+        return 'Este campo solo permite letras y espacios.';
     }
-    return formattedValue;
+    return null;
+};
+
+/**
+ * Valida que el campo solo contenga letras (CON tildes/ñ), números y espacios.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isAlphaNumericWithSpaces = (value) => {
+    // \u00C0-\u017F permite caracteres latinos acentuados.
+    if (value && !/^[a-zA-Z\u00C0-\u017F0-9\s]+$/.test(value)) {
+        return 'Este campo solo permite letras, números y espacios.';
+    }
+    return null;
+};
+
+/**
+ * [NUEVA OPCIÓN] Valida que el campo solo contenga letras (SIN tildes/ñ), números y espacios.
+ * Útil para campos que no deben tener caracteres especiales.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isSimpleAlphaNumericWithSpaces = (value) => {
+    // SIN el rango Unicode para acentos.
+    if (value && !/^[a-zA-Z0-9\s]+$/.test(value)) {
+        return 'Este campo solo permite letras (sin tildes), números y espacios.';
+    }
+    return null;
+};
+
+/**
+ * Valida un formato de email básico.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isEmail = (value) => {
+  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return 'Debe ser un formato de email válido.';
+  }
+  return null;
+};
+
+/**
+ * Valida el formato y el dígito verificador de un RUT chileno.
+ * @param {string} rut - RUT en formato XXXXXXXX-X
+ * @returns {string|null}
+ */
+export const isRUT = (rut) => {
+  if (!rut || !/^[0-9]+-[0-9kK]{1}$/.test(rut)) {
+    return 'El formato del RUT debe ser XXXXXXXX-X, sin puntos.';
+  }
+  const [cuerpo, dv] = rut.split('-');
+  let suma = 0;
+  let multiplo = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += parseInt(cuerpo.charAt(i), 10) * multiplo;
+    if (multiplo < 7) {
+      multiplo += 1;
+    } else {
+      multiplo = 2;
+    }
+  }
+  const dvEsperado = 11 - (suma % 11);
+  const dvFinal = (dvEsperado === 11) ? '0' : (dvEsperado === 10) ? 'K' : dvEsperado.toString();
+
+  if (dvFinal.toUpperCase() !== dv.toUpperCase()) {
+    return 'El RUT ingresado no es válido (dígito verificador incorrecto).';
+  }
+  return null;
+};
+
+/**
+ * Valida que el texto sea un slug (letras minúsculas, números y guiones).
+ * @param {string} value 
+ * @returns {string|null}
+ */
+export const isSlug = (value) => {
+    if (value && !/^[a-z0-9-]+$/.test(value)) {
+        return 'Solo se permiten letras minúsculas, números y guiones (-).';
+    }
+    return null;
+}
+
+/**
+ * Valida coordenadas geográficas (latitud o longitud).
+ * @param {string} value 
+ * @returns {string|null}
+ */
+export const isCoordinate = (value) => {
+    if (value && !/^-?\d{1,3}(\.\d+)?$/.test(value)) {
+        return 'Debe ser un número decimal válido (ej. -35.12345).';
+    }
+    return null;
+}
+
+/**
+ * Valida si la cadena es una URL válida.
+ * @param {string} value
+ * @returns {string|null}
+ */
+export const isURL = (value) => {
+    try {
+        new URL(value);
+        return null;
+    } catch (_) {
+        return 'Debe ser una URL válida (ej. https://www.ejemplo.com).';
+    }
+}
+
+
+// --- FUNCIÓN DE UTILIDAD ---
+
+export const validateField = (value, rules) => {
+  for (const rule of rules) {
+    const errorMessage = rule(value);
+    if (errorMessage) {
+      return errorMessage;
+    }
+  }
+  return null;
 };

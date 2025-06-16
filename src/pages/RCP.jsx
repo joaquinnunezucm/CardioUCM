@@ -77,26 +77,26 @@ const RCP = () => {
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="min-h-screen flex flex-col items-center p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 bg-gray-100">
       <BackButton />
-      <div className="content-header py-3 md:py-5 bg-red-50">
+      <div className="w-full max-w-xs xs:max-w-sm sm:max-w-md md:max-w-lg lg:max-w-3xl flex flex-col my-2 xs:my-3 sm:my-4 md:my-6">
+        <div className="content-header py-4 xs:py-5 sm:py-6 bg-white rounded-lg shadow-xl">
         <div className="container-fluid">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
-              <h1 className="m-0 text-3xl md:text-4xl font-bold text-red-700">
+              <h1 className="m-0 text-2xl xs:text-3xl sm:text-3xl md:text-4xl lg:text-4xl font-bold text-red-800 border-b-2 border-red-200 pb-2">
                 Reanimación Cardiopulmonar (RCP)
               </h1>
+                <p className="text-center text-gray-600 mb-2 md:mb-4 text-base md:text-lg max-w-3xl mx-auto">
+                Antes de iniciar cualquier maniobra, debes evaluar:
+                <strong> ¿La persona responde?, ¿Respira?, ¿Tiene pulso?</strong> En base a esa evaluación, sigue las acciones recomendadas.
+              </p>
             </div>
           </div>
         </div>
       </div>
       <section className="content py-5">
         <div className="container-fluid">
-          <p className="text-center text-gray-600 mb-8 md:mb-12 text-base md:text-lg max-w-3xl mx-auto">
-            Antes de iniciar cualquier maniobra, debes evaluar:
-            <strong> ¿La persona responde?, ¿Respira?, ¿Tiene pulso?</strong> En base a esa evaluación, sigue las acciones recomendadas.
-          </p>
-
           {instrucciones.length === 0 && !loading ? (
             <div className="text-center p-10 bg-white rounded-lg shadow max-w-3xl mx-auto">
               <i className="fas fa-info-circle fa-3x text-blue-400 mb-4"></i>
@@ -177,6 +177,7 @@ const RCP = () => {
         </div>
       </section>
     </div>
+  </div>
   );
 };
 
