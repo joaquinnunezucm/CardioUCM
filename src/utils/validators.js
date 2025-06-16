@@ -4,8 +4,9 @@
  * =================================================================
  * SECCIÓN 1: REGLAS DE VALIDACIÓN
  * -----------------------------------------------------------------
- * Cada función devuelve `true` si es válido, o un `string` con el mensaje de error.
- * Los límites de longitud están sincronizados con la Base de Datos.
+ * Cada función aquí responde a la pregunta: "¿Es este valor válido?"
+ * Devuelve `true` si es válido, o un `string` con el mensaje de error si no lo es.
+ * Esto los hace compatibles con el hook `useForm`.
  * =================================================================
  */
 
@@ -19,27 +20,23 @@ export const isRequired = (value) => {
 };
 
 // Validador de composición: permite usar validadores solo si el campo tiene un valor.
+// Útil para reglas que no deben aplicarse a campos vacíos opcionales.
 export const optional = (validator) => (value) => {
-    if (!value || String(value).trim() === '') {
+    if (!value) {
         return true; // Si el valor está vacío, la validación pasa.
     }
     return validator(value); // Si hay valor, aplica el validador.
 };
 
-// --- Reglas de Formato y Contenido Específicas ---
+// --- Reglas de Formato y Contenido ---
 
 export const isRutChileno = (rut) => {
   if (typeof rut !== 'string' || !rut.trim()) {
     return 'El RUT es obligatorio.';
   }
   
-  // La DB tiene VARCHAR(15), nuestro formateador (12.345.678-9) produce 12 caracteres. Es seguro.
-  if (rut.length > 12) {
-    return 'El RUT es demasiado largo.';
-  }
-  
   const rutLimpio = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-  if (!/^[0-9]{7,8}[0-9K]$/.test(rutLimpio)) {
+  if (!/^[0-9]+[0-9K]$/.test(rutLimpio)) {
     return 'El formato del RUT no es válido.';
   }
   
@@ -62,10 +59,6 @@ export const isRutChileno = (rut) => {
 };
 
 export const isEmail = (email) => {
-  // DB: usuarios.email es VARCHAR(255)
-  if (String(email).length > 255) {
-    return 'El email no puede exceder los 255 caracteres.';
-  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return 'El formato del email no es correcto.';
   }
@@ -79,51 +72,48 @@ export const isNumber = (value) => {
     return true;
 };
 
-// Para coordenadas DECIMAL(17,15) o DECIMAL(16,14)
-export const isCoordinate = (value) => {
-    if (isNaN(parseFloat(value))) {
-        return 'Debe ser un número válido.';
-    }
-    const parts = String(value).split('.');
-    if (parts[1] && parts[1].length > 15) {
-        return 'No puede tener más de 15 decimales.';
-    }
-    return true;
-};
-
 export const isSecurePassword = (password) => {
-  const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+  const
+   regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
   if (!regex.test(password)) {
-    return 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.';
+    return 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo (@$!%*#?&).';
   }
   return true;
 };
 
+export const isChileanPhone = (telefono) => {
+  if (!/^(\+56)?9\d{8}$/.test(telefono)) {
+    return 'El formato del teléfono debe ser +569xxxxxxxx.';
+  }
+  return true;
+};
 
-// --- Reglas de Longitud (Sincronizadas con la BD) ---
+// --- Reglas de Longitud ---
+
+export const minLength = (min) => (value) => {
+  if (String(value).trim().length < min) {
+    return `Debe tener al menos ${min} caracteres.`;
+  }
+  return true;
+};
 
 export const maxLength = (max) => (value) => {
   if (String(value).trim().length > max) {
-    return `El texto no puede exceder los ${max} caracteres.`;
+    return `No puede tener más de ${max} caracteres.`;
   }
   return true;
 };
-
-// Aquí creamos validadores específicos para los campos de la BD
-export const maxLength_tramites_nombre = maxLength(58);
-export const maxLength_tramites_solicitante = maxLength(79);
-export const maxLength_tramites_calle = maxLength(45);
-export const maxLength_usuarios_nombre = maxLength(100);
-export const maxLength_educacion_titulo = maxLength(255);
-export const maxLength_educacion_media_subtitulo = maxLength(255);
-
 
 /**
  * =================================================================
  * SECCIÓN 2: FUNCIONES DE SANITIZACIÓN Y FORMATEO
+ * -----------------------------------------------------------------
+ * Cada función aquí transforma un valor de entrada.
+ * Se usan en el `onChange` de los inputs para mejorar la UX y limpiar los datos.
  * =================================================================
  */
 
+// Formateador de RUT chileno (12.345.678-9)
 export const formatRut = (value) => {
   if (!value) return '';
   const rutLimpio = value.replace(/[^0-9kK]/g, '');
@@ -136,19 +126,36 @@ export const formatRut = (value) => {
     return rutLimpio;
   }
 
-  // Prevenimos el error "too many digits" de Intl.NumberFormat
-  if (cuerpo.length > 15) cuerpo = cuerpo.substring(0, 15);
-
   cuerpo = new Intl.NumberFormat('es-CL').format(parseInt(cuerpo, 10));
   return `${cuerpo}-${dv}`;
 };
 
+// Limpia el texto para que solo contenga letras (incl. tildes/ñ) y espacios.
+export const formatOnlyLetters = (value) => {
+  if (!value) return '';
+  return value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+};
+
+// Limpia el texto para que solo contenga caracteres alfanuméricos.
 export const formatAlphanumeric = (value) => {
   if (!value) return '';
   return value.replace(/[^a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚüÜ]/g, '');
 };
 
+// Limpia el texto para que solo contenga números enteros.
 export const formatOnlyInt = (value) => {
     if (!value) return '';
     return value.replace(/[^0-9]/g, '');
+};
+
+// Limpia el texto para que solo contenga lo que podría ser un número decimal.
+export const formatDecimal = (value) => {
+    if (!value) return '';
+    let formattedValue = value.replace(/[^0-9.]/g, '');
+    // Asegura que solo haya un punto decimal
+    const parts = formattedValue.split('.');
+    if (parts.length > 2) {
+        formattedValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    return formattedValue;
 };
