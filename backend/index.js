@@ -1476,7 +1476,7 @@ app.get('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async 
         t.estado
       FROM tramites t
       LEFT JOIN comunas c ON t.comuna_id = c.id
-      WHERE t.bo_eliminado = 'N'  -- Traer todos los que no estén eliminados lógicamente
+      
       ORDER BY t.fc_creacion DESC
     `);
     res.json(rows);

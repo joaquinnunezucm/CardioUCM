@@ -11,12 +11,7 @@ const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:
 
 const opcionesPasoAsociadoDefault = [
   { value: "", label: "Ninguno / General" },
-  { value: "Asegura la escena", label: "Asegura la escena" },
-  { value: "Evalúa respuesta", label: "Evalúa respuesta" },
-  { value: "Pide ayuda y llama al 131. Pide un DEA", label: "Pide ayuda y llama al 131. Pide un DEA" },
-  { value: "Inicia compresiones torácicas", label: "Inicia compresiones torácicas" },
-  { value: "Si estás entrenado, realiza 30 compresiones y 2 ventilaciones", label: "30 compresiones y 2 ventilaciones" },
-  { value: "Continúa hasta que llegue ayuda", label: "Continúa hasta que llegue ayuda" },
+
 ];
 
 const GestionEducacion = () => {

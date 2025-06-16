@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import $ from 'jquery';
 import 'datatables.net-bs4';
@@ -17,85 +17,78 @@ const GestionDEAs = () => {
   const [tableInitialized, setTableInitialized] = useState(false);
   const tableRef = useRef(null);
 
+  const [showModal, setShowModal] = useState(false);
+  const [currentDEA, setCurrentDEA] = useState(null);
+  const [formData, setFormData] = useState({
+    nombre: '',
+    gl_instalacion_calle: '',
+    nr_instalacion_numero: '',
+    gl_instalacion_comuna: '',
+    lat: '',
+    lng: '',
+    solicitante: '',
+    rut: '',
+    estado: 'pendiente',
+  });
+
   const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/gestion-deas`;
 
   const getAuthHeaders = useCallback(() => ({
     headers: { Authorization: `Bearer ${token}` },
   }), [token]);
 
-  const refreshData = useCallback(async () => {
-    try {
-      setIsProcessing(true);
-      if ($.fn.dataTable.isDataTable(tableRef.current)) {
-        $(tableRef.current).DataTable().destroy();
-        setTableInitialized(false);
-      }
-      const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
-      console.log('Datos de DEAs:', response.data); // Depuración
-      setDeas(response.data);
-    } catch (error) {
-      console.error('Error al refrescar los DEAs:', error);
-      Swal.fire('Error', 'No se pudo refrescar la lista de DEAs.', 'error');
-      setDeas([]);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [API_URL_ADMIN, getAuthHeaders]);
-
-  const fetchInitialDEAs = useCallback(async () => {
+  // Función unificada para obtener/refrescar los datos de DEAs
+  const fetchDEAs = useCallback(async () => {
     if (!token) {
-      setLoading(false);
-      return;
+        setLoading(false);
+        return;
     }
     setLoading(true);
+    
+    // Si la tabla ya estaba inicializada, la destruimos antes de obtener nuevos datos.
     if ($.fn.dataTable.isDataTable(tableRef.current)) {
       $(tableRef.current).DataTable().destroy();
-      setTableInitialized(false);
+      setTableInitialized(false); // Crucial: marcamos la tabla como no inicializada.
     }
+
     try {
       const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
-      console.log('Datos iniciales de DEAs:', response.data); // Depuración
       setDeas(response.data);
     } catch (error) {
       console.error('Error al obtener los DEAs:', error.response?.data || error.message);
       Swal.fire('Error', 'No se pudo cargar la lista de DEAs.', 'error');
-      setDeas([]);
+      setDeas([]); // Aseguramos que deas sea un array vacío en caso de error
     } finally {
       setLoading(false);
     }
   }, [token, getAuthHeaders, API_URL_ADMIN]);
 
+  // useEffect para la carga inicial de datos
   useEffect(() => {
-    fetchInitialDEAs();
-  }, [fetchInitialDEAs]);
+    fetchDEAs();
+  }, [fetchDEAs]);
 
+  // useEffect para la inicialización de DataTables
   useEffect(() => {
-    if (!loading && !isProcessing && !tableInitialized && tableRef.current && deas.length > 0) {
-      console.log('Inicializando DataTables con deas:', deas); // Depuración
+    // Solo inicializa si la carga terminó, hay datos y la tabla no ha sido inicializada aún.
+    if (!loading && deas.length > 0 && !tableInitialized) {
       $(tableRef.current).DataTable({
         language: {
           search: 'Buscar:',
           lengthMenu: 'Mostrar _MENU_ registros',
           info: 'Mostrando _START_ a _END_ de _TOTAL_ DEAs',
           paginate: { previous: 'Anterior', next: 'Siguiente' },
-          zeroRecords: 'No se encontraron DEAs',
+          zeroRecords: 'No se encontraron DEAs que coincidan con la búsqueda',
           infoEmpty: 'Mostrando 0 a 0 de 0 DEAs',
           infoFiltered: '(filtrado de _MAX_ DEAs totales)',
         },
-        order: [[4, 'desc']],
-        columnDefs: [{ orderable: false, targets: [5] }],
+        order: [[4, 'desc']], // Ordenar por fecha de creación descendente
+        columnDefs: [{ orderable: false, targets: [5] }], // La columna de acciones no es ordenable
         responsive: true,
-        searching: true,
       });
       setTableInitialized(true);
     }
-
-    return () => {
-      if ($.fn.dataTable.isDataTable(tableRef.current)) {
-        $(tableRef.current).DataTable().destroy();
-      }
-    };
-  }, [loading, isProcessing, tableInitialized, deas]);
+  }, [loading, deas, tableInitialized]);
 
   const handleShowModal = (dea = null) => {
     if (dea) {
@@ -114,15 +107,9 @@ const GestionDEAs = () => {
     } else {
       setCurrentDEA(null);
       setFormData({
-        nombre: '',
-        gl_instalacion_calle: '',
-        nr_instalacion_numero: '',
-        gl_instalacion_comuna: '',
-        lat: '',
-        lng: '',
-        solicitante: '',
-        rut: '',
-        estado: 'pendiente',
+        nombre: '', gl_instalacion_calle: '', nr_instalacion_numero: '',
+        gl_instalacion_comuna: '', lat: '', lng: '', solicitante: '',
+        rut: '', estado: 'pendiente',
       });
     }
     setShowModal(true);
@@ -141,16 +128,12 @@ const GestionDEAs = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (
-      !formData.nombre ||
-      !formData.gl_instalacion_calle ||
-      !formData.gl_instalacion_comuna ||
-      !formData.lat ||
-      !formData.lng ||
-      !formData.solicitante ||
-      !formData.rut
+      !formData.nombre || !formData.gl_instalacion_calle || !formData.gl_instalacion_comuna ||
+      !formData.lat || !formData.lng || !formData.solicitante || !formData.rut
     ) {
       return Swal.fire('Campos incompletos', 'Por favor, complete todos los campos requeridos.', 'warning');
     }
+    
     setIsProcessing(true);
     handleCloseModal();
 
@@ -163,7 +146,7 @@ const GestionDEAs = () => {
         response = await axios.post(API_URL_ADMIN, formData, getAuthHeaders());
         await Swal.fire('Creado', response.data.message || 'El nuevo DEA ha sido registrado.', 'success');
       }
-      await refreshData();
+      await fetchDEAs(); // Re-fetch data para refrescar la tabla
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Ocurrió un error al guardar.';
       await Swal.fire('Error', errorMessage, 'error');
@@ -173,43 +156,29 @@ const GestionDEAs = () => {
   };
 
   const handleDelete = async (id, nombre) => {
-    Swal.fire({
+    const result = await Swal.fire({
       title: '¿Estás seguro?',
-      text: `Se eliminará el DEA "${nombre}".`,
+      text: `Se eliminará el DEA "${nombre}". ¡Esta acción no se puede deshacer!`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonText: 'Cancelar',
       confirmButtonText: 'Sí, eliminar',
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        setIsProcessing(true);
-        try {
-          const response = await axios.delete(`${API_URL_ADMIN}/${id}`, getAuthHeaders());
-          await Swal.fire('Eliminado', response.data.message || 'El DEA ha sido eliminado.', 'success');
-          await refreshData();
-        } catch (error) {
-          await Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar.', 'error');
-        } finally {
-          setIsProcessing(false);
-        }
-      }
     });
-  };
 
-  const [showModal, setShowModal] = useState(false);
-  const [currentDEA, setCurrentDEA] = useState(null);
-  const [formData, setFormData] = useState({
-    nombre: '',
-    gl_instalacion_calle: '',
-    nr_instalacion_numero: '',
-    gl_instalacion_comuna: '',
-    lat: '',
-    lng: '',
-    solicitante: '',
-    rut: '',
-    estado: 'pendiente',
-  });
+    if (result.isConfirmed) {
+      setIsProcessing(true);
+      try {
+        const response = await axios.delete(`${API_URL_ADMIN}/${id}`, getAuthHeaders());
+        await Swal.fire('Eliminado', response.data.message || 'El DEA ha sido eliminado.', 'success');
+        await fetchDEAs(); // Re-fetch data para refrescar la tabla
+      } catch (error) {
+        await Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar el DEA.', 'error');
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
 
   if (!user) {
     return (
@@ -224,7 +193,7 @@ const GestionDEAs = () => {
       <div className="container mt-4">
         <div className="alert alert-danger text-center">
           <h4>Acceso Denegado</h4>
-          <p>No tienes permisos para esta sección.</p>
+          <p>No tienes permisos para acceder a esta sección.</p>
         </div>
       </div>
     );
@@ -240,13 +209,17 @@ const GestionDEAs = () => {
       </div>
 
       <div className="table-responsive shadow-sm bg-white p-3 rounded">
-        {loading || isProcessing ? (
+        {loading ? (
           <div className="text-center p-5">
             <i className="fas fa-spinner fa-spin fa-2x text-primary"></i>
-            <p className="mt-2">{loading ? 'Cargando datos...' : 'Procesando...'}</p>
+            <p className="mt-2">Cargando datos...</p>
+          </div>
+        ) : deas.length === 0 ? (
+          <div className="alert alert-info text-center">
+            <i className="fas fa-info-circle me-2"></i>No hay DEAs para mostrar. Crea uno nuevo para empezar.
           </div>
         ) : (
-          <Table ref={tableRef} id="tablaDEAs" className="table table-bordered table-hover w-100">
+          <Table ref={tableRef} id="tablaDEAs" striped bordered hover responsive className="w-100">
             <thead className="thead-light">
               <tr>
                 <th>Nombre Lugar</th>
@@ -254,7 +227,7 @@ const GestionDEAs = () => {
                 <th>Solicitante</th>
                 <th className="text-center">Estado</th>
                 <th>Fecha Creación</th>
-                <th className="text-center">Acciones</th>
+                <th className="text-center" style={{ width: '120px' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
