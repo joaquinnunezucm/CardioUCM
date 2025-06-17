@@ -7,7 +7,17 @@ import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import RoutingControl from '../pages/RoutingControl';
-
+import {
+  isRUT,
+  isCoordinate,
+  minLength,
+  maxLength,
+  isRequired,
+  isInteger,
+  isSimpleAlphaWithSpaces,
+  isSimpleAlphaNumericWithSpaces,
+} from '../utils/validators.js';
+import Select from 'react-select';
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -91,7 +101,7 @@ const UbicacionDEA = () => {
     solicitante: '',
     rut: '',
   });
-  const [formError, setFormError] = useState('');
+  const [errors, setErrors] = useState({});
   const [termsAccepted, setTermsAccepted] = useState(false);
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
@@ -103,8 +113,47 @@ const UbicacionDEA = () => {
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [vozActiva, setVozActiva] = useState(false);
 
+  const [comunas, setComunas] = useState([]);
+  const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
-  // Cargar DEAs
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+
+    if (name === 'numero') {
+      finalValue = value.replace(/[^0-9]/g, '');
+    } else if (name === 'nombre' || name === 'calle') {
+      finalValue = value
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, '');
+    } else if (name === 'solicitante') {
+      finalValue = value
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z\s]/g, '');
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      [name]: finalValue
+    }));
+
+    if (errors[name]) {
+        setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/comunas')
+      .then(res => {
+        const nombresComunas = res.data.map(c => c.nombre);
+        setComunas(nombresComunas);
+      })
+      .catch((err) => {
+        console.error('Error al cargar comunas:', err);
+        setComunas([]);
+      });
+  }, []);
+
   useEffect(() => {
     axios
       .get('http://localhost:3001/defibriladores')
@@ -117,17 +166,13 @@ const UbicacionDEA = () => {
       });
   }, []);
 
-  // Obtener ubicación del usuario con alta precisión
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const coords = [position.coords.latitude, position.coords.longitude];
           setUserLocation(coords);
-          if (
-            center[0] === initialCenter.current[0] &&
-            center[1] === initialCenter.current[1]
-          ) {
+          if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
             setCenter(coords);
           }
         },
@@ -135,29 +180,19 @@ const UbicacionDEA = () => {
           console.error('Error obteniendo ubicación del usuario:', error);
           Swal.fire('Error', 'No se pudo obtener tu ubicación.', 'error');
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
   }, []);
 
-  // Calcular DEAs cercanos
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
       const cercanosCalculados = desfibriladores
         .map((dea) => {
           const lat = parseFloat(dea.lat);
           const lng = parseFloat(dea.lng);
-          if (isNaN(lat) || isNaN(lng)) {
-            return { ...dea, distancia: Infinity };
-          }
-          return {
-            ...dea,
-            distancia: getDistance(userLocation[0], userLocation[1], lat, lng),
-          };
+          if (isNaN(lat) || isNaN(lng)) { return { ...dea, distancia: Infinity }; }
+          return { ...dea, distancia: getDistance(userLocation[0], userLocation[1], lat, lng) };
         })
         .sort((a, b) => a.distancia - b.distancia)
         .slice(0, 10);
@@ -169,7 +204,7 @@ const UbicacionDEA = () => {
 
   const handleShowModal = () => {
     setShowModal(true);
-    setFormError('');
+    setErrors({});
     setTermsAccepted(false);
   };
 
@@ -177,16 +212,9 @@ const UbicacionDEA = () => {
     if (!isSubmitting) {
       setShowModal(false);
       setFormData({
-        nombre: '',
-        calle: '',
-        numero: '',
-        comuna: '',
-        lat: '',
-        lng: '',
-        solicitante: '',
-        rut: '',
+        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '',
       });
-      setFormError('');
+      setErrors({});
       setTermsAccepted(false);
     }
   };
@@ -194,52 +222,81 @@ const UbicacionDEA = () => {
   const handleShowTermsModal = () => setShowTermsModal(true);
   const handleCloseTermsModal = () => setShowTermsModal(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
   const handleTermsChange = (e) => {
     setTermsAccepted(e.target.checked);
+    if (errors.terms) {
+        setErrors(prev => ({...prev, terms: null}));
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+
+    let errorNombre = isRequired(nombre) || minLength(3)(nombre) || maxLength(58)(nombre) || isSimpleAlphaNumericWithSpaces(nombre);
+    if (errorNombre) newErrors.nombre = errorNombre;
+
+    let errorCalle = isRequired(calle) || minLength(3)(calle) || maxLength(45)(calle) || isSimpleAlphaNumericWithSpaces(calle);
+    if (errorCalle) newErrors.calle = errorCalle;
+
+    let errorNumero = (numero && maxLength(10)(numero)) || (numero && isInteger(numero));
+    if (errorNumero) newErrors.numero = errorNumero;
+    
+    let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe en nuestra base de datos.');
+    if (errorComuna) newErrors.comuna = errorComuna;
+
+    let errorLat = isRequired(lat) || isCoordinate(lat);
+    if (errorLat) newErrors.lat = errorLat;
+
+    let errorLng = isRequired(lng) || isCoordinate(lng);
+    if (errorLng) newErrors.lng = errorLng;
+
+    let errorSolicitante = isRequired(solicitante) || minLength(3)(solicitante) || maxLength(50)(solicitante) || isSimpleAlphaWithSpaces(solicitante);
+    if (errorSolicitante) newErrors.solicitante = errorSolicitante;
+
+    let errorRut = isRequired(rut) || isRUT(rut);
+    if (errorRut) newErrors.rut = errorRut;
+
+    if (!termsAccepted) {
+        newErrors.terms = 'Debes aceptar los términos y condiciones para poder enviar la solicitud.';
+    }
+
+    return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setFormError('');
-    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+    setErrors({});
+    setComunaNoExiste(false);
 
-    if (!nombre || !calle || !comuna || !lat || !lng || !solicitante || !rut) {
-      setFormError('Todos los campos obligatorios deben ser completados.');
-      return;
-    }
+    const formErrors = validate();
 
-    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) {
-      setFormError('Las coordenadas deben ser valores numéricos válidos.');
-      return;
-    }
-
-    if (!termsAccepted) {
-      setFormError('Debes aceptar los términos y condiciones para continuar.');
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      if (formErrors.comuna && formErrors.comuna.includes('existe')) {
+          setComunaNoExiste(true);
+      }
+      Swal.fire({
+        icon: 'error',
+        title: 'Hay errores en el formulario',
+        text: 'Por favor, corrige los campos marcados en rojo antes de enviar.',
+        confirmButtonText: 'Entendido'
+      });
       return;
     }
 
     setIsSubmitting(true);
+    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
     const dataParaEnviar = {
-      nombre,
-      gl_instalacion_calle: calle,
-      nr_instalacion_numero: numero,
-      gl_instalacion_comuna: comuna,
-      lat,
-      lng,
-      solicitante,
-      rut,
+      nombre, gl_instalacion_calle: calle, nr_instalacion_numero: numero,
+      gl_instalacion_comuna: comuna, lat, lng, solicitante, rut,
     };
 
     try {
       await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
       Swal.fire({
-        title: 'Sugerencia aceptada',
-        text: 'Revise constantemente para saber el estado de su solicitud, también puede contactarnos en el apartado contáctanos.',
+        title: 'Sugerencia Aceptada',
+        text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión.',
         icon: 'success',
         confirmButtonText: 'Aceptar',
       });
@@ -255,19 +312,12 @@ const UbicacionDEA = () => {
   const focusMarkerYRuta = (id, lat, lng) => {
     setCenter([parseFloat(lat), parseFloat(lng)]);
     setDestinoRuta([parseFloat(lat), parseFloat(lng)]);
-    setTimeout(() => {
-      markersRef.current[id]?.openPopup();
-    }, 300);
+    setTimeout(() => { markersRef.current[id]?.openPopup(); }, 300);
   };
 
   const mapButtonStyle = {
-    position: 'absolute',
-    zIndex: 1000,
-    border: 'none',
-    borderRadius: '5px',
-    padding: '10px 15px',
-    cursor: 'pointer',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+    position: 'absolute', zIndex: 1000, border: 'none', borderRadius: '5px',
+    padding: '10px 15px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     fontSize: '14px',
   };
 
@@ -376,18 +426,18 @@ const UbicacionDEA = () => {
             >
               Mi Ubicación
             </button>
-          {destinoRuta && (
-  <button
-    onClick={() => {
-      setDestinoRuta(null);
-      setVozActiva(false);
-    }}
-    className="btn btn-danger"
-    style={{ ...mapButtonStyle, top: 110, right: 10 }}
-  >
-     Detener Ruta
-  </button>
-)}
+            {destinoRuta && (
+              <button
+                onClick={() => {
+                  setDestinoRuta(null);
+                  setVozActiva(false);
+                }}
+                className="btn btn-danger"
+                style={{ ...mapButtonStyle, top: 110, right: 10 }}
+              >
+                Detener Ruta
+              </button>
+            )}
           </div>
           <div className="row">
             <div className="col-md-6 mb-4">
@@ -419,150 +469,112 @@ const UbicacionDEA = () => {
                 <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
               )}
             </div>
-            
           </div>
           <Modal show={showModal} onHide={handleCloseModal} centered>
             <Modal.Header closeButton>
               <Modal.Title>Sugerir nuevo DEA</Modal.Title>
             </Modal.Header>
-            <Form onSubmit={handleSubmit}>
+            <Form onSubmit={handleSubmit} noValidate>
               <Modal.Body>
-                {formError && (
-                  <div className="alert alert-danger p-2 mb-2" role="alert">
-                    {formError}
-                  </div>
-                )}
                 <Form.Group controlId="formNombre">
                   <Form.Label>Nombre del lugar*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="nombre"
-                    value={formData.nombre}
-                    onChange={handleChange}
-                    placeholder="Ej: Centro Comercial XYZ"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} placeholder="Ej: Centro Comercial Talca" required disabled={isSubmitting} maxLength={58} isInvalid={!!errors.nombre} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Solo letras, números y espacios. Sin tildes ni símbolos.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.nombre}</Form.Control.Feedback>
                 </Form.Group>
+                
                 <h5 className="mt-4 mb-2">Dirección de Instalación</h5>
                 <Form.Group controlId="formCalle">
                   <Form.Label>Calle*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="calle"
-                    value={formData.calle}
-                    onChange={handleChange}
-                    placeholder="Ej: Av. Siempre Viva"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="text" name="calle" value={formData.calle} onChange={handleInputChange} placeholder="Ej: Avenida San Miguel" required disabled={isSubmitting} maxLength={45} isInvalid={!!errors.calle} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Solo letras, números y espacios. Sin tildes ni símbolos.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.calle}</Form.Control.Feedback>
                 </Form.Group>
-                <Form.Group controlId="formNumero">
+
+                <Form.Group controlId="formNumero" className="mt-3">
                   <Form.Label>Número</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="numero"
-                    value={formData.numero}
-                    onChange={handleChange}
-                    placeholder="Ej: 742 (opcional si no aplica)"
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="text" inputMode="numeric" name="numero" value={formData.numero} onChange={handleInputChange} placeholder="Ej: 742" disabled={isSubmitting} maxLength={10} isInvalid={!!errors.numero} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Solo números. Dejar en blanco si no aplica.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.numero}</Form.Control.Feedback>
                 </Form.Group>
-                <Form.Group controlId="formComuna">
+
+                <Form.Group controlId="formComuna" className="mt-3">
                   <Form.Label>Comuna*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="comuna"
-                    value={formData.comuna}
-                    onChange={handleChange}
-                    placeholder="Ej: Springfield"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Select name="comuna" options={comunas.map(c => ({ value: c, label: c }))} value={formData.comuna ? { value: formData.comuna, label: formData.comuna } : null}
+                    onChange={option => {
+                      setFormData(prev => ({ ...prev, comuna: option ? option.value : '' }));
+                      setComunaNoExiste(false);
+                      if (errors.comuna) setErrors(prev => ({...prev, comuna: null}));
+                    }}
+                    isClearable isSearchable placeholder="Busca o selecciona una comuna" isDisabled={isSubmitting} noOptionsMessage={() => "No se encontró la comuna"}
+                    styles={{ control: base => ({ ...base, borderColor: errors.comuna ? '#dc3545' : '#ced4da', '&:hover': { borderColor: errors.comuna ? '#dc3545' : '#80bdff' } })}} />
+                  {errors.comuna && <div className="text-danger mt-1" style={{fontSize: '0.875em'}}>{errors.comuna}</div>}
                 </Form.Group>
-                <h5 className="mt-4 mb-2">Coordenadas Geográficas (Clic en mapa para auto-rellenar)</h5>
+                {comunaNoExiste && <div className="alert alert-warning mt-2 p-2">La comuna ingresada no existe en nuestra base de datos. Por favor, <a href="/contacto">contáctanos</a> para agregarla.</div>}
+
+                <h5 className="mt-4 mb-2">Coordenadas Geográficas</h5>
                 <Form.Group controlId="formLatitud">
                   <Form.Label>Latitud*</Form.Label>
-                  <Form.Control
-                    type="number"
-                    step="any"
-                    name="lat"
-                    value={formData.lat}
-                    onChange={handleChange}
-                    placeholder="Ej: -35.123456"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="number" step="any" name="lat" value={formData.lat} onChange={handleInputChange} placeholder="Ej: -35.123456" required disabled={isSubmitting} isInvalid={!!errors.lat} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Se rellena automáticamente al hacer clic en el mapa.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.lat}</Form.Control.Feedback>
                 </Form.Group>
-                <Form.Group controlId="formLongitud">
+
+                <Form.Group controlId="formLongitud" className="mt-3">
                   <Form.Label>Longitud*</Form.Label>
-                  <Form.Control
-                    type="number"
-                    step="any"
-                    name="lng"
-                    value={formData.lng}
-                    onChange={handleChange}
-                    placeholder="Ej: -71.123456"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="number" step="any" name="lng" value={formData.lng} onChange={handleInputChange} placeholder="Ej: -71.123456" required disabled={isSubmitting} isInvalid={!!errors.lng} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Se rellena automáticamente al hacer clic en el mapa.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.lng}</Form.Control.Feedback>
                 </Form.Group>
+                
                 <h5 className="mt-4 mb-2">Información del Solicitante</h5>
                 <Form.Group controlId="formSolicitante">
                   <Form.Label>Nombre del Solicitante*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="solicitante"
-                    value={formData.solicitante}
-                    onChange={handleChange}
-                    placeholder="Nombre completo"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="text" name="solicitante" value={formData.solicitante} onChange={handleInputChange} placeholder="Nombre completo" required disabled={isSubmitting} maxLength={50} isInvalid={!!errors.solicitante} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Solo letras y espacios. Sin tildes, números o símbolos.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.solicitante}</Form.Control.Feedback>
                 </Form.Group>
-                <Form.Group controlId="formRut">
+                
+                <Form.Group controlId="formRut" className="mt-3">
                   <Form.Label>RUT del Solicitante*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="rut"
-                    value={formData.rut}
-                    onChange={handleChange}
-                    placeholder="Ej: 12345678-9"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <Form.Control type="text" name="rut" value={formData.rut} onChange={handleInputChange} placeholder="Ej: 12345678-9" required disabled={isSubmitting} isInvalid={!!errors.rut} />
+                  {/* Aclaración para el usuario */}
+                  <Form.Text muted>
+                    Ingresar sin puntos y con guion.
+                  </Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.rut}</Form.Control.Feedback>
                 </Form.Group>
+
                 <Form.Group className="mt-3">
-                  <Form.Check
-                    type="checkbox"
-                    label={
-                      <>
-                        Acepto los{' '}
-                        <span
-                          style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
-                          onClick={handleShowTermsModal}
-                        >
-                          términos y condiciones
-                        </span>
-                        *
-                      </>
-                    }
-                    checked={termsAccepted}
-                    onChange={handleTermsChange}
-                    disabled={isSubmitting}
-                  />
+                  <Form.Check type="checkbox" label={<>Acepto los <span style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }} onClick={handleShowTermsModal}>términos y condiciones</span>*</>}
+                    checked={termsAccepted} onChange={handleTermsChange} disabled={isSubmitting} isInvalid={!!errors.terms} feedback={errors.terms} feedbackType="invalid" />
                 </Form.Group>
               </Modal.Body>
               <Modal.Footer>
-                <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
-                  Cancelar
-                </Button>
-                <Button variant="success" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
-                </Button>
+                <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>Cancelar</Button>
+                <Button variant="success" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}</Button>
               </Modal.Footer>
             </Form>
           </Modal>
+
           <Modal show={showTermsModal} onHide={handleCloseTermsModal} size="lg">
             <Modal.Header closeButton>
               <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
@@ -608,9 +620,9 @@ const UbicacionDEA = () => {
             </Modal.Footer>
           </Modal>
         </div>
-        </section>
-      </div>
-    );
+      </section>
+    </div>
+  );
 };
 
 export default UbicacionDEA;

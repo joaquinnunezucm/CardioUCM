@@ -7,6 +7,16 @@ import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import RoutingControl from '../pages/RoutingControl';
+import {
+  isRequired,
+  minLength,
+  maxLength,
+  isAlphaWithSpaces,
+  isAlphaNumericWithSpaces,
+  isRUT,
+  isCoordinate
+} from '../utils/validators.js';
+
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -200,54 +210,77 @@ const UbicacionDEA = () => {
     setTermsAccepted(e.target.checked);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormError('');
-    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+const validarFormulario = (data) => {
+  if (!data.nombre || data.nombre.length < 3 || data.nombre.length > 80 || !/^[\w\sáéíóúÁÉÍÓÚñÑ.,-]+$/.test(data.nombre)) {
+    return 'El nombre es obligatorio, debe tener entre 3 y 80 caracteres y solo puede contener letras, números y algunos símbolos básicos.';
+  }
+  if (!data.calle || data.calle.length < 3 || data.calle.length > 80) {
+    return 'La calle es obligatoria y debe tener entre 3 y 80 caracteres.';
+  }
+  if (data.numero && data.numero.length > 10) {
+    return 'El número no puede tener más de 10 caracteres.';
+  }
+  if (!data.comuna || data.comuna.length < 3 || data.comuna.length > 50 || !/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(data.comuna)) {
+    return 'La comuna es obligatoria, debe tener entre 3 y 50 caracteres y solo puede contener letras y espacios.';
+  }
+  if (!data.lat || isNaN(parseFloat(data.lat))) {
+    return 'La latitud es obligatoria y debe ser un número válido.';
+  }
+  if (!data.lng || isNaN(parseFloat(data.lng))) {
+    return 'La longitud es obligatoria y debe ser un número válido.';
+  }
+  if (!data.solicitante || data.solicitante.length < 3 || data.solicitante.length > 80) {
+    return 'El nombre del solicitante es obligatorio y debe tener entre 3 y 80 caracteres.';
+  }
+  if (!data.rut || !isRUT(data.rut)) {
+    return 'El RUT es obligatorio y debe tener formato válido.';
+  }
+  return null;
+};
 
-    if (!nombre || !calle || !comuna || !lat || !lng || !solicitante || !rut) {
-      setFormError('Todos los campos obligatorios deben ser completados.');
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setFormError('');
+  const error = validarFormulario(formData);
+  if (error) {
+    setFormError(error);
+    return;
+  }
 
-    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) {
-      setFormError('Las coordenadas deben ser valores numéricos válidos.');
-      return;
-    }
+  if (!termsAccepted) {
+    setFormError('Debes aceptar los términos y condiciones para continuar.');
+    return;
+  }
 
-    if (!termsAccepted) {
-      setFormError('Debes aceptar los términos y condiciones para continuar.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    const dataParaEnviar = {
-      nombre,
-      gl_instalacion_calle: calle,
-      nr_instalacion_numero: numero,
-      gl_instalacion_comuna: comuna,
-      lat,
-      lng,
-      solicitante,
-      rut,
-    };
-
-    try {
-      await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
-      Swal.fire({
-        title: 'Sugerencia aceptada',
-        text: 'Revise constantemente para saber el estado de su solicitud, también puede contactarnos en el apartado contáctanos.',
-        icon: 'success',
-        confirmButtonText: 'Aceptar',
-      });
-      handleCloseModal();
-    } catch (err) {
-      const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
-      Swal.fire('Error', errorMsg, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+  setIsSubmitting(true);
+  const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+  const dataParaEnviar = {
+    nombre,
+    gl_instalacion_calle: calle,
+    nr_instalacion_numero: numero,
+    gl_instalacion_comuna: comuna,
+    lat,
+    lng,
+    solicitante,
+    rut,
   };
+
+  try {
+    await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
+    Swal.fire({
+      title: 'Sugerencia aceptada',
+      text: 'Revise constantemente para saber el estado de su solicitud, también puede contactarnos en el apartado contáctanos.',
+      icon: 'success',
+      confirmButtonText: 'Aceptar',
+    });
+    handleCloseModal();
+  } catch (err) {
+    const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
+    setFormError(errorMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const focusMarkerYRuta = (id, lat, lng) => {
     setCenter([parseFloat(lat), parseFloat(lng)]);

@@ -1350,6 +1350,15 @@ app.get('/defibriladores', async (req, res) => {
   }
 });
 
+app.get('/api/comunas', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT nombre FROM comunas ORDER BY nombre ASC');
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener comunas', detalle: error.message });
+  }
+});
+
 app.post('/solicitudes-dea', async (req, res) => {
   const { 
     nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna: comunaNombre,
@@ -1362,7 +1371,7 @@ app.post('/solicitudes-dea', async (req, res) => {
   try {
     const [comunaRows] = await db.query('SELECT id FROM comunas WHERE nombre = ?', [comunaNombre]);
     if (comunaRows.length === 0) {
-      return res.status(400).json({ mensaje: `La comuna '${comunaNombre}' no es válida.` });
+      return res.status(400).json({ mensaje: `La comuna '${comunaNombre}' no es válida, ingrese el nombre correctamente.` });
     }
     const comunaId = comunaRows[0].id;
     const valoresParaInsertar = [

@@ -7,6 +7,14 @@ import { Modal, Button, Form, Image } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import {
+  isRequired,
+  isInteger,
+  minValue,
+  isDescriptiveText, // Importamos el nuevo validador
+  maxLength,
+} from '../utils/validators.js';
+
 
 const GestionRCP = () => {
   const { user } = useAuth();
@@ -21,13 +29,12 @@ const GestionRCP = () => {
     instruccion: '',
     orden: 0,
     categoria: 'RCP Adultos',
-    medios: [], // Para nuevos medios
+    medios: [],
     mediosExistentesIdsAConservar: [],
-    datosMediosExistentes: {}, // Para metadata de medios existentes
+    datosMediosExistentes: {},
   });
-  const [formError, setFormError] = useState('');
+  const [errors, setErrors] = useState({});
 
-  // Proteger la ruta
   if (!user || (user.rol !== 'administrador' && user.rol !== 'superadministrador')) {
     return <Navigate to="/login" />;
   }
@@ -46,7 +53,6 @@ const GestionRCP = () => {
       const response = await axios.get('http://localhost:3001/api/admin/rcp', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      // Asegurar que los medios se ordenen si es necesario (aunque el backend ya lo hace)
       const sortedInstrucciones = response.data.map(inst => ({
         ...inst,
         medios: inst.medios ? inst.medios.sort((a, b) => a.orden - b.orden) : []
@@ -70,7 +76,7 @@ const GestionRCP = () => {
           zeroRecords: 'No se encontraron instrucciones',
         },
         pageLength: 10,
-        order: [[2, 'asc']], // Ordenar por columna 'orden' ascendente
+        order: [[2, 'asc']],
       });
       setTableInitialized(true);
     }
@@ -82,8 +88,8 @@ const GestionRCP = () => {
       setFormData({
         instruccion: instruccion.instruccion,
         orden: instruccion.orden,
-        categoria: instruccion.categoria,
-        medios: [], // Limpiar nuevos medios al editar
+        categoria: instruccion.categoria || 'RCP Adultos',
+        medios: [],
         mediosExistentesIdsAConservar: instruccion.medios.map(m => m.id.toString()),
         datosMediosExistentes: instruccion.medios.reduce((acc, medio) => ({
           ...acc,
@@ -101,7 +107,7 @@ const GestionRCP = () => {
         datosMediosExistentes: {},
       });
     }
-    setFormError('');
+    setErrors({});
     setShowModal(true);
   };
 
@@ -111,8 +117,11 @@ const GestionRCP = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'orden' ? parseInt(value) || 0 : value,
+      [name]: value,
     }));
+    if(errors[name]) {
+      setErrors(prev => ({...prev, [name]: null}));
+    }
   };
 
   const handleAddMedia = (e) => {
@@ -123,61 +132,114 @@ const GestionRCP = () => {
     const newMedia = {
       file,
       subtitulo: '',
-      paso_asociado: '', // Este campo no parece usarse en el modal para nuevos medios, pero lo mantengo por consistencia
-      orden: formData.medios.length, // Orden inicial simple, el usuario puede ajustarlo
+      paso_asociado: '',
+      orden: formData.medios.length,
       tipo_medio: file.type.startsWith('image') ? 'imagen' : 'video',
-      id: Date.now(), // Temporal ID for frontend key and removal logic
+      id: Date.now(),
     };
 
     setFormData((prev) => ({
       ...prev,
       medios: [...prev.medios, newMedia],
     }));
-    e.target.value = null; // Para permitir subir el mismo archivo si se elimina y se vuelve a añadir
+    e.target.value = null;
   };
 
-  const handleMediaChange = (index, field, value, isExisting = false) => {
-    if (isExisting) { // Para medios ya guardados en la BD
+  const handleMediaChange = (idOrIndex, field, value, isExisting = false) => {
+    if (isExisting) {
       setFormData((prev) => ({
         ...prev,
         datosMediosExistentes: {
           ...prev.datosMediosExistentes,
-          [index]: { // 'index' aquí es el ID del medio existente
-            ...prev.datosMediosExistentes[index],
-            [field]: field === 'orden' ? (parseInt(value) || 0) : value,
-          },
+          [idOrIndex]: { ...prev.datosMediosExistentes[idOrIndex], [field]: value },
         },
       }));
-    } else { // Para nuevos medios que se están añadiendo
+      if (errors.mediosExistentes?.[idOrIndex]?.[field]) {
+        setErrors(prev => {
+          const newMediosExistentes = { ...prev.mediosExistentes };
+          if (newMediosExistentes[idOrIndex]) delete newMediosExistentes[idOrIndex][field];
+          if (Object.keys(newMediosExistentes[idOrIndex] || {}).length === 0) delete newMediosExistentes[idOrIndex];
+          return { ...prev, mediosExistentes: newMediosExistentes };
+        });
+      }
+    } else {
       const updatedMedios = [...formData.medios];
-      updatedMedios[index] = {
-        ...updatedMedios[index],
-        [field]: field === 'orden' ? (parseInt(value) || 0) : value,
-      };
+      updatedMedios[idOrIndex] = { ...updatedMedios[idOrIndex], [field]: value };
       setFormData((prev) => ({ ...prev, medios: updatedMedios }));
+      if (errors.medios?.[idOrIndex]?.[field]) {
+        setErrors(prev => {
+          const newMedios = { ...prev.medios };
+          if (newMedios[idOrIndex]) delete newMedios[idOrIndex][field];
+          if (Object.keys(newMedios[idOrIndex] || {}).length === 0) delete newMedios[idOrIndex];
+          return { ...prev, medios: newMedios };
+        });
+      }
     }
   };
 
   const handleRemoveMedia = (idOrIndex, isExisting = false) => {
-    if (isExisting) { // 'idOrIndex' es el ID del medio existente
+    if (isExisting) {
       setFormData((prev) => {
         const newIdsAConservar = prev.mediosExistentesIdsAConservar.filter(id => id !== idOrIndex.toString());
         const newDatos = { ...prev.datosMediosExistentes };
         delete newDatos[idOrIndex];
         return { ...prev, mediosExistentesIdsAConservar: newIdsAConservar, datosMediosExistentes: newDatos };
       });
-    } else { // 'idOrIndex' es el índice en el array formData.medios
+    } else {
       const updatedMedios = formData.medios.filter((_, i) => i !== idOrIndex);
       setFormData((prev) => ({ ...prev, medios: updatedMedios }));
     }
   };
 
+  const validate = () => {
+    const newErrors = {};
+    const { instruccion, orden, datosMediosExistentes, medios } = formData;
+
+    // Se usa isDescriptiveText para permitir casi todos los caracteres
+    const instruccionError = isRequired(instruccion) || maxLength(1000)(instruccion) || isDescriptiveText(instruccion);
+    if(instruccionError) newErrors.instruccion = instruccionError;
+
+    const ordenError = isRequired(String(orden)) || isInteger(String(orden)) || minValue(0)(orden);
+    if(ordenError) newErrors.orden = ordenError;
+    
+    newErrors.mediosExistentes = {};
+    for (const id in datosMediosExistentes) {
+      const medio = datosMediosExistentes[id];
+      const subtituloError = maxLength(100)(medio.subtitulo) || isDescriptiveText(medio.subtitulo);
+      const ordenMError = isRequired(String(medio.orden)) || isInteger(String(medio.orden)) || minValue(0)(medio.orden);
+      
+      if (subtituloError || ordenMError) {
+        newErrors.mediosExistentes[id] = {};
+        if (subtituloError) newErrors.mediosExistentes[id].subtitulo = subtituloError;
+        if (ordenMError) newErrors.mediosExistentes[id].orden = ordenMError;
+      }
+    }
+    if(Object.keys(newErrors.mediosExistentes).length === 0) delete newErrors.mediosExistentes;
+
+    newErrors.medios = {};
+    medios.forEach((medio, index) => {
+      const subtituloError = maxLength(100)(medio.subtitulo) || isDescriptiveText(medio.subtitulo);
+      const ordenMError = isRequired(String(medio.orden)) || isInteger(String(medio.orden)) || minValue(0)(medio.orden);
+
+      if (subtituloError || ordenMError) {
+        newErrors.medios[index] = {};
+        if (subtituloError) newErrors.medios[index].subtitulo = subtituloError;
+        if (ordenMError) newErrors.medios[index].orden = ordenMError;
+      }
+    });
+    if(Object.keys(newErrors.medios).length === 0) delete newErrors.medios;
+
+    return newErrors;
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setFormError('');
+    setErrors({});
 
-    if (!formData.instruccion.trim() || isNaN(formData.orden)) {
-      setFormError('La instrucción y el orden son obligatorios.');
+    const formErrors = validate();
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      Swal.fire('Formulario Incompleto', 'Por favor, corrige los errores marcados en el formulario.', 'error');
       return;
     }
 
@@ -188,10 +250,9 @@ const GestionRCP = () => {
     formDataToSend.append('medios_existentes_ids_a_conservar', JSON.stringify(formData.mediosExistentesIdsAConservar));
     formDataToSend.append('datos_medios_existentes', JSON.stringify(formData.datosMediosExistentes));
 
-    // Separar los archivos de sus metadatos para los nuevos medios
     const nuevosArchivos = [];
     const nuevosSubtitulos = [];
-    const nuevosPasosAsociados = []; // Aunque no se edite directamente en el UI para nuevos, lo enviamos si existe
+    const nuevosPasosAsociados = [];
     const nuevosOrdenes = [];
     const nuevosTiposMedio = [];
 
@@ -199,18 +260,16 @@ const GestionRCP = () => {
       if (medio.file) {
         nuevosArchivos.push(medio.file);
         nuevosSubtitulos.push(medio.subtitulo || '');
-        nuevosPasosAsociados.push(medio.paso_asociado || ''); // Si tienes este campo en newMedia
+        nuevosPasosAsociados.push(medio.paso_asociado || '');
         nuevosOrdenes.push(medio.orden || 0);
         nuevosTiposMedio.push(medio.tipo_medio || (medio.file.type.startsWith('image') ? 'imagen' : 'video'));
       }
     });
 
-    // Añadir los archivos con el nombre de campo 'medios'
     nuevosArchivos.forEach(file => {
       formDataToSend.append('medios', file);
     });
 
-    // Añadir los metadatos como arrays JSON
     if (nuevosArchivos.length > 0) {
       formDataToSend.append('nuevos_medios_subtitulos', JSON.stringify(nuevosSubtitulos));
       formDataToSend.append('nuevos_medios_pasos_asociados', JSON.stringify(nuevosPasosAsociados));
@@ -315,9 +374,9 @@ const GestionRCP = () => {
                               <Image
                                 src={`http://localhost:3001${medio.url_medio}`}
                                 alt={medio.subtitulo || 'Medio'}
-                                fluid // Usa fluid en lugar de style para responsividad básica
+                                fluid
                                 style={{ maxHeight: '80px', objectFit: 'contain' }}
-                                onError={(e) => { e.target.onerror = null; e.target.src="https://via.placeholder.com/80?text=Error"; }} // Placeholder en caso de error
+                                onError={(e) => { e.target.onerror = null; e.target.src="https://via.placeholder.com/80?text=Error"; }}
                               />
                               {medio.subtitulo && <p className="small mt-1 mb-0 text-truncate" title={medio.subtitulo}>{medio.subtitulo}</p>}
                             </div>
@@ -330,7 +389,7 @@ const GestionRCP = () => {
                     <td style={{ textAlign: 'center' }}>{instruccion.orden}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button
-                        className="btn btn-sm btn-info mr-1 mb-1" // mb-1 para espaciado en móviles
+                        className="btn btn-sm btn-info mr-1 mb-1"
                         onClick={() => handleShowModal(instruccion)}
                         title="Editar"
                       >
@@ -358,55 +417,44 @@ const GestionRCP = () => {
             {currentInstruccion ? 'Editar Instrucción RCP' : 'Nueva Instrucción RCP'}
           </Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} noValidate>
           <Modal.Body>
-            {formError && (
-              <div className="alert alert-danger p-2 mb-3" role="alert">
-                {formError}
-              </div>
-            )}
             <Form.Group controlId="formInstruccion" className="mb-3">
-              <Form.Label>Instrucción</Form.Label>
+              <Form.Label>Instrucción*</Form.Label>
               <Form.Control
                 as="textarea"
                 rows={4}
                 name="instruccion"
                 value={formData.instruccion}
                 onChange={handleChange}
-                required
+                isInvalid={!!errors.instruccion}
               />
+              <Form.Text muted>Texto descriptivo. Se permiten la mayoría de los caracteres y símbolos.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.instruccion}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formOrden" className="mb-3">
-              <Form.Label>Orden (numérico)</Form.Label>
+              <Form.Label>Orden*</Form.Label>
               <Form.Control
                 type="number"
                 name="orden"
                 value={formData.orden}
                 onChange={handleChange}
-                required
                 min="0"
+                isInvalid={!!errors.orden}
               />
+              <Form.Text muted>Número para ordenar. El más bajo aparece primero.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.orden}</Form.Control.Feedback>
             </Form.Group>
 
-            <Form.Group controlId="formCategoria" className="mb-3">
-              <Form.Label>Categoría</Form.Label>
-              <Form.Control
-                type="text"
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                placeholder="Ej: RCP Adultos, RCP Pediátrico"
-              />
-            </Form.Group>
+            {/* El campo Categoría ya no se muestra al usuario, su valor es fijo */}
 
-            {/* Medios Existentes */}
-            {currentInstruccion && currentInstruccion.medios && currentInstruccion.medios.length > 0 && (
+            {currentInstruccion?.medios?.length > 0 && (
               <Form.Group controlId="formMediosExistentes" className="mb-3">
                 <Form.Label className="font-weight-bold">Medios Existentes</Form.Label>
                 {currentInstruccion.medios
-                    .filter(medio => formData.mediosExistentesIdsAConservar.includes(medio.id.toString())) // Solo mostrar los que se van a conservar
-                    .sort((a,b) => (formData.datosMediosExistentes[a.id]?.orden || 0) - (formData.datosMediosExistentes[b.id]?.orden || 0)) // Ordenar por el orden editable
+                    .filter(medio => formData.mediosExistentesIdsAConservar.includes(medio.id.toString()))
+                    .sort((a,b) => (formData.datosMediosExistentes[a.id]?.orden || 0) - (formData.datosMediosExistentes[b.id]?.orden || 0))
                     .map((medio) => (
                   <div key={medio.id} className="border p-3 mb-3 rounded bg-light">
                     <div className="d-flex align-items-start">
@@ -424,17 +472,21 @@ const GestionRCP = () => {
                             size="sm"
                             value={formData.datosMediosExistentes[medio.id]?.subtitulo || ''}
                             onChange={(e) => handleMediaChange(medio.id, 'subtitulo', e.target.value, true)}
+                            isInvalid={!!errors.mediosExistentes?.[medio.id]?.subtitulo}
                           />
+                          <Form.Control.Feedback type="invalid">{errors.mediosExistentes?.[medio.id]?.subtitulo}</Form.Control.Feedback>
                         </Form.Group>
                         <Form.Group controlId={`formOrdenExistente-${medio.id}`} className="mb-2">
-                          <Form.Label className="small mb-0">Orden del Medio</Form.Label>
+                          <Form.Label className="small mb-0">Orden del Medio*</Form.Label>
                           <Form.Control
                             type="number"
                             size="sm"
                             value={formData.datosMediosExistentes[medio.id]?.orden || 0}
                             onChange={(e) => handleMediaChange(medio.id, 'orden', e.target.value, true)}
                             min="0"
+                            isInvalid={!!errors.mediosExistentes?.[medio.id]?.orden}
                           />
+                           <Form.Control.Feedback type="invalid">{errors.mediosExistentes?.[medio.id]?.orden}</Form.Control.Feedback>
                         </Form.Group>
                       </div>
                       <Button
@@ -452,15 +504,14 @@ const GestionRCP = () => {
               </Form.Group>
             )}
 
-            {/* Nuevos Medios */}
             <Form.Group controlId="formNuevosMedios" className="mb-3">
-              <Form.Label className="font-weight-bold">Añadir Nuevos Medios (GIFs/Imágenes/Videos)</Form.Label>
+              <Form.Label className="font-weight-bold">Añadir Nuevos Medios</Form.Label>
               <div className="mb-3">
                 <Form.Control
                   type="file"
                   accept="image/gif,image/png,image/jpeg,video/mp4,video/mov"
                   onChange={handleAddMedia}
-                  multiple={false} // Solo un archivo a la vez para manejar metadatos individuales
+                  multiple={false}
                 />
                 <Form.Text className="text-muted">
                   Sube un GIF, imagen o video. Puedes añadir varios uno por uno.
@@ -475,7 +526,7 @@ const GestionRCP = () => {
                         alt="Vista previa del nuevo medio"
                         className="img-fluid mr-3 border"
                         style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'contain' }}
-                        onLoad={() => URL.revokeObjectURL(medio.file)} // Limpiar memoria
+                        onLoad={() => URL.revokeObjectURL(medio.file)}
                       />
                     )}
                     <div className="flex-grow-1">
@@ -486,19 +537,22 @@ const GestionRCP = () => {
                           size="sm"
                           value={medio.subtitulo}
                           onChange={(e) => handleMediaChange(index, 'subtitulo', e.target.value, false)}
+                          isInvalid={!!errors.medios?.[index]?.subtitulo}
                         />
+                         <Form.Control.Feedback type="invalid">{errors.medios?.[index]?.subtitulo}</Form.Control.Feedback>
                       </Form.Group>
                       <Form.Group controlId={`formOrdenNuevo-${index}`} className="mb-2">
-                        <Form.Label className="small mb-0">Orden del Medio</Form.Label>
+                        <Form.Label className="small mb-0">Orden del Medio*</Form.Label>
                         <Form.Control
                           type="number"
                           size="sm"
                           value={medio.orden}
                           onChange={(e) => handleMediaChange(index, 'orden', e.target.value, false)}
                           min="0"
+                          isInvalid={!!errors.medios?.[index]?.orden}
                         />
+                        <Form.Control.Feedback type="invalid">{errors.medios?.[index]?.orden}</Form.Control.Feedback>
                       </Form.Group>
-                       {/* Podrías añadir 'paso_asociado' aquí si es relevante para nuevos medios */}
                     </div>
                     <Button
                       variant="outline-danger"
