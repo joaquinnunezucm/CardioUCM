@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import RoutingControl from '../pages/RoutingControl';
 
+
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
@@ -100,6 +101,8 @@ const UbicacionDEA = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const userMarkerRef = useRef(null);
   const [destinoRuta, setDestinoRuta] = useState(null);
+  const [vozActiva, setVozActiva] = useState(false);
+
 
   // Cargar DEAs
   useEffect(() => {
@@ -326,7 +329,10 @@ const UbicacionDEA = () => {
                         size="sm"
                         variant="primary"
                         className="mt-2"
-                        onClick={() => setDestinoRuta([parseFloat(d.lat), parseFloat(d.lng)])}
+                        onClick={() => {
+                          setDestinoRuta([parseFloat(d.lat), parseFloat(d.lng)]);
+                          setVozActiva(true);
+                        }}
                       >
                         Ver Ruta desde mi ubicación
                       </Button>
@@ -335,8 +341,17 @@ const UbicacionDEA = () => {
                 </Marker>
               ))}
               {userLocation && destinoRuta && (
-                <RoutingControl from={userLocation} to={destinoRuta} />
+                <RoutingControl
+                  from={userLocation}
+                  to={destinoRuta}
+                  vozActiva={vozActiva}
+                  onDetenerRuta={() => {
+                    setDestinoRuta(null);
+                    setVozActiva(false);
+                  }}
+                />
               )}
+
             </MapContainer>
             <button
               onClick={handleShowModal}
@@ -361,6 +376,18 @@ const UbicacionDEA = () => {
             >
               Mi Ubicación
             </button>
+          {destinoRuta && (
+  <button
+    onClick={() => {
+      setDestinoRuta(null);
+      setVozActiva(false);
+    }}
+    className="btn btn-danger"
+    style={{ ...mapButtonStyle, top: 110, right: 10 }}
+  >
+     Detener Ruta
+  </button>
+)}
           </div>
           <div className="row">
             <div className="col-md-6 mb-4">

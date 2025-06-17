@@ -6,8 +6,10 @@ import { useMap } from 'react-leaflet';
 const RoutingControl = ({
   from,
   to,
-  distanciaAviso = 50,         // metros para decir la instrucción
-  distanciaRecalculo = 100      // metros fuera de la ruta para recalcular
+  vozActiva = false,
+  onDetenerRuta = () => {},
+  distanciaAviso = 50,
+  distanciaRecalculo = 100
 }) => {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -15,8 +17,8 @@ const RoutingControl = ({
   const destinoFinalRef = useRef(to);
   const [watchId, setWatchId] = useState(null);
   const pasosYaLeidos = useRef(new Set());
+  const [rutaActiva, setRutaActiva] = useState(false);
 
-  // Calcular distancia entre dos coordenadas
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
     const R = 6371000;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -29,7 +31,18 @@ const RoutingControl = ({
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  // Crear o recrear la ruta
+  const hablar = (texto) => {
+    if (!vozActiva) return;
+    const utter = new SpeechSynthesisUtterance(texto);
+    utter.lang = 'es-ES';
+    utter.rate = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    setTimeout(() => {
+      window.speechSynthesis.speak(utter);
+    }, 100);
+  };
+
   const crearRuta = (desde, hasta) => {
     if (routingControlRef.current) {
       map.removeControl(routingControlRef.current);
@@ -39,11 +52,11 @@ const RoutingControl = ({
     const control = L.Routing.control({
       waypoints: [
         L.latLng(desde[0], desde[1]),
-        L.latLng(hasta[0], hasta[1]),
+        L.latLng(hasta[0], hasta[1])
       ],
       createMarker: (i, wp, n) => {
-        if (i === 0) return null; // ❌ No mostrar marcador de inicio (usuario)
-        return L.marker(wp.latLng); // ✅ Mostrar marcador destino (DEA)
+        if (i === 0) return null;
+        return L.marker(wp.latLng);
       },
       routeWhileDragging: false,
       addWaypoints: false,
@@ -54,33 +67,39 @@ const RoutingControl = ({
       show: false,
       language: 'es',
     }).addTo(map);
+
     routingControlRef.current = control;
+    setRutaActiva(true);
 
     control.on('routeselected', (e) => {
       instruccionesRef.current = e.route.instructions;
       pasosYaLeidos.current.clear();
 
-      // ✅ Dar inmediatamente la primera instrucción más cercana
-      if (e.route.instructions.length > 0) {
+      if (e.route.instructions.length > 0 && vozActiva) {
         const primerPaso = e.route.instructions[0];
         const texto = `Iniciando ruta. En ${Math.round(primerPaso.distance)} metros, ${primerPaso.text}`;
-        const utter = new window.SpeechSynthesisUtterance(texto);
-        utter.lang = 'es-ES';
-        utter.rate = 1;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utter);
-        pasosYaLeidos.current.add(0); // Marcar como leído
+        hablar(texto);
+        pasosYaLeidos.current.add(0);
       }
     });
   };
 
+  const detenerRuta = () => {
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    window.speechSynthesis.cancel();
+    setRutaActiva(false);
+    onDetenerRuta(); // callback externo para actualizar estado padre
+  };
+
   useEffect(() => {
-    if (!from || !to) return;
+    if (!from || !to || !vozActiva) return;
 
     destinoFinalRef.current = to;
     crearRuta(from, to);
-
-    if (watchId) navigator.geolocation.clearWatch(watchId);
 
     const id = navigator.geolocation.watchPosition(
       (position) => {
@@ -108,37 +127,27 @@ const RoutingControl = ({
           !pasosYaLeidos.current.has(indicePaso)
         ) {
           const texto = `En ${Math.round(menorDistancia)} metros, ${pasoMasCercano.text}`;
-          const utter = new window.SpeechSynthesisUtterance(texto);
-          utter.lang = 'es-ES';
-          utter.rate = 1;
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(utter);
-
+          hablar(texto);
           pasosYaLeidos.current.add(indicePaso);
         }
 
-        // ✅ Detectar si llegó al destino
         const ultima = instrucciones[instrucciones.length - 1];
         const distanciaFinal = calcularDistancia(latitude, longitude, ultima.lat, ultima.lng);
 
         if (distanciaFinal <= distanciaAviso && !pasosYaLeidos.current.has('final')) {
-          const utter = new window.SpeechSynthesisUtterance('Has llegado a tu destino.');
-          utter.lang = 'es-ES';
-          utter.rate = 1;
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(utter);
+          hablar('Has llegado a tu destino.');
           pasosYaLeidos.current.add('final');
         }
 
         if (
-              pasoMasCercano &&
-              menorDistancia > distanciaRecalculo &&
-              !pasosYaLeidos.current.has('recalculado')
-            ) {
-              crearRuta([latitude, longitude], destinoFinalRef.current);
-              pasosYaLeidos.current.clear();
-              pasosYaLeidos.current.add('recalculado'); // evitar recursividad inmediata
-          }
+          pasoMasCercano &&
+          menorDistancia > distanciaRecalculo &&
+          !pasosYaLeidos.current.has('recalculado')
+        ) {
+          crearRuta([latitude, longitude], destinoFinalRef.current);
+          pasosYaLeidos.current.clear();
+          pasosYaLeidos.current.add('recalculado');
+        }
       },
       (error) => {
         console.error('Error de ubicación en tiempo real:', error);
@@ -157,9 +166,13 @@ const RoutingControl = ({
       if (watchId) navigator.geolocation.clearWatch(watchId);
       window.speechSynthesis.cancel();
     };
-  }, [from, to, map, distanciaAviso, distanciaRecalculo]);
+  }, [from, to, map, distanciaAviso, distanciaRecalculo, vozActiva]);
 
-  return null;
+  return (
+    <>
+
+    </>
+  );
 };
 
 export default RoutingControl;
