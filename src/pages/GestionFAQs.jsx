@@ -6,6 +6,16 @@ import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import {
+  isRequired,
+  isInteger,
+  minValue,
+  maxValue,
+  isTitleText,
+  isDescriptiveText,
+  isSimpleAlphaWithSpaces,
+  maxLength,
+} from '../utils/validators.js';
 
 const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -23,9 +33,10 @@ const GestionFAQs = () => {
     respuesta: '',
     categoria: '',
     orden: 0,
-    nuevaCategoria: '', // Nuevo campo para manejar la nueva categoría
+    nuevaCategoria: '',
   });
-  const [usarNuevaCategoria, setUsarNuevaCategoria] = useState(false); // Controla si se usa el campo de texto
+  const [usarNuevaCategoria, setUsarNuevaCategoria] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const API_URL_FAQS = `${API_BASE_URL_FRONTEND}/api/admin/faqs`;
   const API_URL_CATEGORIAS = `${API_BASE_URL_FRONTEND}/api/admin/faqs/categorias`;
@@ -92,39 +103,8 @@ const GestionFAQs = () => {
         searching: true,
       });
 
-      dataTableInstance.current.clear();
-      faqs.forEach(faq => {
-        dataTableInstance.current.row.add([
-          faq.pregunta,
-          faq.categoria || '-',
-          `<div style="text-align: center;">${faq.orden}</div>`,
-          `
-            <button class="btn btn-info btn-sm me-1 edit-btn" data-id="${faq.id}" title="Editar"><i class="fas fa-edit"></i></button>
-            <button class="btn btn-danger btn-sm delete-btn" data-id="${faq.id}" data-pregunta="${faq.pregunta}" title="Eliminar"><i class="fas fa-trash"></i></button>
-          `,
-        ]);
-      });
-      dataTableInstance.current.draw();
-
-      $(tableRef.current).on('click', '.edit-btn', function () {
-        const id = $(this).data('id');
-        const faq = faqs.find((f) => f.id === id);
-        handleShowModal(faq);
-      });
-
-      $(tableRef.current).on('click', '.delete-btn', function () {
-        const id = $(this).data('id');
-        const pregunta = $(this).data('pregunta');
-        handleDeleteFAQ(id, pregunta);
-      });
+      // No repoblamos manualmente, dejamos que React renderice la tabla
     }
-
-    return () => {
-      if (dataTableInstance.current) {
-        dataTableInstance.current.destroy();
-        dataTableInstance.current = null;
-      }
-    };
   }, [loading, faqs]);
 
   const handleShowModal = (faq = null) => {
@@ -134,7 +114,7 @@ const GestionFAQs = () => {
         pregunta: faq.pregunta || '',
         respuesta: faq.respuesta || '',
         categoria: faq.categoria || '',
-        orden: faq.orden || 0,
+        orden: faq.orden !== null ? faq.orden : 0,
         nuevaCategoria: '',
       });
       setUsarNuevaCategoria(faq.categoria && !categorias.some(cat => cat.nombre === faq.categoria));
@@ -149,57 +129,99 @@ const GestionFAQs = () => {
       });
       setUsarNuevaCategoria(false);
     }
+    setErrors({});
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setCurrentFAQ(null);
-    setFormData({
-      pregunta: '',
-      respuesta: '',
-      categoria: '',
-      orden: 0,
-      nuevaCategoria: '',
-    });
-    setUsarNuevaCategoria(false);
+    setErrors({});
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === 'orden' ? parseInt(value, 10) || 0 : value,
-    }));
+    let finalValue = value;
+
+    // Lógica de filtrado en tiempo real
+    switch (name) {
+      case 'pregunta':
+        // Permite letras, números, espacios, ?, !, ¿, ¡
+        finalValue = value.replace(/[^a-zA-Z0-9\s?!¡¿]/g, '');
+        break;
+      case 'respuesta':
+        // Prohíbe < y >
+        finalValue = value.replace(/[<>]/g, '');
+        break;
+      case 'nuevaCategoria':
+        // Permite solo letras y espacios
+        finalValue = value.replace(/[^a-zA-Z\s]/g, '');
+        break;
+      case 'orden':
+         // Permite solo números
+        finalValue = value.replace(/[^0-9]/g, '');
+        break;
+      default:
+        break;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: finalValue }));
+
     if (name === 'categoria' && value === 'nueva') {
       setUsarNuevaCategoria(true);
     } else if (name === 'categoria' && value !== 'nueva') {
       setUsarNuevaCategoria(false);
       setFormData((prev) => ({ ...prev, nuevaCategoria: '' }));
+      if (errors.nuevaCategoria) {
+        setErrors(prev => ({...prev, nuevaCategoria: null}));
+      }
     }
+
+    if (errors[name]) {
+        setErrors(prev => ({...prev, [name]: null}));
+    }
+  };
+  
+  const validate = () => {
+    const newErrors = {};
+    const { pregunta, respuesta, orden, nuevaCategoria } = formData;
+    
+    const preguntaError = isRequired(pregunta) || maxLength(255)(pregunta) || isTitleText(pregunta);
+    if(preguntaError) newErrors.pregunta = preguntaError;
+    
+    const respuestaError = isRequired(respuesta) || isDescriptiveText(respuesta);
+    if(respuestaError) newErrors.respuesta = respuestaError;
+    
+    const ordenError = isRequired(String(orden)) || isInteger(String(orden)) || minValue(0)(orden) || maxValue(20)(orden);
+    if (ordenError) newErrors.orden = ordenError;
+    
+    if (usarNuevaCategoria) {
+        const nuevaCatError = isRequired(nuevaCategoria) || maxLength(50)(nuevaCategoria) || isSimpleAlphaWithSpaces(nuevaCategoria);
+        if (nuevaCatError) newErrors.nuevaCategoria = nuevaCatError;
+    }
+
+    return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrors({});
+    
+    const formErrors = validate();
+    if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        Swal.fire('Formulario Incompleto', 'Por favor, corrige los errores marcados.', 'error');
+        return;
+    }
+
     const { pregunta, respuesta, categoria, nuevaCategoria, orden } = formData;
-
-    if (!pregunta.trim() || !respuesta.trim()) {
-      Swal.fire('Campos incompletos', 'Pregunta y Respuesta son obligatorios.', 'warning');
-      return;
-    }
-    const numericOrden = parseInt(orden, 10);
-    if (isNaN(numericOrden) || numericOrden < 0) {
-      Swal.fire('Campo inválido', 'El orden debe ser un número válido y no negativo.', 'warning');
-      return;
-    }
-
     const categoriaFinal = usarNuevaCategoria && nuevaCategoria.trim() ? nuevaCategoria.trim() : categoria;
 
     const payload = {
       pregunta: pregunta.trim(),
       respuesta: respuesta.trim(),
       categoria: categoriaFinal || null,
-      orden: numericOrden,
+      orden: parseInt(orden, 10),
     };
 
     try {
@@ -207,9 +229,7 @@ const GestionFAQs = () => {
         title: currentFAQ ? 'Actualizando...' : 'Creando...',
         text: 'Por favor espera.',
         allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        },
+        didOpen: () => Swal.showLoading(),
       });
 
       if (currentFAQ) {
@@ -270,9 +290,7 @@ const GestionFAQs = () => {
       return (
         <div className="container mt-4">
           <div className="alert alert-warning text-center">
-            <h4>
-              <i className="fas fa-exclamation-triangle me-2"></i>Acceso Restringido
-            </h4>
+            <h4><i className="fas fa-exclamation-triangle me-2"></i>Acceso Restringido</h4>
             <p>No tiene permisos para acceder a esta sección.</p>
           </div>
         </div>
@@ -318,6 +336,7 @@ const GestionFAQs = () => {
                       size="sm"
                       className="me-1 edit-btn"
                       data-id={faq.id}
+                      onClick={() => handleShowModal(faq)}
                       title="Editar"
                     >
                       <i className="fas fa-edit"></i>
@@ -328,6 +347,7 @@ const GestionFAQs = () => {
                       className="delete-btn"
                       data-id={faq.id}
                       data-pregunta={faq.pregunta}
+                      onClick={() => handleDeleteFAQ(faq.id, faq.pregunta)}
                       title="Eliminar"
                     >
                       <i className="fas fa-trash"></i>
@@ -344,69 +364,45 @@ const GestionFAQs = () => {
         <Modal.Header closeButton>
           <Modal.Title>{currentFAQ ? 'Editar FAQ' : 'Crear Pregunta Frecuente'}</Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} noValidate>
           <Modal.Body>
             <Form.Group controlId="formPregunta" className="mb-3">
-              <Form.Label>Pregunta <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="text"
-                name="pregunta"
-                value={formData.pregunta}
-                onChange={handleChange}
-                required
-              />
+              <Form.Label>Pregunta*</Form.Label>
+              <Form.Control type="text" name="pregunta" value={formData.pregunta} onChange={handleChange} isInvalid={!!errors.pregunta} />
+              <Form.Text muted>Letras, números, espacios y signos de interrogación/exclamación.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.pregunta}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formRespuesta" className="mb-3">
-              <Form.Label>Respuesta <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={4}
-                name="respuesta"
-                value={formData.respuesta}
-                onChange={handleChange}
-                required
-              />
+              <Form.Label>Respuesta*</Form.Label>
+              <Form.Control as="textarea" rows={4} name="respuesta" value={formData.respuesta} onChange={handleChange} isInvalid={!!errors.respuesta} />
+              <Form.Text muted>Texto descriptivo.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.respuesta}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formCategoria" className="mb-3">
-              <Form.Label>Categoría (Opcional)</Form.Label>
-              <Form.Select
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                className="mb-2"
-              >
-                <option value="">Seleccione una categoría</option>
+              <Form.Label>Categoría</Form.Label>
+              <Form.Select name="categoria" value={formData.categoria} onChange={handleChange} className="mb-2">
+                <option value="">Seleccione una categoría (opcional)</option>
                 {categorias.map(cat => (
                   <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
                 ))}
-                <option value="nueva">Crear nueva categoría</option>
+                <option value="nueva">Crear nueva categoría...</option>
               </Form.Select>
               {usarNuevaCategoria && (
-                <Form.Control
-                  type="text"
-                  name="nuevaCategoria"
-                  value={formData.nuevaCategoria}
-                  onChange={handleChange}
-                  placeholder="Ingrese el nombre de la nueva categoría"
-                />
+                <>
+                  <Form.Control type="text" name="nuevaCategoria" value={formData.nuevaCategoria} onChange={handleChange} placeholder="Ingrese el nombre de la nueva categoría" isInvalid={!!errors.nuevaCategoria} />
+                  <Form.Text muted>Solo letras (mayúsculas/minúsculas) y espacios.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.nuevaCategoria}</Form.Control.Feedback>
+                </>
               )}
-              <Form.Text className="text-muted">
-                Seleccione una categoría existente o elija "Crear nueva categoría" para agregar una nueva.
-              </Form.Text>
             </Form.Group>
 
             <Form.Group controlId="formOrden" className="mb-3">
-              <Form.Label>Orden (Numérico) <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="number"
-                name="orden"
-                value={formData.orden}
-                onChange={handleChange}
-                min="0"
-                required
-              />
+              <Form.Label>Orden*</Form.Label>
+              <Form.Control type="text" inputMode="numeric" name="orden" value={formData.orden} onChange={handleChange} isInvalid={!!errors.orden} />
+              <Form.Text muted>Obligatorio. Valor numérico entre 0 y 20.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.orden}</Form.Control.Feedback>
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>

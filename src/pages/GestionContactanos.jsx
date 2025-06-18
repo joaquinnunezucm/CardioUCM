@@ -5,23 +5,34 @@ import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table, Badge } from 'react-bootstrap';
 import Swal from 'sweetalert2';
-import { useAuth } from '../context/AuthContext'; // Ajusta la ruta si es necesario
-// import { Navigate } from 'react-router-dom'; // Descomentar si se usa para protección
+import { useAuth } from '../context/AuthContext';
+import {
+  isRequired,
+  isInteger,
+  minValue,
+  maxValue,
+  isSimpleAlphaWithSpaces,
+  isDescriptiveText,
+  isEmail,
+  isPhoneNumber,
+  isURL,
+  maxLength,
+} from '../utils/validators.js';
 
 const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-// Estos valores deben coincidir con los 'nombre' en tu tabla 'contacto_tipos_dato'
 const TIPOS_DATO_CONTACTO = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'facebook', label: 'Facebook' },
-  { value: 'twitter', label: 'Twitter/X' },
+  { value: 'enlace_web', label: 'Enlace Web (URL)' },
   { value: 'email', label: 'Correo Electrónico' },
   { value: 'telefono', label: 'Teléfono' },
-  { value: 'enlace_web', label: 'Enlace Web (URL)' },
+  { value: 'instagram', label: 'Instagram (URL)' },
+  { value: 'facebook', label: 'Facebook (URL)' },
+  { value: 'twitter', label: 'Twitter/X (URL)' },
   { value: 'texto_simple', label: 'Texto Simple (informativo)' },
 ];
 
 const ICONOS_DISPONIBLES = [
+  { value: '', label: 'Ninguno' },
   { value: 'FaInstagram', label: 'Instagram Icon' },
   { value: 'FaFacebook', label: 'Facebook Icon' },
   { value: 'FaTwitter', label: 'Twitter/X Icon' },
@@ -29,29 +40,26 @@ const ICONOS_DISPONIBLES = [
   { value: 'FaPhone', label: 'Phone Icon' },
   { value: 'FaGlobe', label: 'Website/Globe Icon' },
   { value: 'FaInfoCircle', label: 'Info Icon' },
-  { value: '', label: 'Ninguno' },
 ];
 
 const GestionContactanos = () => {
   const { user, token } = useAuth();
   const [contactos, setContactos] = useState([]);
-  // Si quisieras cargar categorías de contacto para un dropdown de filtro, lo harías aquí.
-  // const [categoriasContacto, setCategoriasContacto] = useState([]);
   const [loading, setLoading] = useState(true);
   const tableRef = useRef(null);
   const dataTableInstance = useRef(null);
-
   const [showModal, setShowModal] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [formData, setFormData] = useState({
-    categoria: '', // El usuario escribe aquí
-    tipo_dato: 'enlace_web', // Valor por defecto para el select
+    categoria: '',
+    tipo_dato: 'enlace_web',
     etiqueta: '',
     valor: '',
     icono: '',
     orden: 0,
     activo: true,
   });
+  const [errors, setErrors] = useState({});
 
   const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/contactos`;
 
@@ -65,8 +73,6 @@ const GestionContactanos = () => {
   const fetchContactos = async () => {
     if (!token) {
       setLoading(false);
-      // Opcional: Mostrar un mensaje más amigable o redirigir
-      // Swal.fire('Acceso Denegado', 'Debe iniciar sesión.', 'warning');
       return;
     }
     try {
@@ -75,16 +81,6 @@ const GestionContactanos = () => {
         dataTableInstance.current.destroy();
         dataTableInstance.current = null;
       }
-      // Cargar contactos y, si es necesario, categorías y tipos de dato para filtros/dropdowns
-      // const [contactosResponse, categoriasContactoResponse, tiposDatoResponse] = await Promise.all([
-      //   axios.get(API_URL_ADMIN, getAuthHeaders()),
-      //   axios.get(`${API_BASE_URL_FRONTEND}/api/contacto-categorias`, getAuthHeaders()),
-      //   axios.get(`${API_BASE_URL_FRONTEND}/api/contacto-tipos-dato`, getAuthHeaders())
-      // ]);
-      // setContactos(contactosResponse.data);
-      // setCategoriasContacto(categoriasContactoResponse.data);
-      // setTiposDatoContacto(tiposDatoResponse.data); // Si los cargas dinámicamente
-
       const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
       setContactos(response.data);
 
@@ -144,7 +140,7 @@ const GestionContactanos = () => {
         valor: item.valor || '',
         icono: item.icono || '',
         orden: item.orden || 0,
-        activo: typeof item.activo === 'boolean' ? item.activo : (item.activo === 1), // Manejar 1/0 de la BD
+        activo: typeof item.activo === 'boolean' ? item.activo : (item.activo === 1),
       });
     } else {
       setCurrentItem(null);
@@ -158,45 +154,96 @@ const GestionContactanos = () => {
         activo: true,
       });
     }
+    setErrors({});
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setCurrentItem(null);
-     setFormData({ categoria: '', tipo_dato: 'enlace_web', etiqueta: '', valor: '', icono: '', orden: 0, activo: true });
+    setErrors({});
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'orden' ? (parseInt(value, 10) || 0) : value),
-    }));
+    let finalValue = type === 'checkbox' ? checked : value;
+    
+    switch(name) {
+        case 'categoria':
+        case 'etiqueta':
+            finalValue = value.replace(/[^a-zA-Z\s]/g, '');
+            break;
+        case 'orden':
+            finalValue = value.replace(/[^0-9]/g, '');
+            break;
+    }
+
+    setFormData(prev => ({...prev, [name]: finalValue}));
+
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
+
+  const validate = () => {
+    const newErrors = {};
+    const { categoria, tipo_dato, etiqueta, valor, orden } = formData;
+    
+    const categoriaError = isRequired(categoria) || maxLength(50)(categoria) || isSimpleAlphaWithSpaces(categoria);
+    if(categoriaError) newErrors.categoria = categoriaError;
+
+    const etiquetaError = isRequired(etiqueta) || maxLength(50)(etiqueta) || isSimpleAlphaWithSpaces(etiqueta);
+    if(etiquetaError) newErrors.etiqueta = etiquetaError;
+    
+    let valorError = isRequired(valor);
+    if (!valorError) {
+        switch(tipo_dato) {
+            case 'email':
+                valorError = isEmail(valor);
+                break;
+            case 'telefono':
+                valorError = isPhoneNumber(valor);
+                break;
+            case 'enlace_web':
+            case 'instagram':
+            case 'facebook':
+            case 'twitter':
+                valorError = isURL(valor);
+                break;
+            case 'texto_simple':
+            default:
+                valorError = isDescriptiveText(valor);
+                break;
+        }
+    }
+    if (valorError) newErrors.valor = valorError;
+
+    const ordenError = isRequired(String(orden)) || isInteger(String(orden)) || minValue(0)(orden) || maxValue(20)(orden);
+    if(ordenError) newErrors.orden = ordenError;
+
+    return newErrors;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { categoria, tipo_dato, etiqueta, valor, orden, activo } = formData;
-
-    if (!String(categoria).trim() || !String(tipo_dato).trim() || !String(etiqueta).trim() || !String(valor).trim()) {
-      Swal.fire('Campos incompletos', 'Categoría, Tipo de Dato, Etiqueta y Valor son obligatorios.', 'warning');
-      return;
-    }
-    const numericOrden = parseInt(orden, 10);
-    if (isNaN(numericOrden) || numericOrden < 0) {
-        Swal.fire('Campo inválido', 'El orden debe ser un número válido y no negativo.', 'warning');
+    setErrors({});
+    
+    const formErrors = validate();
+    if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        Swal.fire('Formulario Incompleto', 'Por favor, corrige los errores marcados.', 'error');
         return;
     }
 
+    const { categoria, tipo_dato, etiqueta, valor, orden, activo, icono } = formData;
     const payload = {
-        ...formData, // envía todos los campos del estado formData
-        categoria: String(categoria).trim(), // Asegura que se envíe el nombre
-        tipo_dato: String(tipo_dato).trim(), // Asegura que se envíe el nombre
-        etiqueta: String(etiqueta).trim(),
-        valor: String(valor).trim(),
-        orden: numericOrden,
-        activo: !!activo // Asegura que sea booleano
+      categoria: String(categoria).trim(),
+      tipo_dato: String(tipo_dato).trim(),
+      etiqueta: String(etiqueta).trim(),
+      valor: String(valor).trim(),
+      orden: parseInt(orden, 10),
+      activo: !!activo,
+      icono: icono || null,
     };
 
     try {
@@ -253,22 +300,19 @@ const GestionContactanos = () => {
     });
   };
   
-  // Protección de ruta
   if (!user || (user.rol !== 'administrador' && user.rol !== 'superadministrador')) {
-      if (!loading) { // Solo muestra el mensaje si no está cargando y el usuario no es válido
+      if (!loading) {
         return (
             <div className="container mt-4">
                 <div className="alert alert-warning text-center">
                 <h4><i className="fas fa-exclamation-triangle me-2"></i>Acceso Restringido</h4>
                 <p>No tiene permisos para acceder a esta sección.</p>
-                {/* Podrías usar <Navigate to="/login" replace /> si Navigate está configurado */}
                 </div>
             </div>
         );
       }
-      return null; // O un spinner si loading es true y no hay token
+      return null;
   }
-
 
   return (
     <div className="container-fluid mt-4">
@@ -325,96 +369,56 @@ const GestionContactanos = () => {
         <Modal.Header closeButton>
           <Modal.Title>{currentItem ? 'Editar Ítem de Contacto' : 'Nuevo Ítem de Contacto'}</Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} noValidate>
           <Modal.Body>
             <Form.Group controlId="formCategoria" className="mb-3">
-              <Form.Label>Categoría <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="text"
-                name="categoria"
-                placeholder="Ej: Redes Sociales (se creará si no existe)"
-                value={formData.categoria}
-                onChange={handleChange}
-                required
-              />
+              <Form.Label>Categoría*</Form.Label>
+              <Form.Control type="text" name="categoria" placeholder="Ej: Redes Sociales" value={formData.categoria} onChange={handleChange} isInvalid={!!errors.categoria} />
+              <Form.Text muted>Agrupa los contactos. Solo letras y espacios.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.categoria}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formTipoDato" className="mb-3">
-              <Form.Label>Tipo de Dato <span className="text-danger">*</span></Form.Label>
-              <Form.Select
-                name="tipo_dato"
-                value={formData.tipo_dato}
-                onChange={handleChange}
-                required
-              >
+              <Form.Label>Tipo de Dato*</Form.Label>
+              <Form.Select name="tipo_dato" value={formData.tipo_dato} onChange={handleChange} isInvalid={!!errors.tipo_dato}>
                 {TIPOS_DATO_CONTACTO.map(tipo => (
                   <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
                 ))}
               </Form.Select>
+              <Form.Control.Feedback type="invalid">{errors.tipo_dato}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formEtiqueta" className="mb-3">
-              <Form.Label>Etiqueta (Texto visible) <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="text"
-                name="etiqueta"
-                placeholder="Ej: Instagram UCM, Correo Principal"
-                value={formData.etiqueta}
-                onChange={handleChange}
-                required
-              />
+              <Form.Label>Etiqueta (Texto visible)*</Form.Label>
+              <Form.Control type="text" name="etiqueta" placeholder="Ej: Instagram UCM" value={formData.etiqueta} onChange={handleChange} isInvalid={!!errors.etiqueta} />
+              <Form.Text muted>Texto que verá el usuario. Solo letras y espacios.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.etiqueta}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formValor" className="mb-3">
-              <Form.Label>Valor (URL, email, teléfono, texto) <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                as={formData.tipo_dato === 'texto_simple' ? 'textarea' : 'input'}
-                type={formData.tipo_dato === 'texto_simple' ? undefined : 'text'} // 'text' es un buen default para input
-                rows={formData.tipo_dato === 'texto_simple' ? 3 : undefined}
-                name="valor"
-                placeholder="https://ejemplo.com o texto descriptivo"
-                value={formData.valor}
-                onChange={handleChange}
-                required
-              />
+              <Form.Label>Valor (URL, email, teléfono, texto)*</Form.Label>
+              <Form.Control as={formData.tipo_dato === 'texto_simple' ? 'textarea' : 'input'} type="text" rows={formData.tipo_dato === 'texto_simple' ? 3 : undefined} name="valor" placeholder="https://ejemplo.com o texto descriptivo" value={formData.valor} onChange={handleChange} isInvalid={!!errors.valor} />
+              <Form.Control.Feedback type="invalid">{errors.valor}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formIcono" className="mb-3">
               <Form.Label>Icono (Opcional)</Form.Label>
-              <Form.Select
-                name="icono"
-                value={formData.icono}
-                onChange={handleChange}
-              >
+              <Form.Select name="icono" value={formData.icono} onChange={handleChange}>
                 {ICONOS_DISPONIBLES.map(icon => (
                   <option key={icon.value} value={icon.value}>{icon.label}</option>
                 ))}
               </Form.Select>
-              <Form.Text className="text-muted">
-                Ej: FaInstagram, FaEnvelope. Si no estás seguro, déjalo en "Ninguno".
-              </Form.Text>
             </Form.Group>
 
             <Form.Group controlId="formOrden" className="mb-3">
-              <Form.Label>Orden (Numérico) <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="number"
-                name="orden"
-                value={formData.orden}
-                onChange={handleChange}
-                min="0"
-                required
-              />
+              <Form.Label>Orden*</Form.Label>
+              <Form.Control type="text" inputMode="numeric" name="orden" value={formData.orden} onChange={handleChange} isInvalid={!!errors.orden} />
+              <Form.Text muted>Número para ordenar (0-20). El más bajo aparece primero.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.orden}</Form.Control.Feedback>
             </Form.Group>
             
             <Form.Group controlId="formActivo" className="mb-3">
-              <Form.Check
-                type="checkbox"
-                name="activo"
-                label="Activo (mostrar en la página pública)"
-                checked={formData.activo}
-                onChange={handleChange}
-              />
+              <Form.Check type="checkbox" name="activo" label="Activo (mostrar en la página pública)" checked={formData.activo} onChange={handleChange} />
             </Form.Group>
 
           </Modal.Body>

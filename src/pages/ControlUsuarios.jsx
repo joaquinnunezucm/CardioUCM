@@ -7,16 +7,23 @@ import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
+import {
+  isRequired,
+  isEmail,
+  isSimpleAlphaWithSpaces,
+  isStrongPassword,
+  maxLength,
+} from '../utils/validators.js';
 
 // Componente para el formulario de usuario
 const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmitting }) => {
   const [formData, setFormData] = useState({
-    nombre: initialData.nombre || '',
-    email: initialData.email || '',
+    nombre: '',
+    email: '',
     password: '',
-    rol: initialData.rol || (posiblesRoles.length > 0 ? posiblesRoles[0] : '')
+    rol: ''
   });
-  const [formError, setFormError] = useState('');
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     setFormData({
@@ -25,96 +32,98 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
       password: '',
       rol: initialData.rol || (posiblesRoles.length > 0 ? posiblesRoles[0] : '')
     });
-    setFormError('');
+    setErrors({});
   }, [initialData, posiblesRoles]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    let finalValue = value;
+
+    if (name === 'nombre') {
+        finalValue = value.replace(/[^a-zA-Z\s]/g, '');
+    }
+
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+    if(errors[name]) {
+        setErrors(prev => ({...prev, [name]: null}));
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormError('');
-    if (!formData.nombre || !formData.email || !formData.rol) {
-      setFormError('Nombre, email y rol son requeridos.');
-      return;
-    }
-    if (!initialData.id && !formData.password) {
-      setFormError('La contraseña es requerida para nuevos usuarios.');
-      return;
-    }
-    if (formData.password && formData.password.length < 6 && !initialData.id) {
-      setFormError('La nueva contraseña debe tener al menos 6 caracteres.');
-      return;
+  const validate = () => {
+    const newErrors = {};
+    const { nombre, email, password, rol } = formData;
+
+    const nombreError = isRequired(nombre) || maxLength(50)(nombre) || isSimpleAlphaWithSpaces(nombre);
+    if(nombreError) newErrors.nombre = nombreError;
+
+    const emailError = isRequired(email) || isEmail(email);
+    if(emailError) newErrors.email = emailError;
+
+    if (!initialData.id) {
+        const passwordError = isRequired(password) || isStrongPassword(password);
+        if(passwordError) newErrors.password = passwordError;
+    } else if (password) {
+        const passwordError = isStrongPassword(password);
+        if(passwordError) newErrors.password = passwordError;
     }
 
-    const result = await onSubmit(formData, initialData.id);
-    if (result && result.error) {
-      setFormError(result.message || 'Ocurrió un error.');
-    } else if (result && result.success) {
-      onClose();
+    const rolError = isRequired(rol);
+    if(rolError) newErrors.rol = rolError;
+
+    return newErrors;
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setErrors({});
+    
+    const formErrors = validate();
+    if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        return;
     }
+
+    onSubmit(formData, initialData.id);
   };
 
   return (
-    <Form onSubmit={handleSubmit}>
-      {formError && <div className="alert alert-danger p-2 mb-3" role="alert">{formError}</div>}
+    <Form onSubmit={handleSubmit} noValidate>
       <Form.Group controlId="formNombre" className="mb-3">
-        <Form.Label>Nombre</Form.Label>
-        <Form.Control
-          type="text"
-          name="nombre"
-          value={formData.nombre}
-          onChange={handleChange}
-          required
-          disabled={isSubmitting}
-        />
+        <Form.Label>Nombre*</Form.Label>
+        <Form.Control type="text" name="nombre" value={formData.nombre} onChange={handleChange} disabled={isSubmitting} isInvalid={!!errors.nombre} />
+        <Form.Text muted>Solo letras y espacios.</Form.Text>
+        <Form.Control.Feedback type="invalid">{errors.nombre}</Form.Control.Feedback>
       </Form.Group>
+
       <Form.Group controlId="formEmail" className="mb-3">
-        <Form.Label>Email</Form.Label>
-        <Form.Control
-          type="email"
-          name="email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-          disabled={isSubmitting}
-        />
+        <Form.Label>Email*</Form.Label>
+        <Form.Control type="email" name="email" value={formData.email} onChange={handleChange} disabled={isSubmitting} isInvalid={!!errors.email} />
+        <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
       </Form.Group>
+
       <Form.Group controlId="formPassword" className="mb-3">
-        <Form.Label>Contraseña</Form.Label>
-        <Form.Control
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"}
-          disabled={isSubmitting}
-        />
-        {initialData.id && <Form.Text className="text-muted">Si dejas este campo vacío, la contraseña actual no se modificará.</Form.Text>}
+        <Form.Label>Contraseña {initialData.id ? '(Opcional)' : '*'}</Form.Label>
+        <Form.Control type="password" name="password" value={formData.password} onChange={handleChange} placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"} disabled={isSubmitting} isInvalid={!!errors.password} />
+        <Form.Text muted>{initialData.id ? 'Mínimo 8 caracteres, con mayúscula, minúscula y número.' : 'La contraseña es requerida para nuevos usuarios.'}</Form.Text>
+        <Form.Control.Feedback type="invalid">{errors.password}</Form.Control.Feedback>
       </Form.Group>
+
       <Form.Group controlId="formRol" className="mb-3">
-        <Form.Label>Rol</Form.Label>
-        <Form.Control
-          as="select"
-          name="rol"
-          value={formData.rol}
-          onChange={handleChange}
-          required
-          disabled={isSubmitting}
-        >
+        <Form.Label>Rol*</Form.Label>
+        <Form.Select name="rol" value={formData.rol} onChange={handleChange} disabled={isSubmitting} isInvalid={!!errors.rol}>
           {posiblesRoles.map(r => (
             <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
           ))}
-        </Form.Control>
+        </Form.Select>
+        <Form.Control.Feedback type="invalid">{errors.rol}</Form.Control.Feedback>
       </Form.Group>
-      <Modal.Footer>
+
+      <Modal.Footer className="px-0 pt-4 pb-0">
         <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
           Cancelar
         </Button>
         <Button variant="primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (initialData.id ? 'Actualizando...' : 'Creando...') : (initialData.id ? 'Actualizar' : 'Crear')}
+          {isSubmitting ? (initialData.id ? 'Actualizando...' : 'Creando...') : (initialData.id ? 'Actualizar Usuario' : 'Crear Usuario')}
         </Button>
       </Modal.Footer>
     </Form>
@@ -171,9 +180,9 @@ function ControlUsuarios() {
           paginate: { previous: 'Anterior', next: 'Siguiente' },
           zeroRecords: 'No se encontraron usuarios'
         },
-        order: [[0, 'asc']], // Ordenar por ID por defecto
+        order: [[0, 'asc']],
         columnDefs: [
-          { orderable: false, targets: [5] } // Deshabilitar orden en columna de acciones
+          { orderable: false, targets: [5] }
         ]
       });
       setTableInitialized(true);
@@ -199,6 +208,7 @@ function ControlUsuarios() {
       if (formUserId && !userData.password) {
         delete userData.password;
       }
+      
       if (formUserId) {
         await axios.put(`http://localhost:3001/api/usuarios/${formUserId}`, userData);
         Swal.fire('Actualizado', 'El usuario fue actualizado correctamente.', 'success');
@@ -206,15 +216,15 @@ function ControlUsuarios() {
         await axios.post('http://localhost:3001/api/usuarios', userData);
         Swal.fire('Creado', 'El usuario fue creado exitosamente.', 'success');
       }
+      
       fetchUsuarios();
-      setIsSubmitting(false);
-      return { success: true };
+      handleCloseModal();
     } catch (err) {
       console.error('Error al guardar usuario:', err);
       const errorMessage = err.response?.data?.message || 'No se pudo guardar el usuario.';
       Swal.fire('Error', errorMessage, 'error');
-      setIsSubmitting(false);
-      return { error: true, message: errorMessage };
+    } finally {
+        setIsSubmitting(false);
     }
   };
 

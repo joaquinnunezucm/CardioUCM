@@ -62,6 +62,17 @@ export const minValue = (min) => (value) => {
   return null;
 };
 
+/**
+ * [NUEVO] Crea una función que valida si un número es menor o igual a un máximo.
+ * @param {number} max - El valor máximo permitido.
+ * @returns {function(string|number): (string|null)} - Una función de validación.
+ */
+export const maxValue = (max) => (value) => {
+    if (value !== null && value !== undefined && Number(value) > max) {
+        return `El valor no puede ser mayor que ${max}.`;
+    }
+    return null;
+};
 
 // --- VALIDACIONES DE FORMATO Y CARACTERES ---
 
@@ -77,7 +88,66 @@ export const isInteger = (value) => {
   }
   return null;
 };
+/**
+ * Valida un formato de email básico.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isEmail = (value) => {
+  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return 'Debe ser un formato de email válido.';
+  }
+  return null;
+};
 
+/**
+ * Valida un número de teléfono, permitiendo números, espacios, guiones y el signo +.
+ * @param {string} value - El valor del campo.
+ * @returns {string|null}
+ */
+export const isPhoneNumber = (value) => {
+    if (value && !/^[+0-9\s-]+$/.test(value)) {
+        return 'Formato de teléfono inválido. Solo números, espacios, guiones y "+".';
+    }
+    return null;
+}
+
+/**
+ * Valida si la cadena es una URL válida.
+ * @param {string} value
+ * @returns {string|null}
+ */
+export const isURL = (value) => {
+    try {
+        new URL(value);
+        return null;
+    } catch (_) {
+        return 'Debe ser una URL válida (ej: https://www.ejemplo.com).';
+    }
+}
+
+/**
+ * Valida la fortaleza de una contraseña.
+ * Requiere al menos 8 caracteres, una mayúscula, una minúscula y un número.
+ * @param {string} value - La contraseña a validar.
+ * @returns {string|null} - Mensaje de error o null si es válida.
+ */
+export const isStrongPassword = (value) => {
+  if (!value) return null; // No es obligatorio si se está editando y no se cambia
+  if (value.length < 8) {
+    return 'La contraseña debe tener al menos 8 caracteres.';
+  }
+  if (!/[A-Z]/.test(value)) {
+    return 'Debe contener al menos una letra mayúscula.';
+  }
+  if (!/[a-z]/.test(value)) {
+    return 'Debe contener al menos una letra minúscula.';
+  }
+  if (!/[0-9]/.test(value)) {
+    return 'Debe contener al menos un número.';
+  }
+  return null;
+};
 /**
  * Valida que el campo solo contenga letras del alfabeto inglés (sin tildes, sin ñ) y espacios.
  * @param {string} value - El valor del campo.
@@ -117,7 +187,7 @@ export const isSafeText = (value) => {
 };
 
 /**
- * [NUEVA Y MÁS PERMISIVA] Valida texto libre permitiendo tildes, ñ, y signos de puntuación comunes.
+ * [MÁS PERMISIVA] Valida texto libre permitiendo tildes, ñ, y signos de puntuación comunes.
  * Ideal para campos de descripción como 'instrucción' o 'subtítulo'.
  * @param {string} value - El valor del campo.
  * @returns {string|null} - Mensaje de error o null si es válido.
@@ -129,6 +199,33 @@ export const isExtendedText = (value) => {
   }
   return null;
 };
+
+/**
+ * [ULTRA-PERMISIVA] Valida texto descriptivo. Permite casi todos los caracteres,
+ * incluyendo tildes y la mayoría de los símbolos, pero prohíbe los caracteres '<' y '>'
+ * para prevenir ataques de inyección de HTML (XSS).
+ * @param {string} value - El valor del campo.
+ * @returns {string|null} - Mensaje de error o null si es válido.
+ */
+export const isDescriptiveText = (value) => {
+  if (value && /[<>]/.test(value)) {
+    return "El texto no puede contener los símbolos '<' o '>'.";
+  }
+  return null;
+};
+
+/**
+ * [NUEVA] Valida que el texto sea un "slug" (letras minúsculas, números y guiones).
+ * Ideal para IDs de categoría o URLs amigables.
+ * @param {string} value 
+ * @returns {string|null}
+ */
+export const isSlug = (value) => {
+    if (value && !/^[a-z0-9-]+$/.test(value)) {
+        return 'Solo se permiten letras minúsculas, números y guiones (-).';
+    }
+    return null;
+}
 
 /**
  * Valida el formato y el dígito verificador de un RUT chileno.
@@ -174,22 +271,6 @@ export const isCoordinate = (value) => {
     return null;
 }
 
-
-
-/**
- * [NUEVO Y ULTRA-PERMISIVO] Valida texto descriptivo. Permite casi todos los caracteres,
- * incluyendo tildes y la mayoría de los símbolos, pero prohíbe los caracteres '<' y '>'
- * para prevenir ataques de inyección de HTML (XSS).
- * @param {string} value - El valor del campo.
- * @returns {string|null} - Mensaje de error o null si es válido.
- */
-export const isDescriptiveText = (value) => {
-  if (value && /[<>]/.test(value)) {
-    return "El texto no puede contener los símbolos '<' o '>'.";
-  }
-  return null;
-};
-
 // --- VERSIONES CON SOPORTE PARA TILDES (Conservadas para compatibilidad o uso futuro) ---
 
 /**
@@ -204,6 +285,30 @@ export const isAlphaWithSpaces = (value) => {
   }
   return null;
 };
+
+/**
+ * Valida que el texto sea un "slug" solo con letras minúsculas y guiones.
+ * @param {string} value 
+ * @returns {string|null}
+ */
+export const isSlugWithoutNumbers = (value) => {
+    if (value && !/^[a-z-]+$/.test(value)) {
+        return 'Solo se permiten letras minúsculas y guiones (-).';
+    }
+    return null;
+}
+
+/**
+ * Valida un texto para un título, permitiendo signos de exclamación e interrogación.
+ * @param {string} value 
+ * @returns {string|null}
+ */
+export const isTitleText = (value) => {
+    if (value && !/^[a-zA-Z0-9\s?!¡¿]+$/.test(value)) {
+        return 'Solo se permiten letras, números, espacios y signos de interrogación/exclamación.';
+    }
+    return null;
+}
 
 /**
  * [CON TILDE] Valida que el campo solo contenga letras (incluyendo tildes/ñ), números y espacios.

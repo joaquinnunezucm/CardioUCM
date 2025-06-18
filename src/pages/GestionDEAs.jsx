@@ -6,6 +6,17 @@ import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table, Row, Col } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
+import {
+  isRequired,
+  isInteger,
+  isRUT,
+  isCoordinate,
+  isSimpleAlphaWithSpaces,
+  isSimpleAlphaNumericWithSpaces,
+  minLength,
+  maxLength,
+} from '../utils/validators.js';
 
 const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -30,6 +41,10 @@ const GestionDEAs = () => {
     rut: '',
     estado: 'pendiente',
   });
+  const [errors, setErrors] = useState({});
+  const [comunas, setComunas] = useState([]);
+  const [comunaNoExiste, setComunaNoExiste] = useState(false);
+
 
   const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/gestion-deas`;
 
@@ -37,7 +52,6 @@ const GestionDEAs = () => {
     headers: { Authorization: `Bearer ${token}` },
   }), [token]);
 
-  // Función unificada para obtener/refrescar los datos de DEAs
   const fetchDEAs = useCallback(async () => {
     if (!token) {
         setLoading(false);
@@ -45,10 +59,9 @@ const GestionDEAs = () => {
     }
     setLoading(true);
     
-    // Si la tabla ya estaba inicializada, la destruimos antes de obtener nuevos datos.
     if ($.fn.dataTable.isDataTable(tableRef.current)) {
       $(tableRef.current).DataTable().destroy();
-      setTableInitialized(false); // Crucial: marcamos la tabla como no inicializada.
+      setTableInitialized(false);
     }
 
     try {
@@ -57,20 +70,29 @@ const GestionDEAs = () => {
     } catch (error) {
       console.error('Error al obtener los DEAs:', error.response?.data || error.message);
       Swal.fire('Error', 'No se pudo cargar la lista de DEAs.', 'error');
-      setDeas([]); // Aseguramos que deas sea un array vacío en caso de error
+      setDeas([]);
     } finally {
       setLoading(false);
     }
   }, [token, getAuthHeaders, API_URL_ADMIN]);
+  
+  useEffect(() => {
+    axios.get(`${API_BASE_URL_FRONTEND}/api/comunas`)
+      .then(res => {
+        const nombresComunas = res.data.map(c => c.nombre);
+        setComunas(nombresComunas);
+      })
+      .catch((err) => {
+        console.error('Error al cargar comunas:', err);
+        setComunas([]);
+      });
+  }, []);
 
-  // useEffect para la carga inicial de datos
   useEffect(() => {
     fetchDEAs();
   }, [fetchDEAs]);
 
-  // useEffect para la inicialización de DataTables
   useEffect(() => {
-    // Solo inicializa si la carga terminó, hay datos y la tabla no ha sido inicializada aún.
     if (!loading && deas.length > 0 && !tableInitialized) {
       $(tableRef.current).DataTable({
         language: {
@@ -82,8 +104,8 @@ const GestionDEAs = () => {
           infoEmpty: 'Mostrando 0 a 0 de 0 DEAs',
           infoFiltered: '(filtrado de _MAX_ DEAs totales)',
         },
-        order: [[4, 'desc']], // Ordenar por fecha de creación descendente
-        columnDefs: [{ orderable: false, targets: [5] }], // La columna de acciones no es ordenable
+        order: [[4, 'desc']],
+        columnDefs: [{ orderable: false, targets: [5] }],
         responsive: true,
       });
       setTableInitialized(true);
@@ -112,6 +134,7 @@ const GestionDEAs = () => {
         rut: '', estado: 'pendiente',
       });
     }
+    setErrors({});
     setShowModal(true);
   };
 
@@ -122,21 +145,73 @@ const GestionDEAs = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    let finalValue = value;
+
+    if (name === 'nr_instalacion_numero') {
+      finalValue = value.replace(/[^0-9]/g, '');
+    } else if (name === 'nombre' || name === 'gl_instalacion_calle') {
+      finalValue = value
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, '');
+    } else if (name === 'solicitante') {
+      finalValue = value
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z\s]/g, '');
+    }
+    
+    setFormData((prev) => ({ ...prev, [name]: finalValue }));
+
+    if (errors[name]) {
+      setErrors((prev) => ({...prev, [name]: null}));
+    }
   };
+
+  const validate = () => {
+    const newErrors = {};
+    const { nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna, lat, lng, solicitante, rut } = formData;
+
+    const nombreError = isRequired(nombre) || minLength(3)(nombre) || maxLength(58)(nombre) || isSimpleAlphaNumericWithSpaces(nombre);
+    if (nombreError) newErrors.nombre = nombreError;
+    
+    const calleError = isRequired(gl_instalacion_calle) || minLength(3)(gl_instalacion_calle) || maxLength(45)(gl_instalacion_calle) || isSimpleAlphaNumericWithSpaces(gl_instalacion_calle);
+    if (calleError) newErrors.gl_instalacion_calle = calleError;
+
+    const numeroError = (nr_instalacion_numero && maxLength(10)(nr_instalacion_numero)) || (nr_instalacion_numero && isInteger(nr_instalacion_numero));
+    if (numeroError) newErrors.nr_instalacion_numero = numeroError;
+    
+    const comunaError = isRequired(gl_instalacion_comuna) || (!comunas.includes(gl_instalacion_comuna) && 'La comuna seleccionada no es válida.');
+    if(comunaError) newErrors.gl_instalacion_comuna = comunaError;
+
+    const latError = isRequired(lat) || isCoordinate(lat);
+    if (latError) newErrors.lat = latError;
+    
+    const lngError = isRequired(lng) || isCoordinate(lng);
+    if (lngError) newErrors.lng = lngError;
+    
+    const solicitanteError = isRequired(solicitante) || minLength(3)(solicitante) || maxLength(50)(solicitante) || isSimpleAlphaWithSpaces(solicitante);
+    if (solicitanteError) newErrors.solicitante = solicitanteError;
+
+    const rutError = isRequired(rut) || isRUT(rut);
+    if(rutError) newErrors.rut = rutError;
+
+    return newErrors;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (
-      !formData.nombre || !formData.gl_instalacion_calle || !formData.gl_instalacion_comuna ||
-      !formData.lat || !formData.lng || !formData.solicitante || !formData.rut
-    ) {
-      return Swal.fire('Campos incompletos', 'Por favor, complete todos los campos requeridos.', 'warning');
+    setErrors({});
+    setComunaNoExiste(false);
+
+    const formErrors = validate();
+    if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        if (formErrors.gl_instalacion_comuna) setComunaNoExiste(true);
+        Swal.fire('Formulario Incompleto', 'Por favor, corrige los errores marcados en el formulario.', 'error');
+        return;
     }
     
     setIsProcessing(true);
-    handleCloseModal();
-
+    
     try {
       let response;
       if (currentDEA) {
@@ -146,7 +221,8 @@ const GestionDEAs = () => {
         response = await axios.post(API_URL_ADMIN, formData, getAuthHeaders());
         await Swal.fire('Creado', response.data.message || 'El nuevo DEA ha sido registrado.', 'success');
       }
-      await fetchDEAs(); // Re-fetch data para refrescar la tabla
+      handleCloseModal();
+      await fetchDEAs();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Ocurrió un error al guardar.';
       await Swal.fire('Error', errorMessage, 'error');
@@ -171,7 +247,7 @@ const GestionDEAs = () => {
       try {
         const response = await axios.delete(`${API_URL_ADMIN}/${id}`, getAuthHeaders());
         await Swal.fire('Eliminado', response.data.message || 'El DEA ha sido eliminado.', 'success');
-        await fetchDEAs(); // Re-fetch data para refrescar la tabla
+        await fetchDEAs();
       } catch (error) {
         await Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar el DEA.', 'error');
       } finally {
@@ -243,22 +319,12 @@ const GestionDEAs = () => {
                   <td className="text-center">
                     <span
                       className={`badge bg-${
-                        dea.estado === 'aprobado'
-                          ? 'success'
-                          : dea.estado === 'pendiente'
-                          ? 'warning'
-                          : dea.estado === 'rechazado'
-                          ? 'danger'
-                          : 'secondary'
+                        dea.estado === 'aprobado' ? 'success' : 
+                        dea.estado === 'pendiente' ? 'warning' :
+                        dea.estado === 'rechazado' ? 'danger' : 'secondary'
                       }`}
                     >
-                      {dea.estado === 'aprobado'
-                        ? 'Aprobado'
-                        : dea.estado === 'pendiente'
-                        ? 'Pendiente'
-                        : dea.estado === 'rechazado'
-                        ? 'Rechazado'
-                        : 'Inactivo'}
+                      {dea.estado?.charAt(0).toUpperCase() + dea.estado?.slice(1) || 'Desconocido'}
                     </span>
                   </td>
                   <td>{dea.fc_creacion ? new Date(dea.fc_creacion).toLocaleString('es-CL') : 'N/A'}</td>
@@ -294,14 +360,16 @@ const GestionDEAs = () => {
         <Modal.Header closeButton>
           <Modal.Title>{currentDEA ? 'Editar DEA' : 'Registrar Nuevo DEA'}</Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} noValidate>
           <Modal.Body>
             <h5 className="mb-3">Información del Establecimiento</h5>
             <Row>
               <Col>
                 <Form.Group className="mb-3">
                   <Form.Label>Nombre del lugar*</Form.Label>
-                  <Form.Control type="text" name="nombre" value={formData.nombre} onChange={handleChange} required />
+                  <Form.Control type="text" name="nombre" value={formData.nombre} onChange={handleChange} isInvalid={!!errors.nombre} placeholder="Ej: Centro Comercial Talca" />
+                  <Form.Text muted>Solo letras (sin tildes), números y espacios.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.nombre}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
             </Row>
@@ -309,50 +377,55 @@ const GestionDEAs = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Calle*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="gl_instalacion_calle"
-                    value={formData.gl_instalacion_calle}
-                    onChange={handleChange}
-                    required
-                  />
+                  <Form.Control type="text" name="gl_instalacion_calle" value={formData.gl_instalacion_calle} onChange={handleChange} isInvalid={!!errors.gl_instalacion_calle} placeholder="Ej: Avenida San Miguel" />
+                  <Form.Text muted>Solo letras (sin tildes), números y espacios.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.gl_instalacion_calle}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
-              <Col md={3}>
+              <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Número</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="nr_instalacion_numero"
-                    value={formData.nr_instalacion_numero}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="text" name="nr_instalacion_numero" value={formData.nr_instalacion_numero} onChange={handleChange} isInvalid={!!errors.nr_instalacion_numero} placeholder="Ej: 742" />
+                  <Form.Text muted>Solo números. Opcional.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.nr_instalacion_numero}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
-              <Col md={3}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Comuna*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="gl_instalacion_comuna"
-                    value={formData.gl_instalacion_comuna}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-              </Col>
+            </Row>
+            <Row>
+                <Col>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Comuna*</Form.Label>
+                        <Select
+                            name="gl_instalacion_comuna"
+                            options={comunas.map(c => ({ value: c, label: c }))}
+                            value={formData.gl_instalacion_comuna ? { value: formData.gl_instalacion_comuna, label: formData.gl_instalacion_comuna } : null}
+                            onChange={option => {
+                                setFormData(prev => ({ ...prev, gl_instalacion_comuna: option ? option.value : '' }));
+                                if (errors.gl_instalacion_comuna) setErrors(prev => ({...prev, gl_instalacion_comuna: null}));
+                            }}
+                            isClearable
+                            isSearchable
+                            placeholder="Busca o selecciona una comuna"
+                            noOptionsMessage={() => "No se encontró la comuna"}
+                            styles={{ control: base => ({ ...base, borderColor: errors.gl_instalacion_comuna ? '#dc3545' : '#ced4da', '&:hover': { borderColor: errors.gl_instalacion_comuna ? '#dc3545' : '#80bdff' } })}}
+                        />
+                        {errors.gl_instalacion_comuna && <div className="text-danger mt-1" style={{fontSize: '0.875em'}}>{errors.gl_instalacion_comuna}</div>}
+                    </Form.Group>
+                </Col>
             </Row>
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Latitud*</Form.Label>
-                  <Form.Control type="number" step="any" name="lat" value={formData.lat} onChange={handleChange} required />
+                  <Form.Control type="number" step="any" name="lat" value={formData.lat} onChange={handleChange} isInvalid={!!errors.lat} placeholder="Ej: -35.123456" />
+                  <Form.Control.Feedback type="invalid">{errors.lat}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Longitud*</Form.Label>
-                  <Form.Control type="number" step="any" name="lng" value={formData.lng} onChange={handleChange} required />
+                  <Form.Control type="number" step="any" name="lng" value={formData.lng} onChange={handleChange} isInvalid={!!errors.lng} placeholder="Ej: -71.123456" />
+                  <Form.Control.Feedback type="invalid">{errors.lng}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
             </Row>
@@ -362,19 +435,17 @@ const GestionDEAs = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Nombre del Solicitante*</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="solicitante"
-                    value={formData.solicitante}
-                    onChange={handleChange}
-                    required
-                  />
+                  <Form.Control type="text" name="solicitante" value={formData.solicitante} onChange={handleChange} isInvalid={!!errors.solicitante} placeholder="Nombre completo" />
+                  <Form.Text muted>Solo letras (sin tildes) y espacios.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.solicitante}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>RUT del Solicitante*</Form.Label>
-                  <Form.Control type="text" name="rut" value={formData.rut} onChange={handleChange} required />
+                  <Form.Control type="text" name="rut" value={formData.rut} onChange={handleChange} isInvalid={!!errors.rut} placeholder="Ej: 12345678-9" />
+                  <Form.Text muted>Formato: 12345678-9.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.rut}</Form.Control.Feedback>
                 </Form.Group>
               </Col>
             </Row>
@@ -384,7 +455,7 @@ const GestionDEAs = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Estado del Trámite*</Form.Label>
-                  <Form.Select name="estado" value={formData.estado} onChange={handleChange} required>
+                  <Form.Select name="estado" value={formData.estado} onChange={handleChange}>
                     <option value="pendiente">Pendiente</option>
                     <option value="aprobado">Aprobado</option>
                     <option value="rechazado">Rechazado</option>

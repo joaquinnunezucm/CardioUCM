@@ -3,15 +3,26 @@ import axios from 'axios';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
-import { Modal, Button, Form, Table, Image, Badge } from 'react-bootstrap';
+import { Modal, Button, Form, Table, Image, Badge, Row, Col } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext.jsx';
+import {
+  isRequired,
+  isInteger,
+  minValue,
+  maxValue, // Nuevo
+  isDescriptiveText,
+  isSimpleAlphaWithSpaces, // Nuevo
+  isSlugWithoutNumbers, // Nuevo
+  isTitleText, // Nuevo
+  maxLength,
+} from '../utils/validators.js';
+
 
 const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const opcionesPasoAsociadoDefault = [
   { value: "", label: "Ninguno / General" },
-
 ];
 
 const GestionEducacion = () => {
@@ -35,6 +46,7 @@ const GestionEducacion = () => {
   });
 
   const [mediosParaModal, setMediosParaModal] = useState([]);
+  const [errors, setErrors] = useState({});
   const { token } = useAuth();
 
   const getAuthHeaders = (isFormData = true) => ({
@@ -53,7 +65,6 @@ const GestionEducacion = () => {
       }
       setTableInitialized(false);
       if (!token) {
-        console.warn("Token no disponible. Abortando carga de datos de gestión.");
         setLoading(false);
         return;
       }
@@ -74,7 +85,6 @@ const GestionEducacion = () => {
       setMediosExistentesPorContenido(mediosAgrupados);
 
     } catch (error) {
-      console.error('Error al obtener datos de gestión educativa:', error.response?.data || error.message);
       Swal.fire('Error', `No se pudieron cargar los datos para gestión. ${error.response?.data?.message || error.message}`, 'error');
     } finally {
       setLoading(false);
@@ -97,7 +107,7 @@ const GestionEducacion = () => {
           lengthMenu: 'Mostrar _MENU_ registros',
           info: 'Mostrando _START_ a _END_ de _TOTAL_ contenidos',
           paginate: { previous: 'Anterior', next: 'Siguiente' },
-          zeroRecords: 'No se encontraron contenidos educativos que coincidan con la búsqueda',
+          zeroRecords: 'No se encontraron contenidos educativos',
           infoEmpty: 'Mostrando 0 a 0 de 0 contenidos',
           infoFiltered: '(filtrado de _MAX_ contenidos totales)',
         },
@@ -139,6 +149,7 @@ const GestionEducacion = () => {
       });
       setMediosParaModal([]);
     }
+    setErrors({});
     setShowModal(true);
   };
 
@@ -155,10 +166,25 @@ const GestionEducacion = () => {
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : ((name === 'orden_categoria' || name === 'orden_item') ? (parseInt(value) || 0) : value)
-    }));
+    let finalValue = type === 'checkbox' ? checked : value;
+    
+    // Filtrado en tiempo real
+    switch(name) {
+      case 'categoria_id':
+        finalValue = value.toLowerCase().replace(/[^a-z-]/g, '');
+        break;
+      case 'categoria_nombre':
+        finalValue = value.replace(/[^a-zA-Z\s]/g, '');
+        break;
+      case 'titulo_tema':
+        finalValue = value.replace(/[^a-zA-Z0-9\s?!¡¿]/g, '');
+        break;
+    }
+
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
   const handleFileChange = (e) => {
@@ -180,9 +206,21 @@ const GestionEducacion = () => {
   const handleMedioFieldChange = (index, fieldName, value) => {
     setMediosParaModal(prev =>
       prev.map((medio, i) =>
-        i === index ? { ...medio, [fieldName]: fieldName === 'orden' ? parseInt(value) || 0 : value } : medio
+        i === index ? { ...medio, [fieldName]: value } : medio
       )
     );
+    if (errors.medios?.[index]?.[fieldName]) {
+        setErrors(prev => {
+          const newMediosErrors = [...(prev.medios || [])];
+          if (newMediosErrors[index]) {
+            delete newMediosErrors[index][fieldName];
+            if (Object.keys(newMediosErrors[index]).length === 0) {
+              delete newMediosErrors[index];
+            }
+          }
+          return {...prev, medios: newMediosErrors};
+        })
+    }
   };
 
   const handleRemoveMedioFromModal = (indexToRemove) => {
@@ -193,12 +231,55 @@ const GestionEducacion = () => {
     setMediosParaModal(prev => prev.filter((_, i) => i !== indexToRemove));
   };
 
+  const validate = () => {
+    const newErrors = {};
+    const { categoria_id, categoria_nombre, titulo_tema, contenido_tema, orden_categoria, orden_item } = formData;
+
+    const categoriaIdError = isRequired(categoria_id) || maxLength(50)(categoria_id) || isSlugWithoutNumbers(categoria_id);
+    if (categoriaIdError) newErrors.categoria_id = categoriaIdError;
+
+    const categoriaNombreError = isRequired(categoria_nombre) || maxLength(100)(categoria_nombre) || isSimpleAlphaWithSpaces(categoria_nombre);
+    if (categoriaNombreError) newErrors.categoria_nombre = categoriaNombreError;
+    
+    const tituloError = isRequired(titulo_tema) || maxLength(255)(titulo_tema) || isTitleText(titulo_tema);
+    if (tituloError) newErrors.titulo_tema = tituloError;
+
+    const contenidoError = isRequired(contenido_tema) || isDescriptiveText(contenido_tema);
+    if (contenidoError) newErrors.contenido_tema = contenidoError;
+
+    const ordenCatError = isRequired(String(orden_categoria)) || isInteger(String(orden_categoria)) || minValue(0)(orden_categoria) || maxValue(20)(orden_categoria);
+    if (ordenCatError) newErrors.orden_categoria = ordenCatError;
+
+    const ordenItemError = isRequired(String(orden_item)) || isInteger(String(orden_item)) || minValue(0)(orden_item) || maxValue(20)(orden_item);
+    if (ordenItemError) newErrors.orden_item = ordenItemError;
+
+    const mediosErrors = [];
+    mediosParaModal.forEach((medio, index) => {
+        const medioError = {};
+        const subtituloError = maxLength(255)(medio.subtitulo_medio) || isDescriptiveText(medio.subtitulo_medio);
+        if (subtituloError) medioError.subtitulo_medio = subtituloError;
+        
+        const ordenError = isRequired(String(medio.orden)) || isInteger(String(medio.orden)) || minValue(0)(medio.orden) || maxValue(20)(medio.orden);
+        if(ordenError) medioError.orden = ordenError;
+        
+        if(Object.keys(medioError).length > 0) {
+            mediosErrors[index] = medioError;
+        }
+    });
+    if(mediosErrors.some(e => e !== undefined)) newErrors.medios = mediosErrors;
+
+    return newErrors;
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { categoria_id, categoria_nombre, titulo_tema, contenido_tema } = formData;
-    if (!categoria_id.trim() || !categoria_nombre.trim() || !titulo_tema.trim() || !contenido_tema.trim()) {
-      Swal.fire('Campos incompletos', 'Los campos: Categoría (ID y Nombre), Título del Tema y Contenido del Tema son obligatorios.', 'warning');
-      return;
+    setErrors({});
+
+    const formErrors = validate();
+    if(Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        Swal.fire('Formulario Incompleto', 'Por favor, corrige los errores marcados en el formulario.', 'error');
+        return;
     }
 
     const formDataToSend = new FormData();
@@ -218,9 +299,7 @@ const GestionEducacion = () => {
     });
 
     if (currentContenido) {
-      const mediosExistentesAConservarIds = mediosParaModal
-        .filter(m => !m.esNuevo && m.id)
-        .map(m => m.id);
+      const mediosExistentesAConservarIds = mediosParaModal.filter(m => !m.esNuevo && m.id).map(m => m.id);
       formDataToSend.append('medios_existentes_ids_a_conservar', JSON.stringify(mediosExistentesAConservarIds));
 
       const datosMediosExistentes = {};
@@ -231,8 +310,6 @@ const GestionEducacion = () => {
           orden: m.orden || 0,
         };
       });
-
-   
 
       formDataToSend.append('datos_medios_existentes', JSON.stringify(datosMediosExistentes));
       formDataToSend.append('pasos_asociados_nuevos_medios', JSON.stringify(pasosAsociadosNuevosMedios));
@@ -332,10 +409,10 @@ const GestionEducacion = () => {
               <tr>
                 <th>Título del Tema</th>
                 <th>Categoría</th>
-                <th className="text-center" style={{width: '10%'}}>Orden Cat.</th>
-                <th className="text-center" style={{width: '10%'}}>Orden Item</th>
-                <th className="text-center" style={{width: '8%'}}>Activo</th>
-                <th className="text-center" style={{width: '120px'}}>Acciones</th>
+                <th className="text-center" style={{width:'10%'}}>Orden Cat.</th>
+                <th className="text-center" style={{width:'10%'}}>Orden Item</th>
+                <th className="text-center" style={{width:'8%'}}>Activo</th>
+                <th className="text-center" style={{width:'120px'}}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -371,115 +448,71 @@ const GestionEducacion = () => {
         <Modal.Header closeButton>
           <Modal.Title>{currentContenido ? 'Editar Contenido Educativo' : 'Crear Nuevo Contenido Educativo'}</Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} noValidate>
           <Modal.Body>
-            <div className="row">
-              <div className="col-md-6">
+            <Row>
+              <Col md={6}>
                 <Form.Group className="mb-3" controlId="formCategoriaId">
-                  <Form.Label>ID Categoría <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="categoria_id"
-                    value={formData.categoria_id}
-                    onChange={handleFormChange}
-                    placeholder="ej: rcp-adultos"
-                    required
-                  />
+                  <Form.Label>ID Categoría*</Form.Label>
+                  <Form.Control type="text" name="categoria_id" value={formData.categoria_id} onChange={handleFormChange} placeholder="ej: rcp-adultos" isInvalid={!!errors.categoria_id} />
+                  <Form.Text muted>Solo minúsculas y guiones (ej: mi-categoria).</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.categoria_id}</Form.Control.Feedback>
                 </Form.Group>
-              </div>
-              <div className="col-md-6">
+              </Col>
+              <Col md={6}>
                 <Form.Group className="mb-3" controlId="formCategoriaNombre">
-                  <Form.Label>Nombre Categoría <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="categoria_nombre"
-                    value={formData.categoria_nombre}
-                    onChange={handleFormChange}
-                    placeholder="ej: RCP en Adultos"
-                    required
-                  />
+                  <Form.Label>Nombre Categoría*</Form.Label>
+                  <Form.Control type="text" name="categoria_nombre" value={formData.categoria_nombre} onChange={handleFormChange} placeholder="ej: RCP en Adultos" isInvalid={!!errors.categoria_nombre} />
+                  <Form.Text muted>Solo letras y espacios (sin tildes, números o símbolos).</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.categoria_nombre}</Form.Control.Feedback>
                 </Form.Group>
-              </div>
-            </div>
+              </Col>
+            </Row>
             <Form.Group className="mb-3" controlId="formTituloTema">
-              <Form.Label>Título del Tema <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="text"
-                name="titulo_tema"
-                value={formData.titulo_tema}
-                onChange={handleFormChange}
-                placeholder="ej: ¿Cómo realizar RCP?"
-                required
-              />
+              <Form.Label>Título del Tema*</Form.Label>
+              <Form.Control type="text" name="titulo_tema" value={formData.titulo_tema} onChange={handleFormChange} placeholder="ej: Como realizar RCP?" isInvalid={!!errors.titulo_tema} />
+              <Form.Text muted>Letras, números, espacios y signos de interrogación/exclamación.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.titulo_tema}</Form.Control.Feedback>
             </Form.Group>
             <Form.Group className="mb-3" controlId="formContenidoTema">
-              <Form.Label>Contenido del Tema <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={6}
-                name="contenido_tema"
-                value={formData.contenido_tema}
-                onChange={handleFormChange}
-                placeholder="Describe el tema. Puedes usar HTML básico (p, ul, ol, li, a, strong, em, br)."
-                required
-              />
+              <Form.Label>Contenido del Tema*</Form.Label>
+              <Form.Control as="textarea" rows={6} name="contenido_tema" value={formData.contenido_tema} onChange={handleFormChange} placeholder="Describe el tema." isInvalid={!!errors.contenido_tema} />
+              <Form.Text muted>Texto descriptivo.</Form.Text>
+              <Form.Control.Feedback type="invalid">{errors.contenido_tema}</Form.Control.Feedback>
             </Form.Group>
-            <div className="row">
-              <div className="col-md-4">
+            <Row>
+              <Col md={4}>
                 <Form.Group className="mb-3" controlId="formOrdenCategoria">
-                  <Form.Label>Orden Categoría</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="orden_categoria"
-                    value={formData.orden_categoria}
-                    onChange={handleFormChange}
-                    min="0"
-                  />
+                  <Form.Label>Orden Categoría*</Form.Label>
+                  <Form.Control type="number" name="orden_categoria" value={formData.orden_categoria} onChange={handleFormChange} min="0" isInvalid={!!errors.orden_categoria} />
+                  <Form.Text muted>Valor numérico entre 0 y 20.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.orden_categoria}</Form.Control.Feedback>
                 </Form.Group>
-              </div>
-              <div className="col-md-4">
+              </Col>
+              <Col md={4}>
                 <Form.Group className="mb-3" controlId="formOrdenItem">
-                  <Form.Label>Orden Ítem dentro de Categoría</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="orden_item"
-                    value={formData.orden_item}
-                    onChange={handleFormChange}
-                    min="0"
-                  />
+                  <Form.Label>Orden Ítem*</Form.Label>
+                  <Form.Control type="number" name="orden_item" value={formData.orden_item} onChange={handleFormChange} min="0" isInvalid={!!errors.orden_item} />
+                  <Form.Text muted>Valor numérico entre 0 y 20.</Form.Text>
+                  <Form.Control.Feedback type="invalid">{errors.orden_item}</Form.Control.Feedback>
                 </Form.Group>
-              </div>
-              <div className="col-md-4 align-self-center pt-3">
-                <Form.Group className="mb-3" controlId="formActivo">
-                  <Form.Check
-                    type="checkbox"
-                    name="activo"
-                    checked={formData.activo}
-                    onChange={handleFormChange}
-                    label="Este contenido está Activo y visible"
-                  />
-                </Form.Group>
-              </div>
-            </div>
+              </Col>
+              <Col md={4} className="align-self-center pt-3">
+                <Form.Check type="checkbox" name="activo" checked={formData.activo} onChange={handleFormChange} label="Este contenido está Activo y visible" />
+              </Col>
+            </Row>
 
             <hr className="my-4"/>
             <h5><i className="fas fa-photo-video me-2"></i>Gestión de Medios Asociados</h5>
             <Form.Group className="mb-3" controlId="formNuevosMedios">
               <Form.Label>Subir Nuevos Archivos (Imágenes o Videos)</Form.Label>
-              <Form.Control
-                type="file"
-                accept="image/jpeg,image/png,image/gif,video/mp4,video/mov"
-                onChange={handleFileChange}
-                multiple
-              />
-              <Form.Text className="text-muted">
-                Selecciona uno o varios archivos. Luego podrás asignarles un subtítulo y un orden en la tabla de abajo.
-              </Form.Text>
+              <Form.Control type="file" accept="image/jpeg,image/png,image/gif,video/mp4,video/mov" onChange={handleFileChange} multiple />
+              <Form.Text className="text-muted">Selecciona uno o varios archivos. Luego podrás asignarles un subtítulo y un orden.</Form.Text>
             </Form.Group>
 
             {mediosParaModal.length > 0 && (
               <div className="table-responsive mt-3 border rounded p-2">
-                <h6>Medios Actuales y Nuevos para este Contenido:</h6>
+                <h6>Medios para este Contenido:</h6>
                 <Table striped bordered hover responsive size="sm" className="mt-2">
                   <thead className="table-light">
                     <tr>
@@ -487,7 +520,7 @@ const GestionEducacion = () => {
                       <th>Nombre Archivo</th>
                       <th style={{width:'200px'}}>Paso Asociado</th>
                       <th style={{width:'220px'}}>Subtítulo del Medio</th>
-                      <th style={{width:'80px'}} className="text-center">Orden</th>
+                      <th style={{width:'80px'}} className="text-center">Orden*</th>
                       <th style={{width:'80px'}} className="text-center">Acción</th>
                     </tr>
                   </thead>
@@ -525,10 +558,12 @@ const GestionEducacion = () => {
                           <Form.Control
                             type="text"
                             size="sm"
-                            placeholder="Subtítulo (ej: Posición de manos)"
+                            placeholder="Subtítulo (opcional)"
                             value={medio.subtitulo_medio || ''}
                             onChange={(e) => handleMedioFieldChange(index, 'subtitulo_medio', e.target.value)}
+                            isInvalid={!!errors.medios?.[index]?.subtitulo_medio}
                           />
+                          <Form.Control.Feedback type="invalid">{errors.medios?.[index]?.subtitulo_medio}</Form.Control.Feedback>
                         </td>
                         <td className="text-center align-middle">
                           <Form.Control
@@ -537,7 +572,9 @@ const GestionEducacion = () => {
                             min="0"
                             value={medio.orden || 0}
                             onChange={(e) => handleMedioFieldChange(index, 'orden', e.target.value)}
+                            isInvalid={!!errors.medios?.[index]?.orden}
                           />
+                           <Form.Control.Feedback type="invalid">{errors.medios?.[index]?.orden}</Form.Control.Feedback>
                         </td>
                         <td className="text-center align-middle">
                           <Button
