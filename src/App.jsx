@@ -23,6 +23,7 @@ import GestionEducacion from './pages/GestionEducacion';
 import GestionRCP from './pages/GestionRCP'; 
 import GestionContactanos from './pages/GestionContactanos';
 import Reportes from './pages/Reportes';
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 // --- Componente Wrapper para Contenido Interno de Páginas de Admin ---
 // Este wrapper añade el content-header (título, breadcrumbs) y la section.content
@@ -94,6 +95,7 @@ function AppContent() {
       <Route path="/dea" element={<UbicacionDEA_Public />} />
       <Route path="/contáctanos" element={<Contáctanos_Public />} />
       <Route path="/faq" element={<FAQ_Public />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
       {/* --- Rutas de Administración --- */}
       <Route
@@ -120,6 +122,7 @@ function AppContent() {
         <Route path="gestion-rcp" element={<GestionRCP />} /> 
         <Route path="gestion-contactanos" element={<GestionContactanos />} /> 
         <Route path="reportes" element={<Reportes />} />
+        
         
         <Route
           path="control-usuarios"

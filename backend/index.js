@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 
 dotenv.config();
 
@@ -93,6 +94,86 @@ app.get('/ping', async (req, res) => {
     res.json({ conectado: true, resultado: rows });
   } catch (error) {
     res.status(500).json({ conectado: false, error: error.message });
+  }
+});
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// ...existing code...
+const crypto = require('crypto');
+
+// Guardar tokens de reseteo en memoria (para producción, usa DB)
+const resetTokens = {};
+
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email requerido.' });
+
+  try {
+    const [rows] = await db.query('SELECT id, nombre FROM usuarios WHERE email = ?', [email]);
+    if (rows.length === 0) {
+      // No revelar si el email existe
+      return res.json({ message: 'Si el correo existe, se enviará un enlace de recuperación.' });
+    }
+    const user = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = Date.now() + 1000 * 60 * 30; // 30 minutos
+
+    resetTokens[token] = { userId: user.id, expires };
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+    await transporter.sendMail({
+      from: `"CardioUCM" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Recuperación de contraseña',
+      html: `<p>Hola ${user.nombre},</p>
+        <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
+        <a href="${resetUrl}">${resetUrl}</a>
+        <p>Este enlace expirará en 30 minutos.</p>`,
+    });
+
+    res.json({ message: 'Si el correo existe, se enviará un enlace de recuperación.' });
+  } catch (err) {
+    console.error('Error en forgot-password:', err);
+    res.status(500).json({ message: 'Error enviando el correo de recuperación.' });
+  }
+});
+
+
+// ...existing code...
+app.get('/api/validate-reset-token/:token', (req, res) => {
+  const { token } = req.params;
+  const data = resetTokens[token];
+  if (!data || data.expires < Date.now()) {
+    return res.status(400).json({ message: 'Token inválido o expirado.' });
+  }
+  res.json({ valid: true });
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  const data = resetTokens[token];
+  if (!data || data.expires < Date.now()) {
+    return res.status(400).json({ message: 'Token inválido o expirado.' });
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: 'Contraseña muy corta.' });
+  }
+  try {
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, data.userId]);
+    delete resetTokens[token];
+    res.json({ message: 'Contraseña restablecida correctamente.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al restablecer la contraseña.' });
   }
 });
 

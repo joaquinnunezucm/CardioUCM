@@ -64,7 +64,7 @@ function Login() {
           className="bg-white p-8 rounded-lg shadow-xl w-96 relative z-10" // Añadido rounded-lg, shadow-xl, z-10
           onSubmit={handleLogin}
         >
-          <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login Admin</h2>
+          <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
 
           {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
@@ -120,6 +120,53 @@ function Login() {
             ) : 'Iniciar sesión'}
           </button>
         </form>
+        {showForgotPasswordModal && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+      <h3 className="text-lg font-bold mb-4 text-center">Recuperar contraseña</h3>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const emailValue = e.target.email.value;
+          try {
+            await fetch("http://localhost:3001/api/forgot-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: emailValue }),
+            });
+            alert("Si el correo existe, recibirás un enlace para restablecer tu contraseña.");
+            setShowForgotPasswordModal(false);
+          } catch {
+            alert("No se pudo enviar el correo. Intenta más tarde.");
+          }
+        }}
+      >
+        <input
+          type="email"
+          name="email"
+          className="w-full p-3 border border-gray-300 rounded-md mb-4"
+          placeholder="Tu correo electrónico"
+          required
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="px-4 py-2 bg-gray-300 rounded"
+            onClick={() => setShowForgotPasswordModal(false)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Enviar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
       </div>
       
       
