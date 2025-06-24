@@ -1,3 +1,5 @@
+// RUTA: src/main.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
@@ -9,27 +11,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Lógica para manejar el Service Worker específicamente para desarrollo
+// Tu lógica del Service Worker permanece sin cambios.
 if (process.env.NODE_ENV === 'development') {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
       for(let registration of registrations) {
-        registration.unregister()
-          .then(() => console.log('Service Worker desregistrado en desarrollo para la ruta:', registration.scope))
-          .catch(err => console.error('Error desregistrando Service Worker en desarrollo:', err));
+        registration.unregister();
       }
-    }).catch(err => console.error('Error obteniendo registros de Service Worker:', err));
+    });
   }
-} else { // Modo producción: registrar el Service Worker normalmente
+} else {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js') // Asegúrate que esta ruta sea correcta
-        .then(registration => {
-          console.log('✅ Service Worker registrado con éxito:', registration.scope);
-        })
-        .catch(error => {
-          console.error('❌ Error al registrar el Service Worker:', error);
-        });
+      navigator.serviceWorker.register('/service-worker.js');
     });
   }
 }

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents  } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import axios from 'axios';
@@ -329,17 +329,43 @@ const UbicacionDEA = () => {
     }
   };
 
-  const focusMarkerYRuta = (id, lat, lng) => {
-    setCenter([parseFloat(lat), parseFloat(lng)]);
-    setDestinoRuta([parseFloat(lat), parseFloat(lng)]);
-    setTimeout(() => { markersRef.current[id]?.openPopup(); }, 300);
-  };
+const focusMarkerYRuta = (id, lat, lng) => {
+  // 1. "Despertamos" la API de voz primero, para que esté lista.
+  // Esto es crucial para que la guía por voz funcione al primer clic.
+  if (window.speechSynthesis) {
+    const utter = new SpeechSynthesisUtterance(' '); // Sonido silencioso
+    window.speechSynthesis.speak(utter);
+  }
+
+  // 2. Centramos el mapa en el marcador del DEA.
+  setCenter([parseFloat(lat), parseFloat(lng)]);
+
+  // 3. Establecemos el destino para que RoutingControl dibuje la ruta.
+  setDestinoRuta([parseFloat(lat), parseFloat(lng)]);
+
+  // 4. Activamos la guía por voz para la ruta que se va a crear.
+  setVozActiva(true);
+
+  // 5. Abrimos el popup del marcador correspondiente en el mapa.
+  // La pequeña demora asegura que el mapa haya tenido tiempo de centrarse.
+  setTimeout(() => {
+    markersRef.current[id]?.openPopup();
+  }, 300);
+};
 
   const mapButtonStyle = {
     position: 'absolute', zIndex: 1000, border: 'none', borderRadius: '5px',
     padding: '10px 15px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     fontSize: '14px',
   };
+
+    const fromPoint = useMemo(() => {
+    return userLocation; // userLocation ya es un array [lat, lng] o null
+  }, [userLocation]);
+
+  const toPoint = useMemo(() => {
+    return destinoRuta; // destinoRuta ya es un array [lat, lng] o null
+  }, [destinoRuta]);
 
   return (
     <div className="relative min-h-screen">
@@ -395,11 +421,17 @@ const UbicacionDEA = () => {
                     <br />
                     {d.direccion}
                     {userLocation && (
-                      <Button
+                     <Button
                         size="sm"
                         variant="primary"
                         className="mt-2"
                         onClick={() => {
+                          // 1. "Despertamos" la API de voz con un sonido silencioso INMEDIATAMENTE al hacer clic.
+                          // Esto satisface la política de autoplay del navegador.
+                          const utter = new SpeechSynthesisUtterance(' '); // Un espacio en blanco es suficiente.
+                          window.speechSynthesis.speak(utter);
+
+                          // 2. Luego, actualizamos el estado como antes.
                           setDestinoRuta([parseFloat(d.lat), parseFloat(d.lng)]);
                           setVozActiva(true);
                         }}
@@ -410,15 +442,11 @@ const UbicacionDEA = () => {
                   </Popup>
                 </Marker>
               ))}
-              {userLocation && destinoRuta && (
+              {fromPoint && toPoint && (
                 <RoutingControl
-                  from={userLocation}
-                  to={destinoRuta}
+                  from={fromPoint}
+                  to={toPoint}
                   vozActiva={vozActiva}
-                  onDetenerRuta={() => {
-                    setDestinoRuta(null);
-                    setVozActiva(false);
-                  }}
                 />
               )}
 
