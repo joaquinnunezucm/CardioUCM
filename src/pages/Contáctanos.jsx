@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FaInstagram, FaEnvelope, FaGlobe, FaPhone, FaFacebook, FaTwitter, FaInfoCircle } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import BackButton from '../pages/BackButton.jsx';
+import DOMPurify from 'dompurify';
 
 // Mapeo de nombres de iconos a componentes
 const iconComponents = {
@@ -20,9 +21,11 @@ const HtmlRenderer = ({ htmlString }) => {
   if (typeof htmlString !== 'string') return null;
 
   const containsHTML = /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/s.test(htmlString);
-  const formattedText = containsHTML ? htmlString : htmlString.replace(/\n/g, '<br />');
+  const cleanedText = DOMPurify.sanitize(
+    containsHTML ? htmlString : htmlString.replace(/\n/g, '<br />')
+  );
 
-  return <div dangerouslySetInnerHTML={{ __html: formattedText }} />;
+  return <span dangerouslySetInnerHTML={{ __html: cleanedText }} />;
 };
 
 const Contactanos = () => {
@@ -95,60 +98,72 @@ const Contactanos = () => {
     );
   };
 
-  const renderItemValue = (item) => {
-    switch (item.tipo_dato) {
-      case 'email':
+const renderItemValue = (item) => {
+  switch (item.tipo_dato) {
+    case 'email':
+      return (
+        <a
+          href={`mailto:${encodeURIComponent(item.valor)}`}
+          className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+          onClick={(e) => {
+            e.stopPropagation(); // Evita la propagación al contenedor padre
+            console.log('Email link clicked:', {
+              valor: item.valor,
+              etiqueta: item.etiqueta,
+              href: `mailto:${encodeURIComponent(item.valor)}`
+            }); // Debug: Log para verificar
+            if (!item.valor.includes('@')) {
+              e.preventDefault();
+              alert('La dirección de correo no es válida.');
+            }
+          }}
+        >
+          {item.etiqueta}
+        </a>
+      );
+    case 'telefono':
+      return (
+        <a
+          href={`tel:${item.valor}`}
+          className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+        >
+          <HtmlRenderer htmlString={item.etiqueta} />
+        </a>
+      );
+    case 'instagram':
+    case 'facebook':
+    case 'twitter':
+    case 'enlace_web':
+      if (item.valor.startsWith('/')) {
         return (
-          <a
-            href={`mailto:${item.valor}`}
+          <Link
+            to={item.valor}
             className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
           >
             <HtmlRenderer htmlString={item.etiqueta} />
-          </a>
+          </Link>
         );
-      case 'telefono':
-        return (
-          <a
-            href={`tel:${item.valor}`}
-            className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
-          >
-            <HtmlRenderer htmlString={item.etiqueta} />
-          </a>
-        );
-      case 'instagram':
-      case 'facebook':
-      case 'twitter':
-      case 'enlace_web':
-        if (item.valor.startsWith('/')) {
-          return (
-            <Link
-              to={item.valor}
-              className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
-            >
-              <HtmlRenderer htmlString={item.etiqueta} />
-            </Link>
-          );
-        }
-        return (
-          <a
-            href={item.valor}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
-          >
-            <HtmlRenderer htmlString={item.etiqueta} />
-          </a>
-        );
-      case 'texto_simple':
-        return (
-          <div className="text-gray-800 text-sm xs:text-base sm:text-base md:text-lg leading-relaxed">
-            <HtmlRenderer htmlString={item.valor} />
-          </div>
-        );
-      default:
-        return <HtmlRenderer htmlString={item.etiqueta} />;
-    }
-  };
+      }
+      return (
+        <a
+          href={item.valor}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+        >
+          <HtmlRenderer htmlString={item.etiqueta} />
+        </a>
+      );
+    case 'texto_simple':
+      return (
+        <div className="text-gray-800 text-sm xs:text-base sm:text-base md:text-lg leading-relaxed">
+          <HtmlRenderer htmlString={item.valor} />
+        </div>
+      );
+    default:
+      return <HtmlRenderer htmlString={item.etiqueta} />;
+  }
+};
 
   if (loading) {
     return (

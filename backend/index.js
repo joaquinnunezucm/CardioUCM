@@ -8,6 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 dotenv.config();
 
@@ -107,77 +108,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ...existing code...
-const crypto = require('crypto');
-
-// Guardar tokens de reseteo en memoria (para producción, usa DB)
-const resetTokens = {};
-
-app.post('/api/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: 'Email requerido.' });
-
-  try {
-    const [rows] = await db.query('SELECT id, nombre FROM usuarios WHERE email = ?', [email]);
-    if (rows.length === 0) {
-      // No revelar si el email existe
-      return res.json({ message: 'Si el correo existe, se enviará un enlace de recuperación.' });
-    }
-    const user = rows[0];
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = Date.now() + 1000 * 60 * 30; // 30 minutos
-
-    resetTokens[token] = { userId: user.id, expires };
-
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
-    await transporter.sendMail({
-      from: `"CardioUCM" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Recuperación de contraseña',
-      html: `<p>Hola ${user.nombre},</p>
-        <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>Este enlace expirará en 30 minutos.</p>`,
-    });
-
-    res.json({ message: 'Si el correo existe, se enviará un enlace de recuperación.' });
-  } catch (err) {
-    console.error('Error en forgot-password:', err);
-    res.status(500).json({ message: 'Error enviando el correo de recuperación.' });
-  }
-});
 
 
-// ...existing code...
-app.get('/api/validate-reset-token/:token', (req, res) => {
-  const { token } = req.params;
-  const data = resetTokens[token];
-  if (!data || data.expires < Date.now()) {
-    return res.status(400).json({ message: 'Token inválido o expirado.' });
-  }
-  res.json({ valid: true });
-});
-
-app.post('/api/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
-  const data = resetTokens[token];
-  if (!data || data.expires < Date.now()) {
-    return res.status(400).json({ message: 'Token inválido o expirado.' });
-  }
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ message: 'Contraseña muy corta.' });
-  }
-  try {
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, data.userId]);
-    delete resetTokens[token];
-    res.json({ message: 'Contraseña restablecida correctamente.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Error al restablecer la contraseña.' });
-  }
-});
-
-// Login
+// --- ENDPOINT DE LOGIN ---
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -200,6 +133,7 @@ app.post('/login', async (req, res) => {
     }
     const passwordIsValid = await bcrypt.compare(password, user.hashedPassword);
     if (passwordIsValid) {
+      // Permitir acceso a administradores y superadministradores
       if (user.rol === 'administrador' || user.rol === 'superadministrador') {
         const { hashedPassword, ...userData } = user;
         const tokenPayload = {
@@ -211,7 +145,7 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign(
           tokenPayload,
           process.env.JWT_SECRET,
-          { expiresIn: '1h' }
+          { expiresIn: '1h' } // Token expira en 1 hora
         );
         return res.json({
           message: 'Login exitoso',
@@ -219,6 +153,7 @@ app.post('/login', async (req, res) => {
           token: token
         });
       } else {
+        // Si el rol no es admin o superadmin, no se le permite el acceso al panel.
         return res.status(403).json({ message: 'No tiene permisos para acceder a esta área.' });
       }
     } else {
@@ -229,6 +164,130 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Error interno en el servidor durante el login.' });
   }
 });
+
+
+// --- ENDPOINTS DE RECUPERACIÓN DE CONTRASEÑA ---
+
+// 1. RUTA PARA SOLICITAR EL CORREO DE RECUPERACIÓN
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: 'Email requerido.' });
+  }
+
+  try {
+    const [rows] = await db.query('SELECT id, nombre FROM usuarios WHERE email = ?', [email]);
+    
+    // IMPORTANTE: Incluso si no se encuentra el usuario, devolvemos un mensaje genérico
+    // para no revelar qué correos están registrados en el sistema.
+    if (rows.length === 0) {
+      console.log(`Solicitud de reseteo para email no registrado: ${email}`);
+      return res.json({ message: 'Si su correo electrónico está registrado, recibirá un enlace para restablecer la contraseña.' });
+    }
+
+    const user = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires_at = new Date(Date.now() + 1000 * 60 * 30); // Válido por 30 minutos
+
+    // Insertamos el token en nuestra nueva tabla `password_reset_tokens`
+    await db.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+      [user.id, token, expires_at]
+    );
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+    
+    await transporter.sendMail({
+      from: `"CardioUCM" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Recuperación de contraseña',
+      html: `<p>Hola ${user.nombre},</p>
+             <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para continuar:</p>
+             <a href="${resetUrl}">${resetUrl}</a>
+             <p>Este enlace es válido por 30 minutos. Si no solicitaste este cambio, puedes ignorar este correo.</p>`,
+    });
+
+    res.json({ message: 'Si su correo electrónico está registrado, recibirá un enlace para restablecer la contraseña.' });
+
+  } catch (err) {
+    console.error('Error en /api/forgot-password:', err);
+    res.status(500).json({ message: 'Error interno del servidor al procesar su solicitud.' });
+  }
+});
+
+// 2. RUTA PARA VALIDAR SI UN TOKEN ES VÁLIDO (usada por ResetPasswordPage.jsx)
+app.get('/api/validate-reset-token/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    const [rows] = await db.query(
+      'SELECT id FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
+      [token]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ message: 'Token inválido o expirado.', valid: false });
+    }
+
+    res.json({ valid: true });
+
+  } catch (error) {
+    console.error('Error al validar token:', error);
+    res.status(500).json({ message: 'Error interno al validar el token.', valid: false });
+  }
+});
+
+// 3. RUTA PARA EFECTUAR EL CAMBIO DE CONTRASEÑA
+app.post('/api/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: 'Se requiere un token y una contraseña válida (mínimo 6 caracteres).' });
+  }
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const [tokenRows] = await connection.query(
+      'SELECT user_id, id FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
+      [token]
+    );
+
+    if (tokenRows.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Tu solicitud ha expirado o el token es inválido. Por favor, solicita un nuevo enlace.' });
+    }
+    
+    const { user_id: userId, id: tokenId } = tokenRows[0];
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await connection.query(
+      'UPDATE usuarios SET password = ? WHERE id = ?',
+      [hashedPassword, userId]
+    );
+
+    await connection.query('DELETE FROM password_reset_tokens WHERE id = ?', [tokenId]);
+
+    await connection.commit();
+
+    res.json({ message: 'Tu contraseña ha sido restablecida correctamente. Ya puedes iniciar sesión.' });
+
+  } catch (err) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error en /api/reset-password:', err);
+    res.status(500).json({ message: 'Error interno al restablecer la contraseña.' });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+
 
 // --- CRUD DE USUARIOS ---
 const rolesAdminNivel = ['administrador', 'superadministrador'];
@@ -1402,6 +1461,7 @@ app.get('/api/obtener-clics', autenticarYAutorizar(rolesAdminNivel), async (req,
 });
 
 // --- RUTAS DE DEAs (Gestión y Públicas ) ---
+// RUTA PÚBLICA: Obtiene los DEAs aprobados para mostrar en el mapa
 app.get('/defibriladores', async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -1431,6 +1491,7 @@ app.get('/defibriladores', async (req, res) => {
   }
 });
 
+// RUTA PÚBLICA: Obtiene la lista de comunas para el formulario de sugerencia
 app.get('/api/comunas', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT nombre FROM comunas ORDER BY nombre ASC');
@@ -1440,32 +1501,43 @@ app.get('/api/comunas', async (req, res) => {
   }
 });
 
+// RUTA PÚBLICA: Recibe nuevas sugerencias de DEA (MODIFICADA)
 app.post('/solicitudes-dea', async (req, res) => {
   const { 
-    nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna: comunaNombre,
-    lat, lng, solicitante, rut
+    nombre, gl_instalacion_calle, nr_instalacion_numero, 
+    gl_instalacion_comuna: comunaNombre, lat, lng, 
+    solicitante, rut, email, terms_accepted 
   } = req.body;
 
-  if (!nombre || !gl_instalacion_calle || !comunaNombre || !lat || !lng || !solicitante || !rut) {
-    return res.status(400).json({ mensaje: 'Faltan datos obligatorios: nombre, calle, comuna, lat, lng, solicitante, rut.' });
+  if (!nombre || !gl_instalacion_calle || !comunaNombre || !lat || !lng || !solicitante || !rut || !email) {
+    return res.status(400).json({ mensaje: 'Faltan datos obligatorios: nombre, calle, comuna, lat, lng, solicitante, rut y email.' });
   }
+
+  if (terms_accepted !== true) {
+    return res.status(400).json({ mensaje: 'Debe aceptar los términos y condiciones para continuar.' });
+  }
+  
   try {
     const [comunaRows] = await db.query('SELECT id FROM comunas WHERE nombre = ?', [comunaNombre]);
     if (comunaRows.length === 0) {
       return res.status(400).json({ mensaje: `La comuna '${comunaNombre}' no es válida, ingrese el nombre correctamente.` });
     }
     const comunaId = comunaRows[0].id;
-    const valoresParaInsertar = [
-      nombre, gl_instalacion_calle, 
-      (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
-      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut
-    ];
+
     const sqlQuery = `
       INSERT INTO tramites (
         gl_nombre_fantasia, gl_instalacion_calle, nr_instalacion_numero, comuna_id, 
         gl_instalacion_latitud, gl_instalacion_longitud, gl_solicitante_nombre, gl_solicitante_rut, 
+        email, terms_accepted,
         nr_equipos_cantidad, bo_activo, bo_eliminado, estado, fc_creacion, fc_actualiza
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 'N', 'pendiente', NOW(), NOW())`;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 'N', 'pendiente', NOW(), NOW())`;
+      
+    const valoresParaInsertar = [
+      nombre, gl_instalacion_calle, 
+      (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
+      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut, email, 1
+    ];
+
     const [result] = await db.query(sqlQuery, valoresParaInsertar);
     res.status(201).json({ mensaje: 'Solicitud de DEA registrada exitosamente.', id_tramite: result.insertId });
   } catch (error) {
@@ -1474,6 +1546,7 @@ app.post('/solicitudes-dea', async (req, res) => {
   }
 });
 
+// RUTA ADMIN: Obtiene las solicitudes pendientes para el dashboard de admin
 app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -1484,10 +1557,11 @@ app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, r
         c.nombre AS gl_instalacion_comuna, 
         t.gl_instalacion_latitud AS lat, t.gl_instalacion_longitud AS lng, 
         t.gl_solicitante_nombre AS solicitante, t.gl_solicitante_rut AS rut, 
+        t.email,
         t.fc_creacion, t.estado
       FROM tramites t
       JOIN comunas c ON t.comuna_id = c.id
-      WHERE (t.estado = 'pendiente' OR t.estado IS NULL) AND t.bo_eliminado = 'N' 
+      WHERE (t.estado = 'pendiente') AND t.bo_eliminado = 'N' 
       ORDER BY t.fc_creacion DESC
     `);
     res.json(rows);
@@ -1497,42 +1571,69 @@ app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, r
   }
 });
 
+// RUTA ADMIN: Aprueba una solicitud y envía notificación (MODIFICADA)
 app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
-    const [solicitudRows] = await db.query("SELECT estado FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);
+    const [solicitudRows] = await db.query("SELECT estado, email, gl_nombre_fantasia FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);
     if (solicitudRows.length === 0) {
       return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
     }
-    const solicitudActual = solicitudRows[0];
-    if (solicitudActual.estado !== 'pendiente' && solicitudActual.estado !== null) {
-        return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitudActual.estado}' y no puede ser aprobada.` });
+    
+    const solicitud = solicitudRows[0];
+    if (solicitud.estado !== 'pendiente') {
+      return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitud.estado}' y no puede ser aprobada.` });
     }
+
     const cantidadFinalAprobada = 1;
     const [result] = await db.query(
       "UPDATE tramites SET bo_activo = 1, estado = 'aprobado', nr_equipos_cantidad = ?, fc_actualiza = NOW() WHERE id_tramite = ?",
       [cantidadFinalAprobada, id]
     );
+
     if (result.affectedRows === 0) { 
       return res.status(409).json({ mensaje: 'No se pudo actualizar la solicitud.' });
     }
-    res.json({ mensaje: 'Solicitud de DEA aprobada exitosamente.', equipos_aprobados: cantidadFinalAprobada });
+
+    if (solicitud.email) {
+      try {
+        await transporter.sendMail({
+          from: `"CardioUCM" <${process.env.EMAIL_USER}>`,
+          to: solicitud.email,
+          subject: '¡Tu sugerencia de DEA ha sido aprobada!',
+          html: `<p>Hola,</p>
+                 <p>Nos complace informarte que tu sugerencia para registrar un DEA en <b>${solicitud.gl_nombre_fantasia}</b> ha sido <b>APROBADA</b> y ya está visible en nuestro mapa.</p>
+                 <p>¡Gracias por tu valiosa colaboración para hacer de nuestra comunidad un lugar más seguro!</p>
+                 <p>Atentamente,<br>El equipo de CardioUCM</p>`
+        });
+        console.log(`Correo de aprobación enviado a ${solicitud.email}`);
+      } catch (emailError) {
+        console.error(`Error al enviar correo de aprobación a ${solicitud.email}:`, emailError);
+      }
+    }
+
+    res.json({ mensaje: 'Solicitud de DEA aprobada exitosamente y notificación enviada.' });
+
   } catch (error) {
     console.error('❌ Error al aprobar solicitud:', error);
     res.status(500).json({ mensaje: 'Error interno del servidor al aprobar la solicitud.', detalle: error.message });
   }
 });
 
+// RUTA ADMIN: Rechaza una solicitud y envía notificación (MODIFICADA)
 app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
-    const [solicitudRows] = await db.query("SELECT estado FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);
+    const [solicitudRows] = await db.query("SELECT estado, email, gl_nombre_fantasia FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);
     if (solicitudRows.length === 0) {
       return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
     }
-    if (solicitudRows[0].estado !== 'pendiente' && solicitudRows[0].estado !== null) {
-        return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitudRows[0].estado}' y no puede ser rechazada.` });
+    
+    const solicitud = solicitudRows[0];
+    if (solicitud.estado !== 'pendiente') {
+      return res.status(400).json({ mensaje: `La solicitud ya se encuentra en estado '${solicitud.estado}' y no puede ser rechazada.` });
     }
+
     const [result] = await db.query(
       `UPDATE tramites SET estado = 'rechazado', bo_activo = 0, nr_equipos_cantidad = COALESCE(nr_equipos_cantidad, 0), fc_actualiza = NOW() WHERE id_tramite = ?`,
       [id]
@@ -1540,14 +1641,34 @@ app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel
     if (result.affectedRows === 0) {
       return res.status(409).json({ mensaje: 'No se pudo actualizar la solicitud.' });
     }
-    res.json({ mensaje: 'Solicitud rechazada exitosamente.' });
+
+    if (solicitud.email) {
+      try {
+        await transporter.sendMail({
+          from: `"CardioUCM" <${process.env.EMAIL_USER}>`,
+          to: solicitud.email,
+          subject: 'Actualización sobre tu sugerencia de DEA',
+          html: `<p>Hola,</p>
+                 <p>Te informamos que tu sugerencia para registrar un DEA en <b>${solicitud.gl_nombre_fantasia}</b> ha sido revisada y <b>RECHAZADA</b> en esta ocasión.</p>
+                 <p>Esto puede deberse a información incompleta, duplicada o que no pudimos verificar. Si crees que esto es un error o tienes más información, no dudes en contactarnos.</p>
+                 <p>Agradecemos tu interés y tu tiempo.</p>
+                 <p>Atentamente,<br>El equipo de CardioUCM</p>`
+        });
+        console.log(`Correo de rechazo enviado a ${solicitud.email}`);
+      } catch (emailError) {
+        console.error(`Error al enviar correo de rechazo a ${solicitud.email}:`, emailError);
+      }
+    }
+
+    res.json({ mensaje: 'Solicitud rechazada exitosamente y notificación enviada.' });
   } catch (error) {
     console.error('❌ Error al rechazar solicitud:', error);
     res.status(500).json({ mensaje: 'Error al rechazar solicitud', detalle: error.message });
   }
 });
 
-// RUTA ADMIN para obtener TODOS los DEAs (independiente del estado)
+
+// RUTA ADMIN: Obtiene TODOS los DEAs para la gestión integral (MODIFICADA)
 app.get('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -1562,11 +1683,11 @@ app.get('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async 
         t.nr_equipos_cantidad,
         t.gl_solicitante_nombre AS solicitante, 
         t.gl_solicitante_rut AS rut, 
+        t.email,
         t.fc_creacion, 
         t.estado
       FROM tramites t
       LEFT JOIN comunas c ON t.comuna_id = c.id
-      
       ORDER BY t.fc_creacion DESC
     `);
     res.json(rows);
@@ -1576,14 +1697,14 @@ app.get('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async 
   }
 });
 
+// RUTA ADMIN: Crea un nuevo DEA desde el panel (MODIFICADA)
 app.post('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
-  // CORRECCIÓN: Ya no esperamos `nr_equipos_cantidad` del body.
   const { 
     nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna,
-    lat, lng, solicitante, rut, estado
+    lat, lng, solicitante, rut, estado, email
   } = req.body;
 
-  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado) {
+  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado || !email) {
     return res.status(400).json({ message: 'Faltan datos obligatorios para crear el DEA.' });
   }
 
@@ -1593,22 +1714,22 @@ app.post('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async
       return res.status(400).json({ message: `La comuna '${gl_instalacion_comuna}' no es válida.` });
     }
     const comunaId = comunaRows[0].id;
-    
     const bo_activo = (estado === 'aprobado') ? 1 : 0;
+    const terms_accepted = 1;
 
     const sqlQuery = `
       INSERT INTO tramites (
         gl_nombre_fantasia, gl_instalacion_calle, nr_instalacion_numero, comuna_id, 
         gl_instalacion_latitud, gl_instalacion_longitud, gl_solicitante_nombre, gl_solicitante_rut, 
+        email, terms_accepted,
         nr_equipos_cantidad, estado, bo_activo, bo_eliminado, fc_creacion, fc_actualiza
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N', NOW(), NOW())`;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N', NOW(), NOW())`;
       
     const valoresParaInsertar = [
       nombre, gl_instalacion_calle, 
       (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
-      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut,
-      1, // CORRECCIÓN: Asignamos el valor por defecto 1 directamente aquí.
-      estado, bo_activo
+      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut, email, terms_accepted,
+      1, estado, bo_activo
     ];
 
     const [result] = await db.query(sqlQuery, valoresParaInsertar);
@@ -1620,17 +1741,15 @@ app.post('/api/admin/gestion-deas', autenticarYAutorizar(rolesAdminNivel), async
   }
 });
 
-
-// RUTA ADMIN para ACTUALIZAR un DEA
+// RUTA ADMIN: Actualiza un DEA existente (MODIFICADA)
 app.put('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
-  // CORRECCIÓN: Ya no esperamos `nr_equipos_cantidad` del body.
   const { 
     nombre, gl_instalacion_calle, nr_instalacion_numero, gl_instalacion_comuna,
-    lat, lng, solicitante, rut, estado
+    lat, lng, solicitante, rut, estado, email
   } = req.body;
 
-  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado) {
+  if (!nombre || !gl_instalacion_calle || !gl_instalacion_comuna || !lat || !lng || !solicitante || !rut || !estado || !email) {
     return res.status(400).json({ message: 'Faltan datos obligatorios para actualizar el DEA.' });
   }
 
@@ -1642,20 +1761,18 @@ app.put('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), as
     const comunaId = comunaRows[0].id;
     const bo_activo = (estado === 'aprobado') ? 1 : 0;
 
-    // CORRECCIÓN: La consulta UPDATE ya no modifica `nr_equipos_cantidad`.
-    // Si un admin necesitara cambiarlo, se debería añadir un campo específico en el futuro.
     const sqlQuery = `
       UPDATE tramites SET
         gl_nombre_fantasia = ?, gl_instalacion_calle = ?, nr_instalacion_numero = ?, comuna_id = ?,
         gl_instalacion_latitud = ?, gl_instalacion_longitud = ?, gl_solicitante_nombre = ?, gl_solicitante_rut = ?,
-        estado = ?, bo_activo = ?, fc_actualiza = NOW()
+        email = ?, estado = ?, bo_activo = ?, fc_actualiza = NOW()
       WHERE id_tramite = ?
     `;
 
     const valoresParaActualizar = [
       nombre, gl_instalacion_calle, 
       (nr_instalacion_numero && String(nr_instalacion_numero).trim() !== '') ? String(nr_instalacion_numero).trim() : null, 
-      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut,
+      comunaId, parseFloat(lat), parseFloat(lng), solicitante, rut, email,
       estado, bo_activo,
       id
     ];
@@ -1672,7 +1789,7 @@ app.put('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), as
   }
 });
 
-// RUTA ADMIN para ELIMINAR un DEA (Borrado lógico)
+// RUTA ADMIN: Elimina un DEA (Borrado lógico)
 app.delete('/api/admin/gestion-deas/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
     const { id } = req.params;
     try {

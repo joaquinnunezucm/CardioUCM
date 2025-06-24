@@ -21,6 +21,7 @@
     "datatables.net": "^2.3.1",
     "datatables.net-bs4": "^2.3.1",
     "date-fns": "^4.1.0",
+    "dompurify": "^3.2.6",
     "jquery": "^3.7.1",
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",

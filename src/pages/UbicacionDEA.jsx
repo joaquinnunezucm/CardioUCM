@@ -16,6 +16,7 @@ import {
   isInteger,
   isSimpleAlphaWithSpaces,
   isSimpleAlphaNumericWithSpaces,
+  isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
 
@@ -100,7 +101,10 @@ const UbicacionDEA = () => {
     lng: '',
     solicitante: '',
     rut: '',
-  });
+    email: '', 
+    termsAccepted: false, 
+});
+
   const [errors, setErrors] = useState({});
   const [termsAccepted, setTermsAccepted] = useState(false);
   const initialCenter = useRef([-35.428542, -71.672308]);
@@ -231,7 +235,8 @@ const UbicacionDEA = () => {
 
   const validate = () => {
     const newErrors = {};
-    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+    // Asegúrate de que 'termsAccepted' se obtiene del estado del checkbox, no de formData
+    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
 
     let errorNombre = isRequired(nombre) || minLength(3)(nombre) || maxLength(58)(nombre) || isSimpleAlphaNumericWithSpaces(nombre);
     if (errorNombre) newErrors.nombre = errorNombre;
@@ -257,6 +262,10 @@ const UbicacionDEA = () => {
     let errorRut = isRequired(rut) || isRUT(rut);
     if (errorRut) newErrors.rut = errorRut;
 
+    let errorEmail = isRequired(email) || isEmail(email);
+    if (errorEmail) newErrors.email = errorEmail;
+    
+    // La validación ahora usa el estado 'termsAccepted' directamente
     if (!termsAccepted) {
         newErrors.terms = 'Debes aceptar los términos y condiciones para poder enviar la solicitud.';
     }
@@ -286,17 +295,28 @@ const UbicacionDEA = () => {
     }
 
     setIsSubmitting(true);
-    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut } = formData;
+    // Extraemos los datos del estado formData
+    const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
+    
+    // Creamos el objeto para enviar, asegurando que 'terms_accepted' sea un booleano
     const dataParaEnviar = {
-      nombre, gl_instalacion_calle: calle, nr_instalacion_numero: numero,
-      gl_instalacion_comuna: comuna, lat, lng, solicitante, rut,
+      nombre,
+      gl_instalacion_calle: calle,
+      nr_instalacion_numero: numero,
+      gl_instalacion_comuna: comuna,
+      lat,
+      lng,
+      solicitante,
+      rut,
+      email,
+      terms_accepted: termsAccepted // Enviamos el estado del checkbox directamente
     };
 
     try {
       await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
       Swal.fire({
-        title: 'Sugerencia Aceptada',
-        text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión.',
+        title: 'Sugerencia Enviada',
+        text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión. Recibirás notificaciones por correo sobre el estado de tu solicitud.',
         icon: 'success',
         confirmButtonText: 'Aceptar',
       });
@@ -562,11 +582,28 @@ const UbicacionDEA = () => {
                   </Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.rut}</Form.Control.Feedback>
                 </Form.Group>
-
+                 <Form.Group controlId="formEmail" className="mt-3">
+                <Form.Label>Correo electrónico*</Form.Label>
+                <Form.Control
+                  type="email"
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={handleInputChange}
+                  placeholder="ejemplo@correo.com"
+                  required
+                  disabled={isSubmitting}
+                  isInvalid={!!errors.email}
+                />
+                <Form.Text muted>
+                  Ingresa tu correo para recibir notificaciones sobre tu solicitud.
+                </Form.Text>
+                <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+              </Form.Group>
                 <Form.Group className="mt-3">
                   <Form.Check type="checkbox" label={<>Acepto los <span style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }} onClick={handleShowTermsModal}>términos y condiciones</span>*</>}
                     checked={termsAccepted} onChange={handleTermsChange} disabled={isSubmitting} isInvalid={!!errors.terms} feedback={errors.terms} feedbackType="invalid" />
                 </Form.Group>
+
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>Cancelar</Button>
@@ -590,7 +627,7 @@ const UbicacionDEA = () => {
               </p>
               <h5>3. Conservación de datos personales</h5>
               <p>
-                Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm@ucm.cl.
+                Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm1@gmail.com
               </p>
               <h5>4. Consentimiento</h5>
               <p>
@@ -610,7 +647,7 @@ const UbicacionDEA = () => {
               </p>
               <h5>8. Contacto</h5>
               <p>
-                Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm@ucm.cl">cardioucm@ucm.cl</a>.
+                Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm1@gmail.com">cardioucm1@gmail.com</a>.
               </p>
             </Modal.Body>
             <Modal.Footer>

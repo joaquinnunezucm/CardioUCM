@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Modal, Button, Form, InputGroup } from 'react-bootstrap'; // <-- Importar InputGroup
 import Swal from 'sweetalert2';
 import {
   isRequired,
@@ -15,7 +15,17 @@ import {
   maxLength,
 } from '../utils/validators.js';
 
-// Componente para el formulario de usuario
+
+// Pequeño componente para mostrar los requisitos de la contraseña
+const PasswordRequirement = ({ isValid, text }) => (
+  <div style={{ color: isValid ? 'green' : 'red', fontSize: '0.9em' }}>
+    <i className={`fas ${isValid ? 'fa-check-circle' : 'fa-times-circle'} mr-2`}></i>
+    {text}
+  </div>
+);
+
+
+// Componente para el formulario de usuario (MODIFICADO)
 const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmitting }) => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -24,6 +34,13 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
     rol: ''
   });
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false); // Estado para visibilidad de la contraseña
+  const [passwordValidation, setPasswordValidation] = useState({ // Estado para la validación en tiempo real
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+  });
 
   useEffect(() => {
     setFormData({
@@ -33,6 +50,7 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
       rol: initialData.rol || (posiblesRoles.length > 0 ? posiblesRoles[0] : '')
     });
     setErrors({});
+    setPasswordValidation({ length: false, uppercase: false, lowercase: false, number: false }); // Resetear al abrir
   }, [initialData, posiblesRoles]);
 
   const handleChange = (e) => {
@@ -41,6 +59,16 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
 
     if (name === 'nombre') {
         finalValue = value.replace(/[^a-zA-Z\s]/g, '');
+    }
+
+    if (name === 'password') {
+        // Validar requisitos en tiempo real
+        setPasswordValidation({
+            length: value.length >= 8,
+            uppercase: /[A-Z]/.test(value),
+            lowercase: /[a-z]/.test(value),
+            number: /[0-9]/.test(value),
+        });
     }
 
     setFormData(prev => ({ ...prev, [name]: finalValue }));
@@ -59,6 +87,7 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
     const emailError = isRequired(email) || isEmail(email);
     if(emailError) newErrors.email = emailError;
 
+    // La validación de envío se mantiene igual
     if (!initialData.id) {
         const passwordError = isRequired(password) || isStrongPassword(password);
         if(passwordError) newErrors.password = passwordError;
@@ -86,6 +115,8 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
     onSubmit(formData, initialData.id);
   };
 
+  const showPasswordRequirements = (formData.password.length > 0) || (!initialData.id && Object.keys(errors).length > 0);
+
   return (
     <Form onSubmit={handleSubmit} noValidate>
       <Form.Group controlId="formNombre" className="mb-3">
@@ -102,11 +133,32 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
       </Form.Group>
 
       <Form.Group controlId="formPassword" className="mb-3">
-        <Form.Label>Contraseña {initialData.id ? '(Opcional)' : '*'}</Form.Label>
-        <Form.Control type="password" name="password" value={formData.password} onChange={handleChange} placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"} disabled={isSubmitting} isInvalid={!!errors.password} />
-        <Form.Text muted>{initialData.id ? 'Mínimo 8 caracteres, con mayúscula, minúscula y número.' : 'La contraseña es requerida para nuevos usuarios.'}</Form.Text>
-        <Form.Control.Feedback type="invalid">{errors.password}</Form.Control.Feedback>
-      </Form.Group>
+  <Form.Label>Contraseña {initialData.id ? '(Opcional)' : '*'}</Form.Label>
+  <InputGroup>
+      <Form.Control 
+        type={showPassword ? "text" : "password"}
+        name="password" 
+        value={formData.password} 
+        onChange={handleChange} 
+        placeholder={initialData.id ? "Dejar vacío para no cambiar" : "Requerida"} 
+        disabled={isSubmitting} 
+        isInvalid={!!errors.password} 
+      />
+      <Button variant="outline-secondary" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>
+          <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+      </Button>
+  </InputGroup>
+  
+  {/* CAMBIO: Se eliminó la condición para que la lista sea siempre visible */}
+  <div className="mt-2 pl-1">
+      <PasswordRequirement isValid={passwordValidation.length} text="Mínimo 8 caracteres." />
+      <PasswordRequirement isValid={passwordValidation.uppercase} text="Al menos una letra mayúscula (A-Z)." />
+      <PasswordRequirement isValid={passwordValidation.lowercase} text="Al menos una letra minúscula (a-z)." />
+      <PasswordRequirement isValid={passwordValidation.number} text="Al menos un número (0-9)." />
+  </div>
+  
+  <Form.Control.Feedback type="invalid" className="d-block">{errors.password}</Form.Control.Feedback>
+</Form.Group>
 
       <Form.Group controlId="formRol" className="mb-3">
         <Form.Label>Rol*</Form.Label>
@@ -130,7 +182,8 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
   );
 };
 
-// Componente principal ControlUsuarios
+
+// Componente principal ControlUsuarios (sin cambios, solo para contexto)
 function ControlUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);

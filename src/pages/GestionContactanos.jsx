@@ -12,11 +12,9 @@ import {
   minValue,
   maxValue,
   isSimpleAlphaWithSpaces,
-  isDescriptiveText,
-  isEmail,
-  isPhoneNumber,
-  isURL,
+  isDescriptiveText, // El validador clave para los campos de texto
   maxLength,
+  isEmail,
 } from '../utils/validators.js';
 
 const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -168,9 +166,9 @@ const GestionContactanos = () => {
     const { name, value, type, checked } = e.target;
     let finalValue = type === 'checkbox' ? checked : value;
     
+    // Solo filtramos los campos que tienen reglas estrictas
     switch(name) {
         case 'categoria':
-        case 'etiqueta':
             finalValue = value.replace(/[^a-zA-Z\s]/g, '');
             break;
         case 'orden':
@@ -185,44 +183,29 @@ const GestionContactanos = () => {
     }
   };
 
-  const validate = () => {
-    const newErrors = {};
-    const { categoria, tipo_dato, etiqueta, valor, orden } = formData;
-    
-    const categoriaError = isRequired(categoria) || maxLength(50)(categoria) || isSimpleAlphaWithSpaces(categoria);
-    if(categoriaError) newErrors.categoria = categoriaError;
+const validate = () => {
+  const newErrors = {};
+  const { categoria, etiqueta, valor, orden, tipo_dato } = formData;
 
-    const etiquetaError = isRequired(etiqueta) || maxLength(50)(etiqueta) || isSimpleAlphaWithSpaces(etiqueta);
-    if(etiquetaError) newErrors.etiqueta = etiquetaError;
-    
-    let valorError = isRequired(valor);
-    if (!valorError) {
-        switch(tipo_dato) {
-            case 'email':
-                valorError = isEmail(valor);
-                break;
-            case 'telefono':
-                valorError = isPhoneNumber(valor);
-                break;
-            case 'enlace_web':
-            case 'instagram':
-            case 'facebook':
-            case 'twitter':
-                valorError = isURL(valor);
-                break;
-            case 'texto_simple':
-            default:
-                valorError = isDescriptiveText(valor);
-                break;
-        }
-    }
-    if (valorError) newErrors.valor = valorError;
+  const categoriaError = isRequired(categoria) || maxLength(50)(categoria) || isSimpleAlphaWithSpaces(categoria);
+  if (categoriaError) newErrors.categoria = categoriaError;
 
-    const ordenError = isRequired(String(orden)) || isInteger(String(orden)) || minValue(0)(orden) || maxValue(20)(orden);
-    if(ordenError) newErrors.orden = ordenError;
+  const etiquetaError = isRequired(etiqueta) || maxLength(100)(etiqueta) || isDescriptiveText(etiqueta);
+  if (etiquetaError) newErrors.etiqueta = etiquetaError;
 
-    return newErrors;
+  let valorError = isRequired(valor);
+  if (!valorError && tipo_dato === 'email') {
+    valorError = isEmail(valor);
+  } else if (!valorError) {
+    valorError = isDescriptiveText(valor);
   }
+  if (valorError) newErrors.valor = valorError;
+
+  const ordenError = isRequired(String(orden)) || isInteger(String(orden)) || minValue(0)(orden) || maxValue(20)(orden);
+  if (ordenError) newErrors.orden = ordenError;
+
+  return newErrors;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -391,13 +374,14 @@ const GestionContactanos = () => {
             <Form.Group controlId="formEtiqueta" className="mb-3">
               <Form.Label>Etiqueta (Texto visible)*</Form.Label>
               <Form.Control type="text" name="etiqueta" placeholder="Ej: Instagram UCM" value={formData.etiqueta} onChange={handleChange} isInvalid={!!errors.etiqueta} />
-              <Form.Text muted>Texto que verá el usuario. Solo letras y espacios.</Form.Text>
+              <Form.Text muted>Texto que verá el usuario. Se permiten la mayoría de caracteres y símbolos.</Form.Text>
               <Form.Control.Feedback type="invalid">{errors.etiqueta}</Form.Control.Feedback>
             </Form.Group>
 
             <Form.Group controlId="formValor" className="mb-3">
               <Form.Label>Valor (URL, email, teléfono, texto)*</Form.Label>
               <Form.Control as={formData.tipo_dato === 'texto_simple' ? 'textarea' : 'input'} type="text" rows={formData.tipo_dato === 'texto_simple' ? 3 : undefined} name="valor" placeholder="https://ejemplo.com o texto descriptivo" value={formData.valor} onChange={handleChange} isInvalid={!!errors.valor} />
+              <Form.Text muted>Se permiten la mayoría de caracteres y símbolos.</Form.Text>
               <Form.Control.Feedback type="invalid">{errors.valor}</Form.Control.Feedback>
             </Form.Group>
 

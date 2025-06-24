@@ -1,9 +1,5 @@
-// src/pages/Login.jsx
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-
-// Importar el CSS si creas un archivo CSS separado (Opción 2)
-// import './Login.css'; 
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -12,6 +8,9 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  
+  // Estado para controlar la visibilidad de la contraseña
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,35 +32,27 @@ function Login() {
       {/* Contenedor principal para el fondo */}
       <div 
         className="flex items-center justify-center h-screen bg-gray-200 relative overflow-hidden"
-        // Opción 1: Estilos en línea para el pseudo-elemento (menos ideal pero funciona)
-        // Es más limpio usar un archivo CSS, pero para un ejemplo rápido:
-        style={{
-          '--bg-image-url': `url(${backgroundImageUrl})` // Pasamos la URL como variable CSS
-        }}
-        // Para aplicar el fondo con un pseudo-elemento, necesitarías una clase y CSS externo
-        // o usar styled-components. Con Tailwind puro, se complica un poco para pseudo-elementos.
-        // Vamos a simplificar usando un div de fondo separado por ahora, que es más fácil con Tailwind.
       >
         {/* Div para la imagen de fondo con opacidad */}
         <div
           style={{
             backgroundImage: `url(${backgroundImageUrl})`,
-            opacity: 0.25, // Ajusta la opacidad (0.0 a 1.0) - 0.15 es 15% opaco
-            backgroundSize: 'cover', // Cubre todo el área
-            backgroundPosition: 'center', // Centra la imagen
+            opacity: 0.25,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            zIndex: 0, // Detrás del formulario
+            zIndex: 0,
           }}
         ></div>
 
-        {/* Formulario de Login (asegúrate que tenga un z-index mayor si es necesario) */}
+        {/* Formulario de Login */}
         <form 
-          className="bg-white p-8 rounded-lg shadow-xl w-96 relative z-10" // Añadido rounded-lg, shadow-xl, z-10
+          className="bg-white p-8 rounded-lg shadow-xl w-96 relative z-10"
           onSubmit={handleLogin}
         >
           <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
@@ -81,20 +72,31 @@ function Login() {
             />
           </div>
 
-          <div className="mb-4"> {/* Reducido el mb-6 a mb-4 */}
+          <div className="mb-4"> {/* Eliminamos 'relative' de aquí */}
             <label className="block text-gray-700 text-sm font-semibold mb-1">Contraseña</label>
-            <input
-              type="password"
-              className="w-full p-3 border border-gray-300 rounded-md mt-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
-              required
-              disabled={loading}
-            />
+            {/* Añadimos un nuevo div con 'relative' que envuelve solo al input y al botón */}
+            <div className="relative mt-1"> 
+              <input
+                type={showPassword ? "text" : "password"}
+                className="w-full p-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="********"
+                required
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-600 hover:text-gray-800"
+                title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
+              </button>
+            </div>
           </div>
 
-          <div className="mb-6 text-right"> {/* Aumentado el mb-4 a mb-6 */}
+          <div className="mb-6 text-right">
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(true)}
@@ -120,56 +122,56 @@ function Login() {
             ) : 'Iniciar sesión'}
           </button>
         </form>
+
+        {/* Modal para contraseña olvidada */}
         {showForgotPasswordModal && (
-  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-      <h3 className="text-lg font-bold mb-4 text-center">Recuperar contraseña</h3>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const emailValue = e.target.email.value;
-          try {
-            await fetch("http://localhost:3001/api/forgot-password", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email: emailValue }),
-            });
-            alert("Si el correo existe, recibirás un enlace para restablecer tu contraseña.");
-            setShowForgotPasswordModal(false);
-          } catch {
-            alert("No se pudo enviar el correo. Intenta más tarde.");
-          }
-        }}
-      >
-        <input
-          type="email"
-          name="email"
-          className="w-full p-3 border border-gray-300 rounded-md mb-4"
-          placeholder="Tu correo electrónico"
-          required
-        />
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            className="px-4 py-2 bg-gray-300 rounded"
-            onClick={() => setShowForgotPasswordModal(false)}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded"
-          >
-            Enviar
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+              <h3 className="text-lg font-bold mb-4 text-center">Recuperar contraseña</h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const emailValue = e.target.email.value;
+                  try {
+                    await fetch("http://localhost:3001/api/forgot-password", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: emailValue }),
+                    });
+                    alert("Si el correo existe, recibirás un enlace para restablecer tu contraseña.");
+                    setShowForgotPasswordModal(false);
+                  } catch {
+                    alert("No se pudo enviar el correo. Intenta más tarde.");
+                  }
+                }}
+              >
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full p-3 border border-gray-300 rounded-md mb-4"
+                  placeholder="Tu correo electrónico"
+                  required
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-gray-300 rounded"
+                    onClick={() => setShowForgotPasswordModal(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
-      
-      
     </>
   );
 }
