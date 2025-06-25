@@ -2011,6 +2011,28 @@ app.get('/api/reportes', autenticarYAutorizar(rolesAdminNivel), async (req, res)
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
-});
+// Función de inicio del servidor con prueba de conexión
+async function startServer() {
+    try {
+        // Paso A: Probar la conexión a la base de datos ANTES de iniciar el servidor.
+        console.log('Realizando prueba de conexión a la base de datos...');
+        const connection = await db.getConnection(); // db ya está importado al inicio de tu archivo
+        console.log('✅ ¡Prueba de conexión exitosa! La base de datos está disponible.');
+        connection.release(); // Muy importante liberar la conexión
+
+        // Paso B: Si la conexión es exitosa, iniciar el servidor Express.
+        app.listen(PORT, () => {
+            console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
+        });
+
+    } catch (error) {
+        // Paso C: Si la conexión a la BD falla, loguear el error y detener el proceso.
+        console.error('❌ ERROR CRÍTICO: No se pudo conectar a la base de datos.');
+        console.error('El servidor no se iniciará.');
+        console.error('Detalles del error:', error.message); // Muestra el mensaje de error específico
+        process.exit(1); // Detiene la aplicación con un código de error.
+    }
+}
+
+// Llama a la nueva función de inicio para arrancar el servidor
+startServer();
