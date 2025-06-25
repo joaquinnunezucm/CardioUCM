@@ -20,7 +20,8 @@ const ValidacionDEAs = () => {
         $(tableRef.current).DataTable().destroy();
         setTableInitialized(false);
       }
-      const res = await axios.get(`${API_BASE_URL}solicitudes-dea`);
+      const res = await axios.get(`${API_BASE_URL}/api/solicitudes-dea`);
+
       setSolicitudes(res.data);
     } catch (err) {
       console.error('Error al cargar solicitudes:', err);
@@ -112,39 +113,47 @@ const ValidacionDEAs = () => {
               </tr>
             </thead>
             <tbody>
-              {solicitudes.map(s => (
-                <tr key={s.id}>
-                  <td>{s.nombre || 'N/A'}</td>
-                  <td>{s.direccion_completa || `${s.gl_instalacion_calle} ${s.nr_instalacion_numero}, ${s.gl_instalacion_comuna}`}</td>
-                  <td>{s.lat || 'N/D'}</td>
-                  <td>{s.lng || 'N/D'}</td>
-                  <td>
-                    {s.solicitante || 'N/A'}
-                    <br />
-                    <small>{s.rut}</small>
-                  </td>
-                  <td>{s.fc_creacion ? new Date(s.fc_creacion).toLocaleString('es-CL') : 'N/A'}</td>
-                  <td className="text-center">
-                    <button
-                      className="btn btn-sm btn-success mr-1"
-                      disabled={isProcessing}
-                      onClick={() => handleAction('aprobar', s.id, s.nombre)}
-                      title="Aprobar"
-                    >
-                      <i className="fas fa-check"></i>
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      disabled={isProcessing}
-                      onClick={() => handleAction('rechazar', s.id, s.nombre)}
-                      title="Rechazar"
-                    >
-                      <i className="fas fa-times"></i>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+  {solicitudes.length === 0 ? (
+    <tr>
+      <td colSpan={7} className="text-center text-muted">
+        No hay solicitudes pendientes.
+      </td>
+    </tr>
+  ) : (
+    solicitudes.map(s => (
+      <tr key={s.id}>
+        <td>{s.nombre || 'N/A'}</td>
+        <td>{s.direccion_completa || `${s.gl_instalacion_calle} ${s.nr_instalacion_numero}, ${s.gl_instalacion_comuna}`}</td>
+        <td>{s.lat || 'N/D'}</td>
+        <td>{s.lng || 'N/D'}</td>
+        <td>
+          {s.solicitante || 'N/A'}
+          <br />
+          <small>{s.rut}</small>
+        </td>
+        <td>{s.fc_creacion ? new Date(s.fc_creacion).toLocaleString('es-CL') : 'N/A'}</td>
+        <td className="text-center">
+          <button
+            className="btn btn-sm btn-success mr-1"
+            disabled={isProcessing}
+            onClick={() => handleAction('aprobar', s.id, s.nombre)}
+            title="Aprobar"
+          >
+            <i className="fas fa-check"></i>
+          </button>
+          <button
+            className="btn btn-sm btn-danger"
+            disabled={isProcessing}
+            onClick={() => handleAction('rechazar', s.id, s.nombre)}
+            title="Rechazar"
+          >
+            <i className="fas fa-times"></i>
+          </button>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
           </table>
         </div>
       )}

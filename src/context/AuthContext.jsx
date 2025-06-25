@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/login`, { // Puedes usar axios aquí también
+      const response = await fetch(`${API_BASE_URL}/api/login`, { // Puedes usar axios aquí también
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
