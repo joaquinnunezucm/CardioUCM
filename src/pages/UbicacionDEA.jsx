@@ -442,13 +442,14 @@ const focusMarkerYRuta = (id, lat, lng) => {
                   </Popup>
                 </Marker>
               ))}
-              {fromPoint && toPoint && (
-                <RoutingControl
-                  from={fromPoint}
-                  to={toPoint}
-                  vozActiva={vozActiva}
-                />
-              )}
+                {fromPoint && toPoint && (
+                  <RoutingControl
+                    key={toPoint ? toPoint.join(',') : 'no-route'}
+                    from={fromPoint}
+                    to={toPoint}
+                    vozActiva={vozActiva}
+                  />
+                )}
 
             </MapContainer>
             <button
@@ -487,9 +488,9 @@ const focusMarkerYRuta = (id, lat, lng) => {
               </button>
             )}
           </div>
-          <div className="row">
-            <div className="col-md-6 mb-4">
-              <h4 className="mb-3">DEAs más cercanos</h4>
+          <div className="row justify-content-center">
+            <div className="col-12 col-md-10 col-lg-8 mb-4">
+              <h4 className="mb-3 text-center">DEAs más cercanos</h4>
               {cercanos.length > 0 ? (
                 <ul className="list-group">
                   {cercanos.map((d) => (
@@ -510,11 +511,11 @@ const focusMarkerYRuta = (id, lat, lng) => {
                   ))}
                 </ul>
               ) : userLocation ? (
-                <p className="text-muted">
+                <p className="text-muted text-center">
                   No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
                 </p>
               ) : (
-                <p className="text-muted">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
+                <p className="text-muted text-center">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
               )}
             </div>
           </div>

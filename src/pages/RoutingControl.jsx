@@ -31,45 +31,52 @@ const RoutingControl = ({ from, to, vozActiva }) => {
 
   // Este useEffect gestiona la EXISTENCIA del control en el mapa
   useEffect(() => {
-    if (!map) return;
+  if (!map) return;
 
-    // Si no hay puntos, nos aseguramos de que el control se elimine
-    if (!from || !to) {
-      if (routingControlRef.current) {
-        map.removeControl(routingControlRef.current);
-        routingControlRef.current = null;
-      }
-      return;
-    }
-
-    // Si el control ya existe, solo actualizamos los puntos de ruta
+  // Si no hay puntos, nos aseguramos de que el control se elimine
+  if (!from || !to) {
     if (routingControlRef.current) {
-      routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
-      return;
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
     }
+    return;
+  }
 
-    // Si no existe, lo creamos
-    const control = L.Routing.control({
-      waypoints: [L.latLng(from), L.latLng(to)],
-      createMarker: () => null, // Dejamos que el padre maneje los marcadores
-      routeWhileDragging: false,
-      addWaypoints: false,
-      fitSelectedRoutes: true,
-      show: false,
-      language: 'es',
-      lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
-    }).addTo(map);
+  // Si el control ya existe, solo actualizamos los puntos de ruta
+  if (routingControlRef.current) {
+    routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
+    return;
+  }
 
-    control.on('routeselected', (e) => {
-      if (e.route.instructions.length > 0) {
-        const primerPaso = e.route.instructions[0];
-        hablar(`Iniciando ruta. En ${Math.round(primerPaso.distance)} metros, ${primerPaso.text}`);
-      }
-    });
+  // Si no existe, lo creamos
+  const control = L.Routing.control({
+    waypoints: [L.latLng(from), L.latLng(to)],
+    createMarker: () => null,
+    routeWhileDragging: false,
+    addWaypoints: false,
+    fitSelectedRoutes: true,
+    show: false,
+    language: 'es',
+    lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
+  }).addTo(map);
 
-    routingControlRef.current = control;
+  control.on('routeselected', (e) => {
+    if (e.route.instructions.length > 0) {
+      const primerPaso = e.route.instructions[0];
+      hablar(`Iniciando ruta. En ${Math.round(primerPaso.distance)} metros, ${primerPaso.text}`);
+    }
+  });
 
-  }, [map, from, to]); // Depende de map, from y to
+  routingControlRef.current = control;
+
+  // LIMPIEZA: elimina el control SIEMPRE que el componente se desmonta o cambian los props
+  return () => {
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+  };
+}, [map, from, to]);
 
   // Este useEffect gestiona la GUÍA POR VOZ en tiempo real
   useEffect(() => {
