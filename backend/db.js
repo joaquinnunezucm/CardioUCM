@@ -32,7 +32,7 @@ const pool = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    connectTimeout: 10000 // 10 segundos para detectar problemas de red
+    connectTimeout: 10000 
 });
 
 // 2. Exportamos el pool para que el resto de la app lo use.
