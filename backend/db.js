@@ -7,28 +7,27 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // 1. Imprimimos las variables de entorno para depuración.
-// Ahora usamos los nombres estándar de Railway (con guion bajo).
+// Ahora usamos los nombres que TÚ definiste en Railway (DB_HOST, etc.)
 console.log('--- Intentando conectar a la base de datos con las siguientes credenciales: ---');
-console.log('Host (MYSQL_HOST):', process.env.MYSQL_HOST);
-console.log('User (MYSQL_USER):', process.env.MYSQL_USER);
-console.log('Database (MYSQL_DATABASE):', process.env.MYSQL_DATABASE);
-console.log('Port (MYSQL_PORT):', process.env.MYSQL_PORT);
-// No se imprime la contraseña por seguridad.
+console.log('Host (DB_HOST):', process.env.DB_HOST);
+console.log('User (DB_USER):', process.env.DB_USER);
+console.log('Database (DB_NAME):', process.env.DB_NAME);
+console.log('Port (PORT_DB):', process.env.DB_PORT); // Usaremos DB_PORT si lo defines
 
-// Verificamos si las variables de conexión están definidas. Si no, lanzamos un error claro.
-if (!process.env.MYSQL_HOST || !process.env.MYSQL_USER || !process.env.MYSQL_PASSWORD || !process.env.MYSQL_DATABASE) {
+// Verificamos si las variables de conexión están definidas.
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
   console.error('❌ ERROR CRÍTICO: Faltan variables de entorno para la conexión a la base de datos.');
-  console.error('Asegúrate de que MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, y MYSQL_DATABASE estén definidas.');
-  process.exit(1); // Detiene la aplicación si no se puede configurar la conexión.
+  console.error('Asegúrate de que DB_HOST, DB_USER, DB_PASSWORD, y DB_NAME estén definidas en el panel de Railway.');
+  process.exit(1);
 }
 
 const pool = mysql.createPool({
-    // Usamos los nombres de variables estándar de Railway (con guion bajo)
-    host: process.env.MYSQL_HOST,
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE,
-    port: process.env.MYSQL_PORT || 3306,
+    // Usamos los nombres de variables que TÚ definiste en Railway
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT || 3306, // Leerá un DB_PORT si lo creas, si no, usa 3306
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
