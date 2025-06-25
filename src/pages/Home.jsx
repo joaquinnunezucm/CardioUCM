@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import logo from '../assets/color.png'; // Asegúrate que la ruta al logo sea correcta
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../utils/api';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const Home = () => {
     if (!visitaRegistradaRef.current) {
       const registrarVisita = async () => {
         try {
-          await axios.post('http://localhost:3001/api/registro-clic', { seccion: 'VisitaHomePage' });
+          await axios.post(`${API_BASE_URL}/api/registro-clic`, { seccion: 'VisitaHomePage' });
         } catch (error) {
           console.error('❌ Error registrando visita a Home Page:', error);
         }
@@ -31,7 +32,7 @@ const Home = () => {
 
   const handleSeccionClick = async (seccion, ruta) => {
     try {
-      await axios.post('http://localhost:3001/api/registro-clic', { seccion });
+      await axios.post(`${API_BASE_URL}/api/registro-clic`, { seccion });
       if (ruta.startsWith('tel:')) {
         window.location.href = ruta;
       } else {

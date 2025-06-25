@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
+import { API_BASE_URL } from '../utils/api';
 
 const ValidacionDEAs = () => {
   const [solicitudes, setSolicitudes] = useState([]);
@@ -19,7 +20,7 @@ const ValidacionDEAs = () => {
         $(tableRef.current).DataTable().destroy();
         setTableInitialized(false);
       }
-      const res = await axios.get('http://localhost:3001/solicitudes-dea');
+      const res = await axios.get(`${API_BASE_URL}solicitudes-dea`);
       setSolicitudes(res.data);
     } catch (err) {
       console.error('Error al cargar solicitudes:', err);
@@ -70,10 +71,10 @@ const ValidacionDEAs = () => {
       setIsProcessing(true);
       try {
         if (action === 'aprobar') {
-          await axios.post(`http://localhost:3001/solicitudes-dea/${id}/aprobar`);
+          await axios.post(`${API_BASE_URL}/api/solicitudes-dea/${id}/aprobar`);
           Swal.fire('Aprobada', `La solicitud de "${nombre}" fue aprobada.`, 'success');
         } else {
-          await axios.delete(`http://localhost:3001/solicitudes-dea/${id}/rechazar`);
+          await axios.delete(`${API_BASE_URL}/api/solicitudes-dea/${id}/rechazar`);
           Swal.fire('Rechazada', `La solicitud de "${nombre}" fue rechazada.`, 'info');
         }
         fetchSolicitudes();

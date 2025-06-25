@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
+import { API_BASE_URL } from '../utils/api';
 import RoutingControl from '../pages/RoutingControl';
 import {
   isRUT,
@@ -147,7 +148,7 @@ const UbicacionDEA = () => {
   };
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/comunas')
+    axios.get(`${API_BASE_URL}/api/comunas`)
       .then(res => {
         const nombresComunas = res.data.map(c => c.nombre);
         setComunas(nombresComunas);
@@ -159,8 +160,7 @@ const UbicacionDEA = () => {
   }, []);
 
   useEffect(() => {
-    axios
-      .get('http://localhost:3001/defibriladores')
+axios.get(`${API_BASE_URL}/api/defibriladores`)
       .then((res) => {
         setDesfibriladores(res.data);
       })
@@ -313,7 +313,7 @@ const UbicacionDEA = () => {
     };
 
     try {
-      await axios.post('http://localhost:3001/solicitudes-dea', dataParaEnviar);
+      await axios.post(`${API_BASE_URL}/api/solicitudes-dea`, dataParaEnviar);
       Swal.fire({
         title: 'Sugerencia Enviada',
         text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión. Recibirás notificaciones por correo sobre el estado de tu solicitud.',

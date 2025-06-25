@@ -7,6 +7,7 @@ import { Modal, Button, Form, Image } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isInteger,
@@ -50,7 +51,7 @@ const GestionRCP = () => {
         $(tableRef.current).DataTable().destroy();
         setTableInitialized(false);
       }
-      const response = await axios.get('http://localhost:3001/api/admin/rcp', {
+      const response = await axios.get(`${API_BASE_URL}/api/admin/rcp`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const sortedInstrucciones = response.data.map(inst => ({
@@ -279,8 +280,8 @@ const GestionRCP = () => {
 
     try {
       const url = currentInstruccion
-        ? `http://localhost:3001/api/admin/rcp/${currentInstruccion.id}`
-        : 'http://localhost:3001/api/admin/rcp';
+  ? `${API_BASE_URL}/api/admin/rcp/${currentInstruccion.id}`
+  : `${API_BASE_URL}/api/admin/rcp`;
       const method = currentInstruccion ? 'put' : 'post';
 
       await axios({
@@ -315,7 +316,7 @@ const GestionRCP = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`http://localhost:3001/api/admin/rcp/${id}`, {
+          await axios.delete(`${API_BASE_URL}api/admin/rcp/${id}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           });
           Swal.fire('Eliminado', 'La instrucción fue eliminada correctamente.', 'success');
@@ -372,7 +373,7 @@ const GestionRCP = () => {
                           {instruccion.medios.map((medio) => (
                             <div key={medio.id} className="text-center p-1 border rounded" style={{maxWidth: '120px'}}>
                               <Image
-                                src={`http://localhost:3001${medio.url_medio}`}
+                                src={`${API_BASE_URL}${medio.url_medio}`}
                                 alt={medio.subtitulo || 'Medio'}
                                 fluid
                                 style={{ maxHeight: '80px', objectFit: 'contain' }}
@@ -459,7 +460,7 @@ const GestionRCP = () => {
                   <div key={medio.id} className="border p-3 mb-3 rounded bg-light">
                     <div className="d-flex align-items-start">
                       <Image
-                        src={`http://localhost:3001${medio.url_medio}`}
+                        src={`${API_BASE_URL}${medio.url_medio}`}
                         alt={formData.datosMediosExistentes[medio.id]?.subtitulo || 'Medio existente'}
                         className="img-fluid mr-3 border"
                         style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'contain' }}

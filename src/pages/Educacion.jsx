@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import BackButton from '../pages/BackButton.jsx';
+import { API_BASE_URL } from '../utils/api';
 
 // Component to render HTML or text with line breaks
 const HtmlRenderer = ({ htmlString }) => {
@@ -24,7 +25,7 @@ const Educacion = () => {
   const audioRef = useRef(null);
   const { user } = useAuth();
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 
   useEffect(() => {
     const fetchEducacionContent = async () => {

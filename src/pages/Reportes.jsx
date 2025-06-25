@@ -7,7 +7,8 @@ import 'chart.js/auto'; // Para asegurar que todos los elementos estén disponib
 import 'chartjs-adapter-date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../context/AuthContext';
-import { Button, Form, Table, Badge } from 'react-bootstrap'; // Modal no se usa aquí, la quité
+import { Button, Form, Table, Badge } from 'react-bootstrap';
+import { API_BASE_URL } from '../utils/api';
 
 // Registrar los componentes de Chart.js que se van a utilizar
 ChartJS.register(
@@ -22,8 +23,6 @@ ChartJS.register(
   LineElement,
   TimeScale
 );
-
-const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const capitalizeText = (str) => {
   if (!str) return '';
@@ -111,7 +110,7 @@ export default function Reportes() {
         // Si filtrosActivosParaFetch es false, no se envían parámetros de fecha,
         // y el backend debe devolver datos históricos para DEAs y un default para clics/solicitudes.
         
-        const response = await axios.get(`${API_BASE_URL_FRONTEND}/api/reportes`, {
+        const response = await axios.get(`${API_BASE_URL}/api/reportes`, {
           headers: { Authorization: `Bearer ${token}` },
           params
         });

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
+import { API_BASE_URL } from '../utils/api';
 
 // Componente reutilizable para mostrar los requisitos de la contraseña
 const PasswordRequirement = ({ isValid, text }) => (
@@ -36,7 +37,7 @@ function ResetPasswordPage() {
 
   // Efecto para validar el token al cargar la página
   useEffect(() => {
-    axios.get(`http://localhost:3001/api/validate-reset-token/${token}`)
+    axios.get(`${API_BASE_URL}/api/validate-reset-token/${token}`)
       .then(() => setTokenValid(true))
       .catch(() => setTokenValid(false));
   }, [token]);
@@ -72,7 +73,7 @@ function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      await axios.post("http://localhost:3001/api/reset-password", { token, newPassword });
+      await axios.post(`${API_BASE_URL}/api/reset-password`, { token, newPassword });
       Swal.fire("Éxito", "Tu contraseña ha sido restablecida correctamente.", "success").then(() => {
         navigate("/login");
       });

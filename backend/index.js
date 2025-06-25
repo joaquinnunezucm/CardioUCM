@@ -89,7 +89,7 @@ const autenticarYAutorizar = (rolesPermitidos = []) => {
 };
 
 // Test de conexión
-app.get('/ping', async (req, res) => {
+app.get('/api/ping', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT 1');
     res.json({ conectado: true, resultado: rows });
@@ -111,7 +111,7 @@ const transporter = nodemailer.createTransport({
 
 
 // --- ENDPOINT DE LOGIN ---
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
@@ -1462,7 +1462,7 @@ app.get('/api/obtener-clics', autenticarYAutorizar(rolesAdminNivel), async (req,
 
 // --- RUTAS DE DEAs (Gestión y Públicas ) ---
 // RUTA PÚBLICA: Obtiene los DEAs aprobados para mostrar en el mapa
-app.get('/defibriladores', async (req, res) => {
+app.get('/api/defibriladores', async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT 
@@ -1502,7 +1502,7 @@ app.get('/api/comunas', async (req, res) => {
 });
 
 // RUTA PÚBLICA: Recibe nuevas sugerencias de DEA (MODIFICADA)
-app.post('/solicitudes-dea', async (req, res) => {
+app.post('/api/solicitudes-dea', async (req, res) => {
   const { 
     nombre, gl_instalacion_calle, nr_instalacion_numero, 
     gl_instalacion_comuna: comunaNombre, lat, lng, 
@@ -1547,7 +1547,7 @@ app.post('/solicitudes-dea', async (req, res) => {
 });
 
 // RUTA ADMIN: Obtiene las solicitudes pendientes para el dashboard de admin
-app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.get('/api/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT 
@@ -1572,7 +1572,7 @@ app.get('/solicitudes-dea', autenticarYAutorizar(rolesAdminNivel), async (req, r
 });
 
 // RUTA ADMIN: Aprueba una solicitud y envía notificación (MODIFICADA)
-app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.post('/api/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
     const [solicitudRows] = await db.query("SELECT estado, email, gl_nombre_fantasia FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);
@@ -1621,7 +1621,7 @@ app.post('/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNivel), 
 });
 
 // RUTA ADMIN: Rechaza una solicitud y envía notificación (MODIFICADA)
-app.delete('/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
+app.delete('/api/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
     const [solicitudRows] = await db.query("SELECT estado, email, gl_nombre_fantasia FROM tramites WHERE id_tramite = ? AND bo_eliminado = 'N'", [id]);

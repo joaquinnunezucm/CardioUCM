@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import axios from 'axios';
 import BackButton from '../pages/BackButton.jsx';
-
+import { API_BASE_URL } from '../utils/api';
 
 const RCP = () => {
   const [metronomoActivo, setMetronomoActivo] = useState(false);
@@ -13,7 +13,7 @@ const RCP = () => {
   const audioRef = useRef(null);
   const { user } = useAuth();
 
-  const API_BASE_URL = 'http://localhost:3001';
+
 
   useEffect(() => {
     const fetchRCPContent = async () => {

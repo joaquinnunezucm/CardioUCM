@@ -6,6 +6,7 @@ import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isInteger,
@@ -17,7 +18,6 @@ import {
   maxLength,
 } from '../utils/validators.js';
 
-const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const GestionFAQs = () => {
   const { user, token } = useAuth();
@@ -38,8 +38,8 @@ const GestionFAQs = () => {
   const [usarNuevaCategoria, setUsarNuevaCategoria] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const API_URL_FAQS = `${API_BASE_URL_FRONTEND}/api/admin/faqs`;
-  const API_URL_CATEGORIAS = `${API_BASE_URL_FRONTEND}/api/admin/faqs/categorias`;
+  const API_URL_FAQS = `${API_BASE_URL}/api/admin/faqs`;
+  const API_URL_CATEGORIAS = `${API_BASE_URL}/api/admin/faqs/categorias`;
 
   const getAuthHeaders = () => ({
     headers: {

@@ -133,7 +133,7 @@ function Login() {
                   e.preventDefault();
                   const emailValue = e.target.email.value;
                   try {
-                    await fetch("http://localhost:3001/api/forgot-password", {
+                    await fetch(`${API_BASE_URL}/api/forgot-password`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ email: emailValue }),

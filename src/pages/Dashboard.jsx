@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, Outlet } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext.jsx';
+import { API_BASE_URL } from '../utils/api';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -27,7 +28,7 @@ export default function Dashboard() {
   const fetchEstadisticasSistema = useCallback(async () => {
     console.log("Dashboard (Layout): Fetching Estadisticas Sistema...");
     try {
-      const response = await axios.get('http://localhost:3001/api/estadisticas');
+      const response = await axios.get(`${API_BASE_URL}/api/estadisticas`);
       setEstadisticasSistema(response.data);
     } catch (error) {
       console.error('Dashboard (Layout): Error stats:', error.response?.data?.message || error.message);
@@ -41,7 +42,7 @@ export default function Dashboard() {
   const fetchClicksPorSeccion = useCallback(async () => {
     console.log("Dashboard (Layout): Fetching Clicks Por Seccion...");
     try {
-      const response = await axios.get('http://localhost:3001/api/obtener-clics');
+      const response = await axios.get(`${API_BASE_URL}/api/obtener-clics`);
       let clicsData = response.data || {};
       const clicksIniciales = {};
       modulosParaInfoBoxes.forEach(modulo => {

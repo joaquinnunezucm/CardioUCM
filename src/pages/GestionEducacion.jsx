@@ -6,6 +6,7 @@ import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table, Image, Badge, Row, Col } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext.jsx';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isInteger,
@@ -18,8 +19,6 @@ import {
   maxLength,
 } from '../utils/validators.js';
 
-
-const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const opcionesPasoAsociadoDefault = [
   { value: "", label: "Ninguno / General" },
@@ -70,8 +69,8 @@ const GestionEducacion = () => {
       }
 
       const [resContenidos, resMediosTodos] = await Promise.all([
-        axios.get(`${API_BASE_URL_FRONTEND}/api/admin/educacion`, getAuthHeaders(false)),
-        axios.get(`${API_BASE_URL_FRONTEND}/api/educacion/medios`, getAuthHeaders(false))
+        axios.get(`${API_BASE_URL}/api/admin/educacion`, getAuthHeaders(false)),
+        axios.get(`${API_BASE_URL}/api/educacion/medios`, getAuthHeaders(false))
       ]);
 
       setContenidos(resContenidos.data);
@@ -133,7 +132,7 @@ const GestionEducacion = () => {
       });
       const existentes = (mediosExistentesPorContenido[contenido.id.toString()] || []).map(m => ({
         id: m.id.toString(),
-        previewUrl: `${API_BASE_URL_FRONTEND}${m.url_medio}`,
+        previewUrl: `${API_BASE_URL}${m.url_medio}`,
         nombreArchivo: m.url_medio.split('/').pop(),
         paso_asociado: m.paso_asociado || '',
         subtitulo_medio: m.subtitulo_medio || '',
@@ -330,10 +329,10 @@ const GestionEducacion = () => {
       });
 
       if (currentContenido) {
-        await axios.put(`${API_BASE_URL_FRONTEND}/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
+        await axios.put(`${API_BASE_URL}/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
         Swal.fire('Actualizado!', 'El contenido educativo ha sido actualizado correctamente.', 'success');
       } else {
-        await axios.post(`${API_BASE_URL_FRONTEND}/api/admin/educacion`, formDataToSend, getAuthHeaders());
+        await axios.post(`${API_BASE_URL}/api/admin/educacion`, formDataToSend, getAuthHeaders());
         Swal.fire('Creado!', 'El contenido educativo ha sido creado exitosamente.', 'success');
       }
       fetchContenidosYMedios();
@@ -362,7 +361,7 @@ const GestionEducacion = () => {
       if (result.isConfirmed) {
         try {
           Swal.fire({ title: 'Eliminando...', text: 'Por favor espera.', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); }});
-          await axios.delete(`${API_BASE_URL_FRONTEND}/api/admin/educacion/${id}`, getAuthHeaders(false));
+          await axios.delete(`${API_BASE_URL}/api/admin/educacion/${id}`, getAuthHeaders(false));
           Swal.fire('Eliminado!', 'El contenido educativo y sus medios han sido eliminados.', 'success');
           fetchContenidosYMedios();
         } catch (error) {

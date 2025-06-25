@@ -7,6 +7,7 @@ import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, InputGroup } from 'react-bootstrap'; // <-- Importar InputGroup
 import Swal from 'sweetalert2';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isEmail,
@@ -204,7 +205,7 @@ function ControlUsuarios() {
         $(tableRef.current).DataTable().destroy();
         setTableInitialized(false);
       }
-      const response = await axios.get('http://localhost:3001/api/usuarios');
+      const response = await axios.get(`${API_BASE_URL}/api/usuarios`);
       setUsuarios(response.data);
     } catch (err) {
       console.error('Error al obtener usuarios:', err);
@@ -263,10 +264,10 @@ function ControlUsuarios() {
       }
       
       if (formUserId) {
-        await axios.put(`http://localhost:3001/api/usuarios/${formUserId}`, userData);
+        await axios.put(`${API_BASE_URL}/api/usuarios/${formUserId}`, userData);
         Swal.fire('Actualizado', 'El usuario fue actualizado correctamente.', 'success');
       } else {
-        await axios.post('http://localhost:3001/api/usuarios', userData);
+        await axios.post(`${API_BASE_URL}/api/usuarios`, userData);
         Swal.fire('Creado', 'El usuario fue creado exitosamente.', 'success');
       }
       
@@ -297,7 +298,7 @@ function ControlUsuarios() {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`http://localhost:3001/api/usuarios/${deleteUserId}`);
+          await axios.delete(`${API_BASE_URL}/api/usuarios/${deleteUserId}`);
           Swal.fire('Eliminado', 'El usuario fue eliminado correctamente.', 'success');
           fetchUsuarios();
         } catch (error) {

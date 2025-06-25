@@ -6,6 +6,7 @@ import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
 import { Modal, Button, Form, Table, Badge } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isInteger,
@@ -17,7 +18,7 @@ import {
   isEmail,
 } from '../utils/validators.js';
 
-const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL_ADMIN = `${API_BASE_URL}/api/admin/contactos`;
 
 const TIPOS_DATO_CONTACTO = [
   { value: 'enlace_web', label: 'Enlace Web (URL)' },
@@ -59,7 +60,7 @@ const GestionContactanos = () => {
   });
   const [errors, setErrors] = useState({});
 
-  const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/contactos`;
+  const API_URL_ADMIN = `${API_BASE_URL}/api/admin/contactos`;
 
   const getAuthHeaders = () => ({
     headers: {

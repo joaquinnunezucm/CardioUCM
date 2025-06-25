@@ -7,6 +7,7 @@ import { Modal, Button, Form, Table, Row, Col } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
+import { API_BASE_URL } from '../utils/api';
 import {
   isRequired,
   isInteger,
@@ -19,7 +20,6 @@ import {
   isEmail
 } from '../utils/validators.js';
 
-const API_BASE_URL_FRONTEND = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const GestionDEAs = () => {
   const { user, token } = useAuth();
@@ -49,7 +49,7 @@ const GestionDEAs = () => {
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
-  const API_URL_ADMIN = `${API_BASE_URL_FRONTEND}/api/admin/gestion-deas`;
+const API_URL_ADMIN = `${API_BASE_URL}/api/admin/gestion-deas`;
 
   const getAuthHeaders = useCallback(() => ({
     headers: { Authorization: `Bearer ${token}` },
@@ -80,7 +80,7 @@ const GestionDEAs = () => {
   }, [token, getAuthHeaders, API_URL_ADMIN]);
   
   useEffect(() => {
-    axios.get(`${API_BASE_URL_FRONTEND}/api/comunas`)
+    axios.get(`${API_BASE_URL}/api/comunas`)
       .then(res => {
         const nombresComunas = res.data.map(c => c.nombre);
         setComunas(nombresComunas);

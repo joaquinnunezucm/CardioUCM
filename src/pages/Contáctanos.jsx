@@ -4,6 +4,7 @@ import { FaInstagram, FaEnvelope, FaGlobe, FaPhone, FaFacebook, FaTwitter, FaInf
 import { Link } from 'react-router-dom';
 import BackButton from '../pages/BackButton.jsx';
 import DOMPurify from 'dompurify';
+import { API_BASE_URL } from '../utils/api';
 
 // Mapeo de nombres de iconos a componentes
 const iconComponents = {
@@ -33,8 +34,6 @@ const Contactanos = () => {
   const [openCategories, setOpenCategories] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   useEffect(() => {
     const fetchContactInfo = async () => {

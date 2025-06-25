@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Importar axios para configurar interceptors
+import { API_BASE_URL } from '../utils/api';
 
 const AuthContext = createContext(null);
 
@@ -56,7 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:3001/login', { // Puedes usar axios aquí también
+      const response = await fetch(`${API_BASE_URL}/login`, { // Puedes usar axios aquí también
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

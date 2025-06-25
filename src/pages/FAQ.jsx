@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import BackButton from '../pages/BackButton.jsx';
+import { API_BASE_URL } from '../utils/api';
 
 const FAQ = () => {
   const [faqs, setFaqs] = useState([]);
@@ -12,7 +13,7 @@ const FAQ = () => {
       setLoading(true);
       setError('');
       try {
-        const response = await axios.get('http://localhost:3001/api/faqs');
+        const response = await axios.get(`${API_BASE_URL}/api/faqs`);
         setFaqs(response.data);
       } catch (err) {
         console.error("Error fetching public FAQs:", err);
