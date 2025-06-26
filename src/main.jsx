@@ -1,5 +1,3 @@
-// RUTA: src/main.jsx
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
@@ -11,19 +9,21 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Tu lógica del Service Worker permanece sin cambios.
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.DEV) {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for(let registration of registrations) {
+      for (let registration of registrations) {
         registration.unregister();
       }
     });
   }
 } else {
+  // El registro del Service Worker está desactivado porque el archivo no existe.
+  /*
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/service-worker.js');
     });
   }
+  */
 }
