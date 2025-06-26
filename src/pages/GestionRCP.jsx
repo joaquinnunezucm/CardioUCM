@@ -316,7 +316,7 @@ const GestionRCP = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_BASE_URL}api/admin/rcp/${id}`, {
+          await axios.delete(`${API_BASE_URL}/api/admin/rcp/${id}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           });
           Swal.fire('Eliminado', 'La instrucción fue eliminada correctamente.', 'success');
