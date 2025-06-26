@@ -28,10 +28,10 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   connectTimeout: 10000,
-  ssl: {
-    ca: require('fs').readFileSync('./ca.pem'), // Ruta al certificado en la raíz
-    rejectUnauthorized: true
-  }
+ssl: {
+  ca: require('fs').readFileSync('../ca.pem'), // Ruta corregida
+  rejectUnauthorized: true
+}
 });
 
 module.exports = pool;
