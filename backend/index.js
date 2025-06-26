@@ -2011,28 +2011,29 @@ app.get('/api/reportes', autenticarYAutorizar(rolesAdminNivel), async (req, res)
   }
 });
 
-// Función de inicio del servidor con prueba de conexión
+// Función de inicio del servidor
 async function startServer() {
-    try {
-        // Paso A: Probar la conexión a la base de datos ANTES de iniciar el servidor.
-        console.log('Realizando prueba de conexión a la base de datos...');
-        const connection = await db.getConnection(); // db ya está importado al inicio de tu archivo
-        console.log('✅ ¡Prueba de conexión exitosa! La base de datos está disponible.');
-        connection.release(); // Muy importante liberar la conexión
+  try {
+    console.log('--- Intentando conectar a la base de datos con las siguientes credenciales: ---');
+    console.log('Host (DB_HOST):', process.env.DB_HOST);
+    console.log('User (DB_USER):', process.env.DB_USER);
+    console.log('Database (DB_NAME):', process.env.DB_NAME);
+    console.log('Port (DB_PORT):', process.env.DB_PORT);
 
-        // Paso B: Si la conexión es exitosa, iniciar el servidor Express.
-        app.listen(PORT, () => {
-            console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
-        });
+    console.log('Realizando prueba de conexión a la base de datos...');
+    const connection = await db.getConnection();
+    console.log('✅ ¡Prueba de conexión exitosa! La base de datos está disponible.');
+    connection.release();
 
-    } catch (error) {
-        // Paso C: Si la conexión a la BD falla, loguear el error y detener el proceso.
-        console.error('❌ ERROR CRÍTICO: No se pudo conectar a la base de datos.');
-        console.error('El servidor no se iniciará.');
-        console.error('Detalles del error:', error.message); // Muestra el mensaje de error específico
-        process.exit(1); // Detiene la aplicación con un código de error.
-    }
+    app.listen(PORT, () => {
+      console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ ERROR CRÍTICO: No se pudo conectar a la base de datos.');
+    console.error('El servidor no se iniciará.');
+    console.error('Detalles del error:', error.message);
+    process.exit(1);
+  }
 }
 
-// Llama a la nueva función de inicio para arrancar el servidor
 startServer();
