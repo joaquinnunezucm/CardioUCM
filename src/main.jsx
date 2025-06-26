@@ -11,10 +11,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Lógica del Service Worker corregida y adaptada
-// Usamos import.meta.env.DEV que es la forma correcta en Vite
-if (import.meta.env.DEV) {
-  // En desarrollo, nos aseguramos que no haya un service worker activo
+// Tu lógica del Service Worker permanece sin cambios.
+if (process.env.NODE_ENV === 'development') {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
       for(let registration of registrations) {
@@ -23,14 +21,9 @@ if (import.meta.env.DEV) {
     });
   }
 } else {
-  // En producción, intentaremos registrar el service worker.
-  // NOTA: Se ha comentado la siguiente línea porque el archivo 'service-worker.js' no existe.
-  // Si añades el archivo en el futuro, puedes descomentar este bloque.
-  /*
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/service-worker.js');
     });
   }
-  */
 }
