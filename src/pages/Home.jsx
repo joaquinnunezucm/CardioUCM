@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import logo from '../assets/color.png'; // Asegúrate que la ruta al logo sea correcta
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/api';
@@ -60,7 +59,7 @@ const Home = () => {
     <div className="min-h-screen flex flex-col items-center justify-between p-3 sm:p-4">
       <div className="flex-shrink-0 pt-8 sm:pt-8 pb-2">
         <img
-          src={logo}
+          src="/color.png"
           alt="Logo CardioUCM"
           className="w-64 sm:w-70 md:w-80 max-w-full mx-auto transition-all duration-300"
           style={{ maxHeight: '280px' }}
