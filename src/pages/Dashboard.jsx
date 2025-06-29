@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, Outlet } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -14,13 +14,10 @@ export default function Dashboard() {
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
 
-  // --- NUEVO: useEffect de Cierre de Sesión Automático ---
-  // Este es el mecanismo que "blinda" la sesión.
+  // --- useEffect de Cierre de Sesión Automático al SALIR del layout ---
+  // Este es el mecanismo que "blinda" la sesión. Se ejecuta cuando el componente se desmonta.
+  // Es decir, cuando el usuario navega a una ruta que NO usa este layout.
   useEffect(() => {
-    // La función que se retorna en un useEffect es la "función de limpieza".
-    // Se ejecuta AUTOMÁTICAMENTE cuando este componente (Dashboard) se "desmonta".
-    // El desmontaje ocurre cuando el usuario navega a una ruta que NO usa este layout,
-    // como /login, /educacion, /rcp, etc.
     return () => {
       console.log('Saliendo del layout de administración. La sesión será cerrada.');
       // Al salir del área de admin, forzamos el cierre de sesión.
@@ -28,14 +25,39 @@ export default function Dashboard() {
     };
   }, [logout]); // La dependencia es `logout` para que el efecto se mantenga actualizado.
 
+  // --- NUEVO y CRUCIAL: useEffect para manejar la restauración desde bfcache ---
+  // Este efecto soluciona el problema de poder volver con el botón "adelante" del navegador.
   useEffect(() => {
-    // Este chequeo es una buena segunda barrera de seguridad, aunque ProtectedRoute ya lo hace.
+    const handlePageShow = (event) => {
+      // event.persisted es true si la página se restaura desde el caché de avance/retroceso.
+      if (event.persisted) {
+        console.log('Página restaurada desde bfcache. Verificando sesión.');
+        // La sesión ya debería haber sido cerrada por el `useEffect` de desmontaje.
+        // Verificamos directamente la fuente de verdad (sessionStorage).
+        // Si no hay token, la sesión es inválida, así que forzamos la salida.
+        if (!sessionStorage.getItem('token')) {
+          console.log('Sesión no encontrada en bfcache. Redirigiendo a login.');
+          navigate('/login', { replace: true });
+        }
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+
+    // Limpiamos el listener cuando el componente se desmonte
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [navigate]); // La dependencia es navigate para asegurar que siempre use la última versión.
+
+  // Efecto de seguridad: si por alguna razón se llega aquí sin sesión, redirigir.
+  useEffect(() => {
     if (!user || !token) {
       navigate("/login", { replace: true });
     }
   }, [user, token, navigate]);
 
-  const modulosParaInfoBoxes = React.useMemo(() => [
+  const modulosParaInfoBoxes = useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
     { nombre: "DEA", icono: "fas fa-map-marker-alt", color: "bg-primary", ruta: "/admin/deas", seccionApi: "DEA" },
     { nombre: "Contáctanos", icono: "fas fa-newspaper", color: "bg-warning", ruta: "/admin/contáctanos", seccionApi: "Contáctanos" },
