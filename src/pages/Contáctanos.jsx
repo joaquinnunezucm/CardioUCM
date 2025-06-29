@@ -188,7 +188,7 @@ const Contactanos = () => {
               <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2">
                 Contáctanos
               </h1>
-              <p className="text-gray-700 mt-4 text-base text-center">
+              <p className="text-base text-gray-800 leading-relaxed mt-4 text-center">
                 Encuentra aquí nuestras redes sociales, correos de contacto y enlaces institucionales relacionados con CardioUCM y la Facultad de Ciencias de la Salud.
               </p>
             </div>

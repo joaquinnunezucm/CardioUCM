@@ -88,7 +88,7 @@ const RCP = () => {
                   Reanimación Cardiopulmonar (RCP)
                 </h1>
                 {/* Se quita px-2 para que el texto se alinee con el borde del h1 */}
-                <p className="text-center text-gray-600 mt-4 text-base md:text-lg">
+                <p className="text-base text-gray-800 leading-relaxed mt-4">
                   Antes de iniciar cualquier maniobra, debes evaluar:
                   <strong> ¿La persona responde?, ¿Respira?, ¿Tiene pulso?</strong> En base a esa evaluación, sigue las acciones recomendadas.
                 </p>
