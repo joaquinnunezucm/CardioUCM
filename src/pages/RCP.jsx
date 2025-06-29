@@ -77,11 +77,11 @@ const RCP = () => {
   }
 
   return (
-<div className="min-h-screen flex flex-col items-center p-1 xs:p-2 sm:p-3 md:p-4 lg:p-5 bg-gray-100">
+<div className="min-h-screen flex flex-col items-center p-1 bg-gray-100">
   <BackButton />
-  <div className="w-full max-w-xs xs:max-w-sm sm:max-w-md md:max-w-lg lg:max-w-3xl flex flex-col my-1 xs:my-2 sm:my-3 md:my-4">
-    <div className="content-header py-2 xs:py-3 sm:py-4 bg-white rounded-lg shadow-xl">
-        <div className="container-fluid">
+  <div className="w-full max-w-xs flex flex-col my-1">
+    <div className="content-header py-2 bg-white rounded-lg shadow-xl">
+      <div className="container-fluid">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
               <h1 className="m-0 text-2xl xs:text-3xl sm:text-3xl md:text-4xl lg:text-4xl font-bold text-red-800 border-b-2 border-red-200 pb-2">
