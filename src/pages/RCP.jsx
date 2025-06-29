@@ -139,7 +139,7 @@ const RCP = () => {
                           </Link>
                         ) : (
                           <div>
-                              <p className="text-xl font-semibold break-words">{instruccion.instruccion}</p>                            {instruccion.medios && instruccion.medios.length > 0 && (
+                              <p className="text-base font-normal break-words">{instruccion.instruccion}</p>                          {instruccion.medios && instruccion.medios.length > 0 && (
                               <div className="mt-4 flex flex-wrap justify-start gap-4">
                                 {instruccion.medios.map((medio, medioIndex) => (
                                   <div

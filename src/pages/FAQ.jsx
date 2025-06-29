@@ -130,7 +130,8 @@ const FAQ = () => {
                             </svg>
                           </span>
                         </summary>
-                        <p className="text-base text-gray-800 leading-relaxed mt-3 pt-3 border-t border-gray-200 break-words" style={{ whiteSpace: 'pre-wrap' }}>
+                          <p className="text-base text-gray-800 leading-relaxed mt-3 pt-3 border-t border-gray-200 break-words" style={{ whiteSpace: 'pre-wrap' }}>
+                            {faq.respuesta} 
                         </p>
                       </details>
                     ))}
