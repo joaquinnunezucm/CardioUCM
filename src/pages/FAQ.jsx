@@ -71,7 +71,7 @@ const FAQ = () => {
       <BackButton />
       
       {/* 2. Contenedor de contenido: con ancho máximo y padding horizontal único */}
-      <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
+      <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
         
         {/* 3. Tarjeta de título: se quita 'container-fluid' y se añade padding interno */}
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
@@ -101,7 +101,7 @@ const FAQ = () => {
               Object.entries(groupedFaqs).map(([categoria, faqsEnCategoria]) => (
                 <div key={categoria} className="mb-8">
                   {(categoria !== 'General' || Object.keys(groupedFaqs).length > 1) && (
-                    <h2 className="text-2xl md:text-3xl font-semibold mb-5 text-blue-600 border-b-2 border-blue-200 pb-2">
+                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2">
                       {categoria}
                     </h2>
                   )}
