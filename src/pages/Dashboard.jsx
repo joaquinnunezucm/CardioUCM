@@ -14,12 +14,26 @@ export default function Dashboard() {
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
 
-useEffect(() => {
-  // Si no hay usuario o token, redirigir al login
-  if (!user || !token) {
-    navigate("/login", { replace: true });
-  }
-}, [user, token, navigate]);
+  // --- NUEVO: useEffect de Cierre de Sesión Automático ---
+  // Este es el mecanismo que "blinda" la sesión.
+  useEffect(() => {
+    // La función que se retorna en un useEffect es la "función de limpieza".
+    // Se ejecuta AUTOMÁTICAMENTE cuando este componente (Dashboard) se "desmonta".
+    // El desmontaje ocurre cuando el usuario navega a una ruta que NO usa este layout,
+    // como /login, /educacion, /rcp, etc.
+    return () => {
+      console.log('Saliendo del layout de administración. La sesión será cerrada.');
+      // Al salir del área de admin, forzamos el cierre de sesión.
+      logout();
+    };
+  }, [logout]); // La dependencia es `logout` para que el efecto se mantenga actualizado.
+
+  useEffect(() => {
+    // Este chequeo es una buena segunda barrera de seguridad, aunque ProtectedRoute ya lo hace.
+    if (!user || !token) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, token, navigate]);
 
   const modulosParaInfoBoxes = React.useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
@@ -31,7 +45,6 @@ useEffect(() => {
   ], []);
 
   const fetchEstadisticasSistema = useCallback(async () => {
-    console.log("Dashboard (Layout): Fetching Estadisticas Sistema...");
     try {
       const response = await axios.get(`${API_BASE_URL}/api/estadisticas`);
       setEstadisticasSistema(response.data);
@@ -45,7 +58,6 @@ useEffect(() => {
   }, [logout]);
 
   const fetchClicksPorSeccion = useCallback(async () => {
-    console.log("Dashboard (Layout): Fetching Clicks Por Seccion...");
     try {
       const response = await axios.get(`${API_BASE_URL}/api/obtener-clics`);
       let clicsData = response.data || {};
@@ -68,7 +80,6 @@ useEffect(() => {
   }, [logout, modulosParaInfoBoxes]);
 
   useEffect(() => {
-    console.log("Dashboard (Layout) MOUNTED. Initializing AdminLTE and fetching dashboard data.");
     if (window.$ && window.$.AdminLTE && typeof window.$.AdminLTE.init === 'function') {
       if (!$('body').hasClass('layout-fixed')) {
         try { window.$.AdminLTE.init(); } catch (e) { console.warn("Error AdminLTE init in Layout:", e); }
@@ -81,7 +92,6 @@ useEffect(() => {
 
     return () => {
       document.body.classList.remove('hold-transition', 'sidebar-mini', 'layout-fixed');
-      console.log("Dashboard (Layout) UNMOUNTED. AdminLTE classes removed.");
     };
   }, [fetchClicksPorSeccion, fetchEstadisticasSistema]);
 
@@ -89,21 +99,20 @@ useEffect(() => {
     { nombre: "Capacitación RCP", icono: "fas fa-heartbeat", ruta: "/admin/capacitacion" },
     { nombre: "DEAs", icono: "fas fa-map-marker-alt", ruta: "/admin/deas" },
     { nombre: "Educación", icono: "fas fa-book-medical", ruta: "/admin/educacion" },
-    { nombre: "Preguntas Frecuentes", icono: "far fa-eye", ruta: "/admin/faq" }, 
+    { nombre: "Preguntas Frecuentes", icono: "far fa-eye", ruta: "/admin/faq" },
     { nombre: "Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/contáctanos" },
   ];
 
   const [modulosAdminDinamicosSidebar, setModulosAdminDinamicosSidebar] = useState([]);
 
   useEffect(() => {
-    console.log("Dashboard (Layout): Updating admin-specific sidebar modules for user role:", user?.rol);
     let baseAdminItems = [
       { nombre: "Gestionar RCP", icono: "fas fa-heartbeat", ruta: "/admin/gestion-rcp" },
       { nombre: "Validación DEA", icono: "fas fa-check-circle", ruta: "/admin/validacion-deas" },
       { nombre: "Gestionar DEA", icono: "fas fa-check-circle", ruta: "/admin/gestion-deas" },
       { nombre: "Gestionar Educación", icono: "fas fa-graduation-cap", ruta: "/admin/gestion-educacion" },
       { nombre: "Gestionar FAQs", icono: "fas fa-comments", ruta: "/admin/faqs" },
-      { nombre: "Gestionar Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/gestion-contactanos" }, 
+      { nombre: "Gestionar Contáctanos", icono: "fas fa-newspaper", ruta: "/admin/gestion-contactanos" },
       { nombre: "Reportes", icono: "fas fa-chart-bar", ruta: "/admin/reportes" },
     ];
     if (user && user.rol === 'superadministrador') {
