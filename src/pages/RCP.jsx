@@ -110,7 +110,17 @@ const RCP = () => {
               </h2>
               <div className="text-gray-700 text-sm md:text-base leading-relaxed">
                 <ul className="list-disc ml-6 space-y-4">
-                  <li>
+                  <div className="flex justify-center mb-4">
+  <button
+    onClick={toggleMetronomo}
+    className={`px-4 py-2 text-white rounded text-sm my-1 shadow-md transition-transform transform hover:scale-105 ${
+      metronomoActivo ? 'bg-blue-500 hover:bg-blue-600' : 'bg-red-600 hover:bg-red-700'
+    }`}
+  >
+    {metronomoActivo ? 'Detener Metrónomo' : 'Iniciar Metrónomo (100-120 cpm)'}
+  </button>
+</div>
+{/*                   <li>
                     <button
                       onClick={toggleMetronomo}
                       className={`px-4 py-2 text-white rounded text-sm my-1 shadow-md transition-transform transform hover:scale-105 ${
@@ -119,7 +129,7 @@ const RCP = () => {
                     >
                       {metronomoActivo ? 'Detener Metrónomo' : 'Iniciar Metrónomo (100-120 cpm)'}
                     </button>
-                  </li>
+                  </li> */}
                   {instrucciones.map((instruccion, index) => (
                     <li key={index} className="mt-4">
                       {instruccion.instruccion === 'Buscar DEA cercano' ? (

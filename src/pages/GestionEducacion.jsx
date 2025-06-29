@@ -329,13 +329,38 @@ const GestionEducacion = () => {
       });
 
       if (currentContenido) {
-        await axios.put(`${API_BASE_URL}/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
+        // --- ACTUALIZAR ---
+        const { data } = await axios.put(`${API_BASE_URL}/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
+        
+        // Destruimos la tabla ANTES de actualizar el estado de React
+        if ($.fn.dataTable.isDataTable(tableRef.current)) {
+          $(tableRef.current).DataTable().destroy();
+        }
+
+        // Actualizamos el estado local con los datos modificados
+        setContenidos(prevContenidos => 
+          prevContenidos.map(item => 
+            item.id === currentContenido.id ? { ...item, ...formData, activo: formData.activo === true || formData.activo === 'true' } : item
+          )
+        );
+
+        // Marcamos la tabla para que se reinicialice en el próximo render
+        setTableInitialized(false);
+        
         Swal.fire('Actualizado!', 'El contenido educativo ha sido actualizado correctamente.', 'success');
+        
       } else {
-        await axios.post(`${API_BASE_URL}/api/admin/educacion`, formDataToSend, getAuthHeaders());
+        // --- CREAR ---
+        const { data } = await axios.post(`${API_BASE_URL}/api/admin/educacion`, formDataToSend, getAuthHeaders());
+        
+        // Para la creación, recargar todo es más sencillo y necesario
+        // porque necesitamos el nuevo ID y puede que afecte a otros medios.
+        // Así que aquí, la llamada original está bien.
+        fetchContenidosYMedios(); 
         Swal.fire('Creado!', 'El contenido educativo ha sido creado exitosamente.', 'success');
       }
-      fetchContenidosYMedios();
+
+      // El cierre del modal se mantiene igual
       handleCloseModal();
     } catch (error) {
       console.error('Error al guardar contenido educativo:', error.response?.data || error.message);
