@@ -99,17 +99,17 @@ const FAQ = () => {
               </div>
             ) : (
               Object.entries(groupedFaqs).map(([categoria, faqsEnCategoria]) => (
-                <div key={categoria} className="mb-8">
+                <div key={categoria} className="mb-4">
                   {(categoria !== 'General' || Object.keys(groupedFaqs).length > 1) && (
                     <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2">
                       {categoria}
                     </h2>
                   )}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {faqsEnCategoria.map((faq) => (
                       <details
                         key={faq.id}
-                        className="group bg-white p-5 rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300"
+                        className="group bg-white p-3 rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300"
                         aria-label={`Ver respuesta a ${faq.pregunta}`}
                       >
                         <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 text-lg md:text-xl group-hover:text-blue-600">
