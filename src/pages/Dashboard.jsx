@@ -5,16 +5,21 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/api';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-
   const nombreUsuario = user ? user.nombre : "Usuario";
   const rolUsuario = user ? user.rol : "";
-
   const [clicksPorSeccion, setClicksPorSeccion] = useState({});
   const [estadisticasSistema, setEstadisticasSistema] = useState({
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
+
+useEffect(() => {
+  // Si no hay usuario o token, redirigir al login
+  if (!user || !token) {
+    navigate("/login", { replace: true });
+  }
+}, [user, token, navigate]);
 
   const modulosParaInfoBoxes = React.useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
