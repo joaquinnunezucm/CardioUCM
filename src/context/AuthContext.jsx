@@ -6,51 +6,60 @@ import { API_BASE_URL } from '../utils/api';
 
 const AuthContext = createContext(null);
 
-// --- Axios Interceptor: Modificado para usar sessionStorage ---
 axios.interceptors.request.use(
   config => {
-    // Leemos el token de sessionStorage
     const token = sessionStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
-// --- Fin Axios Interceptor ---
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null); // No inicializar desde storage aquí, se hará en useEffect
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // --- NUEVO: Hook para la alerta de cierre de sesión ---
+  // --- useEffect COMBINADO para el ciclo de vida de la página ---
   useEffect(() => {
+    // Función para la ALERTA antes de salir
     const handleBeforeUnload = (event) => {
-      // Solo mostramos la alerta si hay un usuario logueado
       if (user) {
         event.preventDefault();
-        event.returnValue = ''; // Activa la alerta nativa del navegador
+        event.returnValue = '';
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Función para DESTRUIR la sesión al salir
+    const handlePageHide = (event) => {
+      // event.persisted es true si la página puede ser restaurada desde caché (ej. back/forward cache).
+      // Solo queremos limpiar si el usuario realmente se va.
+      if (event.persisted) return;
 
-    // Limpieza al desmontar el componente
+      // Si hay un usuario, limpiamos sessionStorage. Esta es la garantía.
+      if (user) {
+        console.log('Evento pagehide detectado: Limpiando sesión.');
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide); // El listener crucial
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide); // Limpieza
     };
-  }, [user]); // Este efecto depende del estado del usuario
+  }, [user]);
 
-  // --- useEffect Modificado para usar sessionStorage ---
+  // useEffect para cargar la sesión al inicio
   useEffect(() => {
     const storedUser = sessionStorage.getItem('user');
     const storedToken = sessionStorage.getItem('token');
-
     if (storedUser && storedToken) {
       try {
         const parsedUser = JSON.parse(storedUser);
@@ -58,20 +67,15 @@ export const AuthProvider = ({ children }) => {
           setUser(parsedUser);
           setToken(storedToken);
         } else {
-          // Limpiamos en caso de datos inválidos
-          sessionStorage.removeItem('user');
-          sessionStorage.removeItem('token');
+          sessionStorage.clear();
         }
       } catch (error) {
-        console.error("Error parsing stored user/token:", error);
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('token');
+        sessionStorage.clear();
       }
     }
     setLoading(false);
   }, []);
 
-  // --- Función Login Modificada para usar sessionStorage y replace: true ---
   const login = async (email, password) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/login`, {
@@ -80,35 +84,28 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-
       if (response.ok && data.usuario && data.token) {
         if (data.usuario.rol === 'administrador' || data.usuario.rol === 'superadministrador') {
           setUser(data.usuario);
           setToken(data.token);
-          // Guardamos en sessionStorage
           sessionStorage.setItem('user', JSON.stringify(data.usuario));
           sessionStorage.setItem('token', data.token);
-          
-          // Navegamos REEMPLAZANDO la ruta del historial
-          navigate('/admin', { replace: true }); 
+          navigate('/admin', { replace: true });
           return { success: true };
         } else {
           return { success: false, message: 'No tiene permisos para acceder.' };
         }
       } else {
-        return { success: false, message: data.message || 'Error en el login o token no recibido.' };
+        return { success: false, message: data.message || 'Error en el login.' };
       }
     } catch (err) {
-      console.error("AuthContext login error:", err);
-      return { success: false, message: 'Error de conexión con el servidor.' };
+      return { success: false, message: 'Error de conexión.' };
     }
   };
 
-  // --- Función Logout Modificada para usar sessionStorage ---
   const logout = () => {
     setUser(null);
     setToken(null);
-    // Removemos de sessionStorage
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('token');
     navigate('/login');
