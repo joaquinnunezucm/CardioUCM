@@ -156,7 +156,7 @@ const Contactanos = () => {
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-xl text-center">
           <i className="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i>
-          <h1 className="text-3xl font-bold mb-3 text-red-700">Error al Cargar</h1>
+          <h1 className="text-3xl font-bold mb-3 text-red-700 break-words">Error al Cargar</h1>
           <p className="text-red-600 text-lg">{error}</p>
           <button
             onClick={() => window.location.reload()}
@@ -185,10 +185,10 @@ const Contactanos = () => {
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
-              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2">
+              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2 break-words">
                 Contáctanos
               </h1>
-              <p className="text-base text-gray-800 leading-relaxed mt-4 text-center">
+              <p className="text-base text-gray-800 leading-relaxed mt-4 text-center break-words">
                 Encuentra aquí nuestras redes sociales, correos de contacto y enlaces institucionales relacionados con CardioUCM y la Facultad de Ciencias de la Salud.
               </p>
             </div>
@@ -219,7 +219,7 @@ const Contactanos = () => {
                       className="w-full text-left p-4 bg-white rounded-lg shadow-xl flex justify-between items-center hover:bg-gray-50 transition-colors"
                       aria-label={`Alternar ${categoria}`}
                     >
-                      <h2 className="text-xl md:text-2xl font-semibold text-blue-700">
+                      <h2 className="text-xl md:text-2xl font-semibold text-blue-700 break-words">
                         {categoria}
                       </h2>
                       <i className={`fas fa-chevron-${openCategories[categoria] ? 'up' : 'down'} text-blue-600 text-lg`}></i>
@@ -236,7 +236,7 @@ const Contactanos = () => {
                               {!item.icono && item.tipo_dato !== 'texto_simple' && (
                                 <span className="w-5 h-5 flex-shrink-0"></span> // Placeholder para alinear
                               )}
-                              <div className={`text-base ${item.tipo_dato === 'texto_simple' ? 'w-full' : ''}`}>
+                              <div className={`text-base ${item.tipo_dato === 'texto_simple' ? 'w-full' : ''} break-words`}>
                                 {renderItemValue(item)}
                               </div>
                             </div>

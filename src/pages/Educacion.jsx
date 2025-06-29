@@ -125,7 +125,7 @@ const Educacion = () => {
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-xl text-center">
           <i className="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i>
-          <h1 className="text-3xl font-bold mb-3 text-red-700">Error al Cargar</h1>
+          <h1 className="text-3xl font-bold mb-3 text-red-700 break-words">Error al Cargar</h1>
           <p className="text-red-600 text-lg">{error}</p>
           <button
             onClick={() => window.location.reload()}
@@ -150,7 +150,7 @@ const Educacion = () => {
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
-              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2">
+              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2 break-words">
                   Educación en Primeros Auxilios y RCP
                 </h1>
               </div>
@@ -174,7 +174,7 @@ const Educacion = () => {
                     className="w-full text-left p-4 bg-white rounded-lg shadow-xl flex justify-between items-center hover:bg-gray-50 transition-colors"
                     aria-label={`Alternar ${categoria.categoriaNombre}`}
                   >
-                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2">
+                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2 break-words">
                     {categoria.categoriaNombre}
                   </h2>
                     <i className={`fas fa-chevron-${openCategories[categoria.idCategoria] ? 'up' : 'down'} text-blue-600 text-lg`}></i>
@@ -188,7 +188,7 @@ const Educacion = () => {
                           return (
                             <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                               {item.tituloTema && (
-                                <h3 className="text-lg md:text-xl font-medium text-gray-800 mb-4">
+                                <h3 className="text-lg md:text-xl font-medium text-gray-800 mb-4 break-words">
                                   {item.tituloTema}
                                 </h3>
                               )}
@@ -225,7 +225,7 @@ const Educacion = () => {
                                   <>
                                     <HtmlRenderer htmlString={item.contenidoTema} />
                                     <div className="mt-8">
-                                      <h4 className="text-lg font-semibold text-gray-800 mb-5 border-b-2 border-gray-300 pb-2">
+                                      <h4 className="text-lg font-semibold text-gray-800 mb-5 border-b-2 border-gray-300 pb-2 break-words">
                                         Guía Visual Paso a Paso
                                       </h4>
                                       <div className="space-y-8">
@@ -246,7 +246,7 @@ const Educacion = () => {
                                               <h5 className="font-semibold text-lg text-blue-700 mb-2">
                                                 Paso {indexPaso + 1}:
                                               </h5>
-                                              <p className="text-base font-medium leading-relaxed mb-4">
+                                              <p className="text-base font-medium leading-relaxed mb-4 break-words">
                                                 {paso.paso}
                                               </p>
                                               <div className="flex flex-row flex-wrap justify-start gap-4">
@@ -278,7 +278,7 @@ const Educacion = () => {
                                                       </video>
                                                     ) : null}
                                                     {medio.subtitulo_medio && (
-                                                      <p className="text-base font-medium mt-1 px-1">
+                                                      <p className="text-base font-medium mt-1 px-1 break-words">
                                                         {medio.subtitulo_medio}
                                                       </p>
                                                     )}

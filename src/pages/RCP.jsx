@@ -84,11 +84,11 @@ const RCP = () => {
         <div className="content-header p-4 bg-white rounded-lg shadow-xl">
             <div className="row mb-2">
               <div className="col-sm-12 text-center">
-                <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-red-800 border-b-2 border-red-200 pb-2">
+                <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-red-800 border-b-2 border-red-200 pb-2 break-words">
                   Reanimación Cardiopulmonar (RCP)
                 </h1>
                 {/* Se quita px-2 para que el texto se alinee con el borde del h1 */}
-                <p className="text-base text-gray-800 leading-relaxed mt-4">
+                <p className="text-base text-gray-800 leading-relaxed mt-4 break-words">
                   Antes de iniciar cualquier maniobra, debes evaluar:
                   <strong> ¿La persona responde?, ¿Respira?, ¿Tiene pulso?</strong> En base a esa evaluación, sigue las acciones recomendadas.
                 </p>
@@ -108,7 +108,7 @@ const RCP = () => {
             ) : (
               // Este contenedor ya tiene su propio padding (p-4 md:p-8) que es para el espacio INTERNO de la tarjeta, lo cual es correcto.
               <div className="bg-white p-4 md:p-8 rounded-xl shadow-xl">
-                <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-red-600 border-b-2 border-red-100 pb-3 text-center">
+                <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-red-600 border-b-2 border-red-100 pb-3 text-center break-words">
                   La persona NO RESPIRA y NO tiene PULSO
                 </h2>
                 <div className="text-gray-700 text-sm md:text-base leading-relaxed break-words">
@@ -139,8 +139,7 @@ const RCP = () => {
                           </Link>
                         ) : (
                           <div>
-                            <p className="font-medium">{instruccion.instruccion}</p>
-                            {instruccion.medios && instruccion.medios.length > 0 && (
+                              <p className="text-xl font-semibold break-words">{instruccion.instruccion}</p>                            {instruccion.medios && instruccion.medios.length > 0 && (
                               <div className="mt-4 flex flex-wrap justify-start gap-4">
                                 {instruccion.medios.map((medio, medioIndex) => (
                                   <div

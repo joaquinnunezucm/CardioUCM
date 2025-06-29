@@ -52,7 +52,7 @@ const FAQ = () => {
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-xl text-center">
           <i className="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i>
-          <h1 className="text-3xl font-bold mb-3 text-red-700">Error al Cargar</h1>
+          <h1 className="text-3xl font-bold mb-3 text-red-700 break-words">Error al Cargar</h1>
           <p className="text-red-600 text-lg">{error}</p>
           <button
             onClick={() => window.location.reload()}
@@ -77,7 +77,7 @@ const FAQ = () => {
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
-              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2">
+              <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2 break-words">
                 Preguntas Frecuentes
               </h1>
             </div>
@@ -101,7 +101,7 @@ const FAQ = () => {
               Object.entries(groupedFaqs).map(([categoria, faqsEnCategoria]) => (
                 <div key={categoria} className="mb-4">
                   {(categoria !== 'General' || Object.keys(groupedFaqs).length > 1) && (
-                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2">
+                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2 break-words">
                       {categoria}
                     </h2>
                   )}
@@ -112,7 +112,7 @@ const FAQ = () => {
                         className="group bg-white p-3 rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300"
                         aria-label={`Ver respuesta a ${faq.pregunta}`}
                       >
-                        <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 text-lg md:text-xl group-hover:text-blue-600">
+                        <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 text-lg md:text-xl group-hover:text-blue-600 break-words">
                           {faq.pregunta}
                           <span className="text-blue-500 group-open:rotate-90 transform transition-transform duration-200 ml-3">
                             <svg
