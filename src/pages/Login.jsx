@@ -1,16 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { API_BASE_URL } from "../utils/api";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth(); // Obtenemos `user` del contexto
+  const navigate = useNavigate(); // Hook para la redirección
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
-  
-  // Estado para controlar la visibilidad de la contraseña
   const [showPassword, setShowPassword] = useState(false);
+
+  // --- NUEVO: useEffect para evitar que un usuario logueado vea esta página ---
+  useEffect(() => {
+    if (user) {
+      // Si ya hay un usuario, lo sacamos del login y reemplazamos la ruta
+      navigate('/admin', { replace: true });
+    }
+  }, [user, navigate]);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,21 +29,21 @@ function Login() {
     const result = await login(email, password);
     if (!result.success) {
       setError(result.message || "Ocurrió un error desconocido.");
+      setLoading(false);
     }
-    setLoading(false);
+    // No es necesario setLoading(false) aquí si el login es exitoso,
+    // ya que la redirección en el AuthContext desmontará este componente.
   };
 
-  // URL de tu imagen (desde la carpeta public)
-  const backgroundImageUrl = '/public/compresiones_1.jpg'; // Ajusta la ruta a tu imagen
+  // Ruta de la imagen (corregida para apuntar a la carpeta public)
+  const backgroundImageUrl = '/compresiones_1.jpg';
 
 
   return (
     <>
-      {/* Contenedor principal para el fondo */}
       <div 
         className="flex items-center justify-center h-screen bg-gray-200 relative overflow-hidden"
       >
-        {/* Div para la imagen de fondo con opacidad */}
         <div
           style={{
             backgroundImage: `url(${backgroundImageUrl})`,
@@ -50,7 +60,6 @@ function Login() {
           }}
         ></div>
 
-        {/* Formulario de Login */}
         <form 
           className="bg-white p-8 rounded-lg shadow-xl w-96 relative z-10"
           onSubmit={handleLogin}
@@ -72,9 +81,8 @@ function Login() {
             />
           </div>
 
-          <div className="mb-4"> {/* Eliminamos 'relative' de aquí */}
+          <div className="mb-4">
             <label className="block text-gray-700 text-sm font-semibold mb-1">Contraseña</label>
-            {/* Añadimos un nuevo div con 'relative' que envuelve solo al input y al botón */}
             <div className="relative mt-1"> 
               <input
                 type={showPassword ? "text" : "password"}
@@ -123,7 +131,6 @@ function Login() {
           </button>
         </form>
 
-        {/* Modal para contraseña olvidada */}
         {showForgotPasswordModal && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
             <div className="bg-white p-6 rounded-lg shadow-lg w-96">
