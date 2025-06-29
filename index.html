@@ -6,34 +6,39 @@
     <meta http-equiv="Cache-Control" content="no-store" />
     
     <title>CardioUCM</title>
-    <meta name="theme-color" content="#d32f2f" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
-    
-    <!-- Íconos para acceso directo -->
+
+    <!-- Favicon estándar para la pestaña del navegador y marcadores -->
+    <!-- El .ico es para máxima compatibilidad con navegadores antiguos -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+
+    <!-- Icono para "Añadir a la pantalla de inicio" en dispositivos Apple (iPhone/iPad) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+    <!-- Manifiesto de la PWA, crucial para la funcionalidad "Instalar App" en Android y escritorio -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" href="/icon-192.png" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
-    <!-- Font Awesome desde CDN -->
+
+    <!-- Define el color de la barra de herramientas del navegador en móviles (Android) -->
+    <!-- Te sugiero usar el color azul principal de tu marca para consistencia -->
+    <meta name="theme-color" content="#0A3877" /> 
+
+    <!-- =================================================================== -->
+    
+    <!-- Dependencias CSS  -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-    
-    <!-- AdminLTE CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/3.2.0/css/adminlte.min.css" />
-    
-    <!-- Estilos Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   </head>
+
   <body class="hold-transition sidebar-mini">
     <div id="root"></div>
     
-    <!-- jQuery primero (requerido por AdminLTE) -->
+    <!-- Dependencias JS  -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    
-    <!-- Bootstrap 4 (recomendado para AdminLTE) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/js/bootstrap.bundle.min.js" ></script>
-    
-    <!-- AdminLTE JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/3.2.0/js/adminlte.min.js" ></script>
     
     <!-- Tu aplicación React -->
