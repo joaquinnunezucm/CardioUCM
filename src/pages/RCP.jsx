@@ -111,7 +111,7 @@ const RCP = () => {
                 <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-red-600 border-b-2 border-red-100 pb-3 text-center">
                   La persona NO RESPIRA y NO tiene PULSO
                 </h2>
-                <div className="text-gray-700 text-sm md:text-base leading-relaxed">
+                <div className="text-gray-700 text-sm md:text-base leading-relaxed break-words">
                   <ul className="list-disc ml-4 sm:ml-6 space-y-4">
                     <div className="flex justify-center mb-4">
                       <button

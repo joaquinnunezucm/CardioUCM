@@ -192,7 +192,7 @@ const Educacion = () => {
                                   {item.tituloTema}
                                 </h3>
                               )}
-                              <div className="text-gray-800 text-base leading-relaxed">
+                              <div className="text-base text-gray-800 leading-relaxed break-words">
                                 {item.contenidoTema === 'ESPECIAL_METRONOMO_BUTTON' ? (
                                   <>
                                     <ul className="list-disc ml-6 space-y-2">

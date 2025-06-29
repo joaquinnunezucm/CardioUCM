@@ -129,12 +129,12 @@ const Contactanos = () => {
             <HtmlRenderer htmlString={item.etiqueta} />
           </a>
         );
-      case 'texto_simple':
-        return (
-          <div className="text-gray-800 text-base leading-relaxed">
-            <HtmlRenderer htmlString={item.valor} />
-          </div>
-        );
+        case 'texto_simple':
+          return (
+            <div className="text-base text-gray-800 leading-relaxed break-words">
+              <HtmlRenderer htmlString={item.valor} />
+            </div>
+          );
       default:
         return <HtmlRenderer htmlString={item.etiqueta} />;
     }
