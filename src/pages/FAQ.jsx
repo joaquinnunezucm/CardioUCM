@@ -112,7 +112,7 @@ const FAQ = () => {
                         className="group bg-white p-3 rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300"
                         aria-label={`Ver respuesta a ${faq.pregunta}`}
                       >
-                        <summary className="flex justify-between items-center font-semibold cursor-pointer text-gray-800 text-lg md:text-xl group-hover:text-blue-600 break-words">
+                        <summary className="flex justify-between items-center font-medium text-gray-800 text-lg md:text-xl cursor-pointer group-hover:text-blue-600 break-words">
                           {faq.pregunta}
                           <span className="text-blue-500 group-open:rotate-90 transform transition-transform duration-200 ml-3">
                             <svg
