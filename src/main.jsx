@@ -19,11 +19,11 @@ if (import.meta.env.DEV) {
   }
 } else {
   // El registro del Service Worker está desactivado porque el archivo no existe.
-  /*
+  
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/service-worker.js');
     });
   }
-  */
+ 
 }
