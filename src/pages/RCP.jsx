@@ -77,10 +77,10 @@ const RCP = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 bg-gray-100">
-      <BackButton />
-      <div className="w-full max-w-xs xs:max-w-sm sm:max-w-md md:max-w-lg lg:max-w-3xl flex flex-col my-2 xs:my-3 sm:my-4 md:my-6">
-        <div className="content-header py-4 xs:py-5 sm:py-6 bg-white rounded-lg shadow-xl">
+<div className="min-h-screen flex flex-col items-center p-1 xs:p-2 sm:p-3 md:p-4 lg:p-5 bg-gray-100">
+  <BackButton />
+  <div className="w-full max-w-xs xs:max-w-sm sm:max-w-md md:max-w-lg lg:max-w-3xl flex flex-col my-1 xs:my-2 sm:my-3 md:my-4">
+    <div className="content-header py-2 xs:py-3 sm:py-4 bg-white rounded-lg shadow-xl">
         <div className="container-fluid">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
@@ -111,16 +111,6 @@ const RCP = () => {
               <div className="text-gray-700 text-sm md:text-base leading-relaxed">
                 <ul className="list-disc ml-6 space-y-4">
                   <div className="flex justify-center mb-4">
-  <button
-    onClick={toggleMetronomo}
-    className={`px-4 py-2 text-white rounded text-sm my-1 shadow-md transition-transform transform hover:scale-105 ${
-      metronomoActivo ? 'bg-blue-500 hover:bg-blue-600' : 'bg-red-600 hover:bg-red-700'
-    }`}
-  >
-    {metronomoActivo ? 'Detener Metrónomo' : 'Iniciar Metrónomo (100-120 cpm)'}
-  </button>
-</div>
-{/*                   <li>
                     <button
                       onClick={toggleMetronomo}
                       className={`px-4 py-2 text-white rounded text-sm my-1 shadow-md transition-transform transform hover:scale-105 ${
@@ -129,7 +119,8 @@ const RCP = () => {
                     >
                       {metronomoActivo ? 'Detener Metrónomo' : 'Iniciar Metrónomo (100-120 cpm)'}
                     </button>
-                  </li> */}
+                  </div>
+
                   {instrucciones.map((instruccion, index) => (
                     <li key={index} className="mt-4">
                       {instruccion.instruccion === 'Buscar DEA cercano' ? (
