@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-// Se importa 'unstable_useBlocker' para interceptar la navegación y mostrar un modal personalizado.
 import { Link, useNavigate, Outlet, unstable_useBlocker as useBlocker } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -258,7 +257,6 @@ export default function Dashboard() {
 
         <footer className="main-footer">
           <strong>© {new Date().getFullYear()} CardioUCM</strong> - Todos los derechos reservados.
-          <div className="float-right d-none d-sm-inline-block"><b>Versión</b> 1.0.3</div>
         </footer>
       </div>
     </>
