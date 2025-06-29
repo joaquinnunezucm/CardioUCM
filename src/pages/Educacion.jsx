@@ -174,9 +174,9 @@ const Educacion = () => {
                     className="w-full text-left p-4 bg-white rounded-lg shadow-xl flex justify-between items-center hover:bg-gray-50 transition-colors"
                     aria-label={`Alternar ${categoria.categoriaNombre}`}
                   >
-                    <h2 className="text-xl md:text-2xl font-semibold text-blue-700">
-                      {categoria.categoriaNombre}
-                    </h2>
+                    <h2 className="text-2xl md:text-3xl font-semibold mb-2 text-blue-600 border-b-2 border-blue-200 pb-2">
+                    {categoria.categoriaNombre}
+                  </h2>
                     <i className={`fas fa-chevron-${openCategories[categoria.idCategoria] ? 'up' : 'down'} text-blue-600 text-lg`}></i>
                   </button>
                   {openCategories[categoria.idCategoria] && (
