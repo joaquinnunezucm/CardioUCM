@@ -1,7 +1,9 @@
+// RUTA: src/pages/RoutingControl.jsx (o donde lo tengas)
+
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
-import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css'; // Importa los estilos aquí
 import { useMap } from 'react-leaflet';
 
 // Función para calcular la distancia (Haversine)
@@ -14,7 +16,7 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const RoutingControl = ({ from, to, vozActiva, modo = 'caminando' }) => {
+const RoutingControl = ({ from, to, vozActiva }) => {
   const map = useMap();
   const routingControlRef = useRef(null);
 
@@ -27,62 +29,54 @@ const RoutingControl = ({ from, to, vozActiva, modo = 'caminando' }) => {
     setTimeout(() => window.speechSynthesis.speak(utter), 100);
   };
 
-  // Este useEffect gestiona la EXISTENCIA y el PERFIL del control en el mapa
+  // Este useEffect gestiona la EXISTENCIA del control en el mapa
   useEffect(() => {
-    if (!map) return;
+  if (!map) return;
 
-    // Si no hay puntos, nos aseguramos de que el control se elimine
-    if (!from || !to) {
-      if (routingControlRef.current) {
-        map.removeControl(routingControlRef.current);
-        routingControlRef.current = null;
-      }
-      return;
-    }
-
-    // Determina el perfil de enrutamiento basado en el modo
-    const routingProfile = modo === 'coche' ? 'driving' : 'walking';
-
-    // Si el control ya existe, solo actualizamos los puntos de ruta.
-    // La recreación completa para cambiar el perfil se maneja cambiando la 'key' en el componente padre.
+  // Si no hay puntos, nos aseguramos de que el control se elimine
+  if (!from || !to) {
     if (routingControlRef.current) {
-      routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
-      return;
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
     }
+    return;
+  }
 
-    // Si no existe, lo creamos con el perfil correcto
-    const control = L.Routing.control({
-      waypoints: [L.latLng(from), L.latLng(to)],
-      router: L.Routing.osrmv1({
-        serviceUrl: `https://router.project-osrm.org/route/v1`,
-        profile: routingProfile, // 'driving' o 'walking'
-      }),
-      createMarker: () => null,
-      routeWhileDragging: false,
-      addWaypoints: false,
-      fitSelectedRoutes: true,
-      show: false,
-      language: 'es',
-      lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
-    }).addTo(map);
+  // Si el control ya existe, solo actualizamos los puntos de ruta
+  if (routingControlRef.current) {
+    routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
+    return;
+  }
 
-    control.on('routeselected', (e) => {
-      if (e.route.instructions.length > 0) {
-        const primerPaso = e.route.instructions[0];
-        hablar(`Iniciando ruta. En ${Math.round(primerPaso.distance)} metros, ${primerPaso.text}`);
-      }
-    });
+  // Si no existe, lo creamos
+  const control = L.Routing.control({
+    waypoints: [L.latLng(from), L.latLng(to)],
+    createMarker: () => null,
+    routeWhileDragging: false,
+    addWaypoints: false,
+    fitSelectedRoutes: true,
+    show: false,
+    language: 'es',
+    lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
+  }).addTo(map);
 
-    routingControlRef.current = control;
+  control.on('routeselected', (e) => {
+    if (e.route.instructions.length > 0) {
+      const primerPaso = e.route.instructions[0];
+      hablar(`Iniciando ruta. En ${Math.round(primerPaso.distance)} metros, ${primerPaso.text}`);
+    }
+  });
 
-    // LIMPIEZA: elimina el control SIEMPRE que el componente se desmonta
-    return () => {
-      if (routingControlRef.current) {
-        map.removeControl(routingControlRef.current);
-        routingControlRef.current = null;
-      }
-    };
-  }, [map, from, to, modo]); // Se re-ejecuta si el modo cambia
+  routingControlRef.current = control;
+
+  // LIMPIEZA: elimina el control SIEMPRE que el componente se desmonta o cambian los props
+  return () => {
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+  };
+}, [map, from, to]);
 
   // Este useEffect gestiona la GUÍA POR VOZ en tiempo real
   useEffect(() => {
@@ -91,9 +85,7 @@ const RoutingControl = ({ from, to, vozActiva, modo = 'caminando' }) => {
     let watchId = null;
     let instrucciones = [];
     const pasosYaLeidos = new Set();
-    
-    // La distancia de aviso ahora es dinámica, basada en el modo
-    const distanciaAviso = modo === 'coche' ? 120 : 25;
+    const distanciaAviso = 20; // en metros
 
     const onRoutesFound = (e) => {
       instrucciones = e.routes[0].instructions;
@@ -142,10 +134,10 @@ const RoutingControl = ({ from, to, vozActiva, modo = 'caminando' }) => {
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
       if (routingControlRef.current) {
-        routingControlRef.current.off('routesfound', onRoutesFound);
+        routingControlRef.current.off('routesfound', onRoutesFound); // Muy importante desregistrar el listener
       }
     };
-  }, [vozActiva, modo]); // Se re-ejecuta si el modo cambia
+  }, [vozActiva]); // Se activa y desactiva solo con la prop 'vozActiva'
 
   return null;
 };
