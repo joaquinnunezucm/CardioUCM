@@ -118,11 +118,12 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [vozActiva, setVozActiva] = useState(false);
+  const [modoTransporte, setModoTransporte] = useState('caminando'); // 'caminando' o 'coche'
 
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
-  const throttledLocation = useThrottle(userLocation, 3000);
+  const throttledLocation = useThrottle(userLocation, modoTransporte === 'coche' ? 4000 : 7000);
 
   const handleLocationError = (error) => {
     let title = 'Error de Ubicación';
@@ -134,7 +135,7 @@ const UbicacionDEA = () => {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
-        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
+        text = 'Has denegado el acceso a tu ubicación. Para usar esta función, por favor, habilita los permisos de ubicación para este sitio en la configuración de tu navegador y luego recarga la página.';
         showCancelButton = true;
         confirmButtonText = 'Recargar Página';
         onConfirm = () => window.location.reload();
@@ -475,10 +476,11 @@ const UbicacionDEA = () => {
               ))}
               {fromPoint && toPoint && (
                 <RoutingControl
-                  key={toPoint.join(',')}
+                  key={`${toPoint.join(',')}-${modoTransporte}`}
                   from={fromPoint}
                   to={toPoint}
                   vozActiva={vozActiva}
+                  modo={modoTransporte}
                 />
               )}
 
@@ -498,7 +500,7 @@ const UbicacionDEA = () => {
                     userMarkerRef.current.openPopup();
                   }
                 } else {
-                  handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' }); // Código inventado para un error interno
+                  handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' });
                 }
               }}
               className="btn btn-info"
@@ -513,10 +515,30 @@ const UbicacionDEA = () => {
                   setVozActiva(false);
                 }}
                 className="btn btn-danger"
-                style={{ ...mapButtonStyle, top: 110, right: 10 }}
+                style={{ ...mapButtonStyle, top: 110, right: 10, width: '150px' }}
               >
                 Detener Ruta
               </button>
+            )}
+            {destinoRuta && (
+              <div style={{ position: 'absolute', top: 160, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <Button
+                  variant={modoTransporte === 'caminando' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setModoTransporte('caminando')}
+                  style={{ width: '150px' }}
+                >
+                  <i className="fas fa-walking mr-2"></i> Caminando
+                </Button>
+                <Button
+                  variant={modoTransporte === 'coche' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setModoTransporte('coche')}
+                  style={{ width: '150px' }}
+                >
+                  <i className="fas fa-car mr-2"></i> En Coche
+                </Button>
+              </div>
             )}
           </div>
           <div className="row justify-content-center">
