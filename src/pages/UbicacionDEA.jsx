@@ -20,6 +20,7 @@ import {
   isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
+// --- NUEVO ---
 import { useThrottle } from '../utils/hooks'; // Asegúrate de que la ruta sea correcta
 
 // Icono personalizado para los DEAs
@@ -122,49 +123,9 @@ const UbicacionDEA = () => {
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
+  // --- NUEVO: Aplicar throttle a la ubicación del usuario ---
+  // Se recalculará la ruta como máximo cada 7 segundos (7000 ms) si el usuario se mueve.
   const throttledLocation = useThrottle(userLocation, 7000);
-
-  const handleLocationError = (error) => {
-    let title = 'Error de Ubicación';
-    let text = 'No se pudo obtener tu ubicación. Por favor, inténtalo de nuevo.';
-    let showCancelButton = false;
-    let confirmButtonText = 'Entendido';
-    let onConfirm = () => {};
-
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        title = 'Permiso de Ubicación Denegado';
-        text = 'Has denegado el acceso a tu ubicación. Para usar esta función, por favor, habilita los permisos de ubicación para este sitio en la configuración de tu navegador y luego recarga la página.';
-        showCancelButton = true;
-        confirmButtonText = 'Recargar Página';
-        onConfirm = () => window.location.reload();
-        break;
-      case error.POSITION_UNAVAILABLE:
-        title = 'Ubicación no Disponible';
-        text = 'No pudimos detectar tu ubicación actual. Asegúrate de tener una buena conexión a internet o señal GPS.';
-        break;
-      case error.TIMEOUT:
-        title = 'Tiempo de Espera Agotado';
-        text = 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.';
-        break;
-      default:
-        text = `Ocurrió un error inesperado al obtener la ubicación: ${error.message}`;
-        break;
-    }
-
-    Swal.fire({
-      icon: 'error',
-      title: title,
-      text: text,
-      showCancelButton: showCancelButton,
-      confirmButtonText: confirmButtonText,
-      cancelButtonText: 'Cerrar',
-    }).then((result) => {
-      if (result.isConfirmed) {
-        onConfirm();
-      }
-    });
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -215,29 +176,34 @@ const UbicacionDEA = () => {
       });
   }, []);
 
+  // --- MODIFICADO: El useEffect de geolocalización ahora usa watchPosition ---
   useEffect(() => {
     if (!navigator.geolocation) {
       Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
       return;
     }
 
+    // Usamos watchPosition para obtener actualizaciones continuas de la ubicación
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const coords = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords);
+        setUserLocation(coords); // Actualizamos la ubicación del usuario constantemente
 
+        // Centra el mapa en la ubicación del usuario solo la primera vez que se obtiene
         if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
           setCenter(coords);
         }
       },
       (error) => {
-        handleLocationError(error);
+        console.error('Error obteniendo ubicación del usuario:', error);
+        Swal.fire('Error', 'No se pudo obtener tu ubicación.', 'error');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
 
+    // Función de limpieza para detener el seguimiento cuando el componente se desmonte
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, []); // El array vacío asegura que este efecto se ejecute solo una vez
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -394,7 +360,11 @@ const UbicacionDEA = () => {
     fontSize: '14px',
   };
 
+  // --- MODIFICADO: useMemo para fromPoint y toPoint ---
   const fromPoint = useMemo(() => {
+    // Si hay un destinoRuta (es decir, una ruta activa), usamos la ubicación con throttle
+    // para no recalcular la ruta en cada pequeño movimiento.
+    // Si no hay ruta activa, usamos la ubicación en tiempo real (para el marcador de usuario).
     return destinoRuta ? throttledLocation : userLocation;
   }, [destinoRuta, userLocation, throttledLocation]);
 
@@ -498,7 +468,7 @@ const UbicacionDEA = () => {
                     userMarkerRef.current.openPopup();
                   }
                 } else {
-                  handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' }); // Código inventado para un error interno
+                  Swal.fire('Error', 'No se ha podido obtener tu ubicación actual.', 'error');
                 }
               }}
               className="btn btn-info"
