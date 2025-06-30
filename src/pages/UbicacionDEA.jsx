@@ -122,7 +122,7 @@ const UbicacionDEA = () => {
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
-  const throttledLocation = useThrottle(userLocation, 7000);
+  const throttledLocation = useThrottle(userLocation, 3000);
 
   const handleLocationError = (error) => {
     let title = 'Error de Ubicación';
@@ -134,7 +134,7 @@ const UbicacionDEA = () => {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
-        text = 'Has denegado el acceso a tu ubicación. Para usar esta función, por favor, habilita los permisos de ubicación para este sitio en la configuración de tu navegador y luego recarga la página.';
+        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
         showCancelButton = true;
         confirmButtonText = 'Recargar Página';
         onConfirm = () => window.location.reload();
