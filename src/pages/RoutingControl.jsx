@@ -69,6 +69,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const proximoPasoIndex = useRef(0);
   const avisosDados = useRef(new Set());
   const hasArrivedRef = useRef(false);
+  const ultimaPosicion = useRef(null); // Para detectar cambios en la posición
 
   // Efecto para crear y destruir el control de la ruta
   useEffect(() => {
@@ -129,6 +130,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       instrucciones = e.routes[0].instructions;
       proximoPasoIndex.current = 0;
       avisosDados.current.clear();
+      ultimaPosicion.current = null; // Reiniciar última posición
     };
     routingControlRef.current.on('routesfound', onRoutesFound);
 
@@ -154,6 +156,17 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
           if (instrucciones.length === 0 || hasArrivedRef.current) return;
 
           const { latitude, longitude } = position.coords;
+
+          // Evitar procesamiento si la posición no ha cambiado significativamente
+          if (ultimaPosicion.current) {
+            const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
+            if (distanciaCambio < 5) { // Ignorar cambios menores a 5 metros
+              console.debug('Posición sin cambios significativos:', { latitude, longitude });
+              return;
+            }
+          }
+          ultimaPosicion.current = { lat: latitude, lng: longitude };
+
           map.panTo([latitude, longitude]);
           let minDist = Infinity;
           let routeLine = null;
@@ -173,7 +186,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             for (let i = 0; i < routeLine.length - 1; i++) {
               const a = routeLine[i];
               const b = routeLine[i + 1];
-              // Validación reforzada para propiedades lat y lng
               if (
                 !a || !b ||
                 !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
@@ -218,16 +230,21 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             }
             return;
           }
+
           const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+          console.debug('Distancia al paso actual:', { distancia, proximoPasoIndex: proximoPasoIndex.current, avisosDados: [...avisosDados.current] });
+
           if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
             hablar(proximoPaso.text);
             avisosDados.current.add(proximoPasoIndex.current);
             proximoPasoIndex.current++;
+            console.debug('Instrucción emitida, avanzando al siguiente paso:', proximoPasoIndex.current);
           } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
             let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
             if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
             hablar(texto);
             avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+            console.debug('Aviso de preparación emitido:', `prep_${proximoPasoIndex.current}`);
           }
         },
         (error) => {
@@ -246,11 +263,11 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             });
           }
         },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 } // Aumentado a 60 segundos
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 } // Aumentado a 90 segundos
       );
     }
 
-    // Retraso aumentado para mantener el contexto del gesto
+    // Retraso para mantener el contexto del gesto
     setTimeout(() => {
       iniciarWatchPosition();
     }, 200);
