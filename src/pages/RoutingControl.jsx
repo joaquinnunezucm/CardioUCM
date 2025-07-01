@@ -146,40 +146,43 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
 
           // --- LÓGICA DE DESVÍO USANDO POLILÍNEA ---
           let minDist = Infinity;
-          let routeLine = null;
-          if (
-            routingControlRef.current &&
-            routingControlRef.current._routes &&
-            routingControlRef.current._routes[0] &&
-            routingControlRef.current._routes[0].coordinates
-          ) {
-            routeLine = routingControlRef.current._routes[0].coordinates;
-          }
+let routeLine = null;
+if (
+  routingControlRef.current &&
+  routingControlRef.current._routes &&
+  routingControlRef.current._routes[0] &&
+  Array.isArray(routingControlRef.current._routes[0].coordinates) &&
+  routingControlRef.current._routes[0].coordinates.length > 1
+) {
+  routeLine = routingControlRef.current._routes[0].coordinates;
+}
 
-          if (routeLine && routeLine.length > 1) {
-            for (let i = 0; i < routeLine.length - 1; i++) {
-              const a = routeLine[i];
-              const b = routeLine[i + 1];
-              if (
-                !a || !b ||
-                typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
-                typeof b.lat !== 'number' || typeof b.lng !== 'number'
-              ) continue;
-              minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
-            }
-            // Si el usuario está a más de 50m de la ruta, recalcula
-            if (minDist > 50) {
-              routingControlRef.current.setWaypoints([
-                L.latLng(latitude, longitude),
-                routingControlRef.current.getWaypoints()[1].latLng
-              ]);
-              proximoPasoIndex.current = 0;
-              avisosDados.current.clear();
-              hasArrivedRef.current = false;
-              hablar('Te has desviado de la ruta. Recalculando...');
-              return;
-            }
-          }
+if (routeLine) {
+  for (let i = 0; i < routeLine.length - 1; i++) {
+    const a = routeLine[i];
+    const b = routeLine[i + 1];
+    if (
+      !a || !b ||
+      typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
+      typeof b.lat !== 'number' || typeof b.lng !== 'number'
+    ) continue;
+    minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+  }
+  // Si el usuario está a más de 50m de la ruta, recalcula
+  if (minDist > 50) {
+    routingControlRef.current.setWaypoints([
+      L.latLng(latitude, longitude),
+      routingControlRef.current.getWaypoints()[1].latLng
+    ]);
+    proximoPasoIndex.current = 0;
+    avisosDados.current.clear();
+    hasArrivedRef.current = false;
+    hablar('Te has desviado de la ruta. Recalculando...');
+    return;
+  }
+} else {
+  console.warn('No se pudo obtener la polilínea de la ruta.');
+}
           // --- FIN LÓGICA DE DESVÍO ---
 
           // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
