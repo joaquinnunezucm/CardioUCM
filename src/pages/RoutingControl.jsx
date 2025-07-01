@@ -163,13 +163,158 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   }, [map, from, to]);
 
   // Efecto para la guía por voz y seguimiento en tiempo real
-  useEffect(() => {
+    useEffect(() => {
     if (!vozActiva || !routingControlRef.current) {
       console.debug('Guía por voz desactivada o routingControl no disponible:', { vozActiva, hasRoutingControl: !!routingControlRef.current });
       return;
     }
 
     let instrucciones = [];
+    let reintentos = 0;
+    let onSuccess, onError;
+
+    onSuccess = (position) => {
+      if (!isMountedRef.current) {
+        console.debug('Componente desmontado, ignorando posición');
+        return;
+      }
+      const { latitude, longitude } = position.coords;
+      console.debug('Nueva posición recibida:', { latitude, longitude });
+
+      if (ultimaPosicion.current) {
+        const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
+        if (distanciaCambio < 5) {
+          console.debug('Posición sin cambios significativos:', { distanciaCambio });
+          return;
+        }
+      }
+      ultimaPosicion.current = { lat: latitude, lng: longitude };
+
+      map.panTo([latitude, longitude]);
+      let minDist = Infinity;
+      let routeLine = null;
+
+      try {
+        if (
+          routingControlRef.current &&
+          routingControlRef.current._routes &&
+          routingControlRef.current._routes[0] &&
+          Array.isArray(routingControlRef.current._routes[0].coordinates) &&
+          routingControlRef.current._routes[0].coordinates.length > 1
+        ) {
+          routeLine = routingControlRef.current._routes[0].coordinates;
+          console.debug('Polilínea de ruta obtenida, longitud:', routeLine.length);
+        } else {
+          console.warn('No se pudo obtener la polilínea de la ruta:', {
+            hasRoutes: !!routingControlRef.current?._routes,
+            hasFirstRoute: !!routingControlRef.current?._routes?.[0],
+            hasCoordinates: !!routingControlRef.current?._routes?.[0]?.coordinates,
+            coordinatesLength: routingControlRef.current?._routes?.[0]?.coordinates?.length,
+          });
+          Swal.fire({
+            icon: 'error',
+            title: 'Error en la ruta',
+            text: 'No se pudo calcular la ruta. Por favor, intenta de nuevo.',
+            confirmButtonText: 'Entendido',
+          });
+          return;
+        }
+
+        for (let i = 0; i < routeLine.length - 1; i++) {
+          const a = routeLine[i];
+          const b = routeLine[i + 1];
+          if (
+            !a || !b ||
+            !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
+            !b.hasOwnProperty('lat') || !b.hasOwnProperty('lng') ||
+            isNaN(a.lat) || isNaN(a.lng) ||
+            isNaN(b.lat) || isNaN(b.lng)
+          ) {
+            console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
+            continue;
+          }
+          const dist = distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]);
+          minDist = Math.min(minDist, dist);
+        }
+
+        console.debug('Distancia mínima a la ruta:', minDist);
+
+        // Lógica de desvío comentada para pruebas
+        /*
+        if (minDist > 100) {
+          console.warn('Usuario desviado de la ruta:', { minDist });
+          routingControlRef.current.setWaypoints([
+            L.latLng(latitude, longitude),
+            routingControlRef.current.getWaypoints()[1].latLng
+          ]);
+          proximoPasoIndex.current = 0;
+          avisosDados.current.clear();
+          hasArrivedRef.current = false;
+          hablar('Te has desviado de la ruta. Recalculando...');
+          return;
+        }
+        */
+
+        const proximoPaso = instrucciones[proximoPasoIndex.current];
+        if (!proximoPaso || !proximoPaso.latLng || !proximoPaso.latLng.lat || !proximoPaso.latLng.lng) {
+          if (!hasArrivedRef.current) {
+            console.debug('No hay más pasos o paso inválido, usuario ha llegado al destino');
+            hasArrivedRef.current = true;
+            hablar('Has llegado a tu destino');
+            onRouteFinished();
+          }
+          return;
+        }
+
+        const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+        console.debug('Distancia al paso actual:', {
+          distancia,
+          proximoPasoIndex: proximoPasoIndex.current,
+          pasoText: proximoPaso.text,
+        });
+
+        if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
+          console.debug('Emitiendo instrucción:', proximoPaso.text);
+          hablar(proximoPaso.text);
+          avisosDados.current.add(proximoPasoIndex.current);
+          proximoPasoIndex.current++;
+        } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
+          let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
+          if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
+          console.debug('Emitiendo aviso de preparación:', texto);
+          hablar(texto);
+          avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+        }
+      } catch (error) {
+        console.error('Error al procesar la posición:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error en el procesamiento',
+          text: 'Ocurrió un error al procesar la posición. Por favor, intenta de nuevo.',
+          confirmButtonText: 'Entendido',
+        });
+      }
+    };
+
+    onError = (error) => {
+      console.error('Error en watchPosition:', { code: error.code, message: error.message });
+      if (error.code === error.TIMEOUT && reintentos < 3) {
+        reintentos++;
+        console.debug(`Reintento ${reintentos} de watchPosition`);
+        if (isMountedRef.current) {
+          watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 });
+        }
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
+          text: error.code === error.TIMEOUT
+            ? 'No se pudo obtener tu ubicación en el tiempo permitido. Por favor, verifica tu conexión o permisos de geolocalización y vuelve a intentarlo.'
+            : error.message,
+          confirmButtonText: 'Entendido',
+        });
+      }
+    };
 
     const onRoutesFound = (e) => {
       if (!isMountedRef.current) {
@@ -194,150 +339,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       }
 
       console.debug('Iniciando watchPosition tras rutas encontradas');
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (position) => {
-          if (!isMountedRef.current) {
-            console.debug('Componente desmontado, ignorando posición');
-            return;
-          }
-          const { latitude, longitude } = position.coords;
-          console.debug('Nueva posición recibida:', { latitude, longitude });
-
-          if (ultimaPosicion.current) {
-            const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
-            if (distanciaCambio < 5) {
-              console.debug('Posición sin cambios significativos:', { distanciaCambio });
-              return;
-            }
-          }
-          ultimaPosicion.current = { lat: latitude, lng: longitude };
-
-          map.panTo([latitude, longitude]);
-          let minDist = Infinity;
-          let routeLine = null;
-
-          try {
-            if (
-              routingControlRef.current &&
-              routingControlRef.current._routes &&
-              routingControlRef.current._routes[0] &&
-              Array.isArray(routingControlRef.current._routes[0].coordinates) &&
-              routingControlRef.current._routes[0].coordinates.length > 1
-            ) {
-              routeLine = routingControlRef.current._routes[0].coordinates;
-              console.debug('Polilínea de ruta obtenida, longitud:', routeLine.length);
-            } else {
-              console.warn('No se pudo obtener la polilínea de la ruta:', {
-                hasRoutes: !!routingControlRef.current?._routes,
-                hasFirstRoute: !!routingControlRef.current?._routes?.[0],
-                hasCoordinates: !!routingControlRef.current?._routes?.[0]?.coordinates,
-                coordinatesLength: routingControlRef.current?._routes?.[0]?.coordinates?.length,
-              });
-              Swal.fire({
-                icon: 'error',
-                title: 'Error en la ruta',
-                text: 'No se pudo calcular la ruta. Por favor, intenta de nuevo.',
-                confirmButtonText: 'Entendido',
-              });
-              return;
-            }
-
-            for (let i = 0; i < routeLine.length - 1; i++) {
-              const a = routeLine[i];
-              const b = routeLine[i + 1];
-              if (
-                !a || !b ||
-                !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
-                !b.hasOwnProperty('lat') || !b.hasOwnProperty('lng') ||
-                isNaN(a.lat) || isNaN(a.lng) ||
-                isNaN(b.lat) || isNaN(b.lng)
-              ) {
-                console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
-                continue;
-              }
-              const dist = distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]);
-              minDist = Math.min(minDist, dist);
-            }
-
-            console.debug('Distancia mínima a la ruta:', minDist);
-
-            // Lógica de desvío comentada para pruebas
-            /*
-            if (minDist > 100) {
-              console.warn('Usuario desviado de la ruta:', { minDist });
-              routingControlRef.current.setWaypoints([
-                L.latLng(latitude, longitude),
-                routingControlRef.current.getWaypoints()[1].latLng
-              ]);
-              proximoPasoIndex.current = 0;
-              avisosDados.current.clear();
-              hasArrivedRef.current = false;
-              hablar('Te has desviado de la ruta. Recalculando...');
-              return;
-            }
-            */
-
-            const proximoPaso = instrucciones[proximoPasoIndex.current];
-            if (!proximoPaso || !proximoPaso.latLng || !proximoPaso.latLng.lat || !proximoPaso.latLng.lng) {
-              if (!hasArrivedRef.current) {
-                console.debug('No hay más pasos o paso inválido, usuario ha llegado al destino');
-                hasArrivedRef.current = true;
-                hablar('Has llegado a tu destino');
-                onRouteFinished();
-              }
-              return;
-            }
-
-            const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
-            console.debug('Distancia al paso actual:', {
-              distancia,
-              proximoPasoIndex: proximoPasoIndex.current,
-              pasoText: proximoPaso.text,
-            });
-
-            if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
-              console.debug('Emitiendo instrucción:', proximoPaso.text);
-              hablar(proximoPaso.text);
-              avisosDados.current.add(proximoPasoIndex.current);
-              proximoPasoIndex.current++;
-            } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
-              let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
-              if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
-              console.debug('Emitiendo aviso de preparación:', texto);
-              hablar(texto);
-              avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
-            }
-          } catch (error) {
-            console.error('Error al procesar la posición:', error);
-            Swal.fire({
-              icon: 'error',
-              title: 'Error en el procesamiento',
-              text: 'Ocurrió un error al procesar la posición. Por favor, intenta de nuevo.',
-              confirmButtonText: 'Entendido',
-            });
-          }
-        },
-        (error) => {
-          console.error('Error en watchPosition:', { code: error.code, message: error.message });
-          if (error.code === error.TIMEOUT && reintentos < 3) {
-            reintentos++;
-            console.debug(`Reintento ${reintentos} de watchPosition`);
-            if (isMountedRef.current) {
-              watchIdRef.current = navigator.geolocation.watchPosition(...);
-            }
-          } else {
-            Swal.fire({
-              icon: 'error',
-              title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
-              text: error.code === error.TIMEOUT
-                ? 'No se pudo obtener tu ubicación en el tiempo permitido. Por favor, verifica tu conexión o permisos de geolocalización y vuelve a intentarlo.'
-                : error.message,
-              confirmButtonText: 'Entendido',
-            });
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 }
-      );
+      watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 });
     };
 
     routingControlRef.current.on('routesfound', onRoutesFound);
@@ -355,7 +357,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       }
     };
   }, [vozActiva, map, onRouteFinished]);
-
   return null;
 };
 
