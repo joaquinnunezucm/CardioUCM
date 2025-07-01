@@ -154,6 +154,11 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
           for (let i = 0; i < routeLine.length - 1; i++) {
             const a = routeLine[i];
             const b = routeLine[i + 1];
+            if (
+              !a || !b ||
+              typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
+              typeof b.lat !== 'number' || typeof b.lng !== 'number'
+            ) continue;
             minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
           }
           // Si el usuario está a más de 50m de la ruta, recalcula
@@ -213,7 +218,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
         }
       },
       (error) => console.error("Error en watchPosition:", error),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
 
     return () => {
