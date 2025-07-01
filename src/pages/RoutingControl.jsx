@@ -266,24 +266,35 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
           return;
         }
 
-        const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
         console.debug('Distancia al paso actual:', {
           distancia,
           proximoPasoIndex: proximoPasoIndex.current,
           pasoText: proximoPaso.text,
         });
 
-        if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
-          console.debug('Emitiendo instrucción:', proximoPaso.text);
-          hablar(proximoPaso.text);
-          avisosDados.current.add(proximoPasoIndex.current);
-          proximoPasoIndex.current++;
-        } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
-          let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
-          if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
-          console.debug('Emitiendo aviso de preparación:', texto);
-          hablar(texto);
-          avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+        // Solo avanzar si no estamos en el último paso
+        if (proximoPasoIndex.current < instrucciones.length - 1) {
+          if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
+            console.debug('Emitiendo instrucción:', proximoPaso.text);
+            hablar(proximoPaso.text);
+            avisosDados.current.add(proximoPasoIndex.current);
+            proximoPasoIndex.current++;
+          } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
+            let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
+            if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
+            console.debug('Emitiendo aviso de preparación:', texto);
+            hablar(texto);
+            avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+          }
+        } else {
+          // Último paso: solo marcar llegada si realmente estamos cerca del destino
+          if (distancia <= 25 && !hasArrivedRef.current) {
+            console.debug('Usuario ha llegado al destino');
+            hasArrivedRef.current = true;
+            hablar('Has llegado a tu destino');
+            onRouteFinished();
+          }
         }
       } catch (error) {
         console.error('Error al procesar la posición:', error);
