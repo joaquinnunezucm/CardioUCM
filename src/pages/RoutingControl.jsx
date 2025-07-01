@@ -229,7 +229,15 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             iniciarWatchPosition();
           } else {
             console.error("Error en watchPosition:", error);
-            // Aquí puedes mostrar un mensaje más claro al usuario si lo deseas
+            // Mostrar alerta visual
+            window.Swal && Swal.fire({
+              icon: 'error',
+              title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
+              text: error.code === error.TIMEOUT
+                ? 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.'
+                : error.message,
+              confirmButtonText: 'Entendido'
+            });
           }
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
