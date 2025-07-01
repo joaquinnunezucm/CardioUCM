@@ -441,11 +441,10 @@ const iniciarNavegacion = (dea) => {
     cancelButtonText: 'No, solo mostrar ruta',
     reverseButtons: true,
   }).then((result) => {
-    console.debug('Resultado de Swal:', { isConfirmed: result.isConfirmed });
     if (result.isConfirmed) {
       setVozActiva(true);
     }
-    setRutaFrom([...userLocation]); // Copia para evitar referencias cambiantes
+    setRutaFrom(userLocation); // Usar userLocation directamente para evitar cambios frecuentes
     setDestinoRuta(destino);
     setTimeout(() => {
       markersRef.current[dea.id]?.closePopup();
@@ -542,15 +541,15 @@ const toPoint = useMemo(() => {
                     </Popup>
                   </Marker>
                 ))}
-              {fromPoint && toPoint && (
-                <RoutingControl
-                  key={`${fromPoint[0]},${fromPoint[1]}-${toPoint[0]},${toPoint[1]}`}
-                  from={fromPoint}
-                  to={toPoint}
-                  vozActiva={vozActiva}
-                  onRouteFinished={onRouteFinished}
-                />
-              )}
+                {fromPoint && toPoint && (
+                  <RoutingControl
+                    key={`${fromPoint.join(',')}-${toPoint.join(',')}`}
+                    from={fromPoint}
+                    to={toPoint}
+                    vozActiva={vozActiva}
+                    onRouteFinished={onRouteFinished}
+                  />
+                )}
               </MapContainer>
             )}
             {!isLoading && <>
