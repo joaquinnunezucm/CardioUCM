@@ -124,6 +124,7 @@ const UbicacionDEA = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
+  const [isGeolocationRequested, setIsGeolocationRequested] = useState(false);
 
   const throttledLocation = useThrottle(userLocation, 7000);
 
@@ -221,16 +222,40 @@ const UbicacionDEA = () => {
 
 useEffect(() => {
   if (!navigator.geolocation) {
-    Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
-    setIsLoading(false);
+    Swal.fire({
+      icon: 'error',
+      title: 'Geolocalización no soportada',
+      text: 'La geolocalización no es soportada por este navegador.',
+      confirmButtonText: 'Entendido',
+    }).then(() => {
+      setIsLoading(false);
+    });
     return;
   }
+
+  Swal.fire({
+    icon: 'question',
+    title: '¿Centrar en tu ubicación?',
+    text: 'Esto mostrará tu posición actual en el mapa.',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, centrar',
+    cancelButtonText: 'No, usar ubicación predeterminada',
+  }).then((result) => {
+    if (result.isConfirmed) {
+      setIsGeolocationRequested(true);
+    } else {
+      setIsLoading(false);
+    }
+  });
+}, []); // Ejecutar solo al montar el componente
+
+useEffect(() => {
+  if (!isGeolocationRequested) return;
 
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
       const coords = [position.coords.latitude, position.coords.longitude];
       setUserLocation(coords);
-
       if (isLoading) {
         setCenter(coords);
         setIsLoading(false);
@@ -241,7 +266,7 @@ useEffect(() => {
   );
 
   return () => navigator.geolocation.clearWatch(watchId);
-}, [isLoading]);
+}, [isGeolocationRequested, isLoading]);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -520,6 +545,7 @@ const toPoint = useMemo(() => {
               </button>
               <button
                 onClick={() => {
+                  setIsGeolocationRequested(true);
                   if (userLocation) {
                     setCenter([...userLocation]);
                     userMarkerRef.current?.openPopup();
