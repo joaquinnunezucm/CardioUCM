@@ -131,95 +131,112 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
     };
     routingControlRef.current.on('routesfound', onRoutesFound);
 
-    watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        if (instrucciones.length === 0 || hasArrivedRef.current) return;
+    // Reintentos automáticos si ocurre TIMEOUT
+    let reintentos = 0;
+    const MAX_REINTENTOS = 3;
 
-        const { latitude, longitude } = position.coords;
-        map.panTo([latitude, longitude]); // Seguir al usuario
+    function iniciarWatchPosition() {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          reintentos = 0;
+          if (instrucciones.length === 0 || hasArrivedRef.current) return;
 
-        // --- LÓGICA DE DESVÍO USANDO POLILÍNEA ---
-        let minDist = Infinity;
-        let routeLine = null;
-        if (
-          routingControlRef.current &&
-          routingControlRef.current._routes &&
-          routingControlRef.current._routes[0] &&
-          routingControlRef.current._routes[0].coordinates
-        ) {
-          routeLine = routingControlRef.current._routes[0].coordinates;
-        }
+          const { latitude, longitude } = position.coords;
+          map.panTo([latitude, longitude]); // Seguir al usuario
 
-        if (routeLine && routeLine.length > 1) {
-          for (let i = 0; i < routeLine.length - 1; i++) {
-            const a = routeLine[i];
-            const b = routeLine[i + 1];
-            if (
-              !a || !b ||
-              typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
-              typeof b.lat !== 'number' || typeof b.lng !== 'number'
-            ) continue;
-            minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+          // --- LÓGICA DE DESVÍO USANDO POLILÍNEA ---
+          let minDist = Infinity;
+          let routeLine = null;
+          if (
+            routingControlRef.current &&
+            routingControlRef.current._routes &&
+            routingControlRef.current._routes[0] &&
+            routingControlRef.current._routes[0].coordinates
+          ) {
+            routeLine = routingControlRef.current._routes[0].coordinates;
           }
-          // Si el usuario está a más de 50m de la ruta, recalcula
-          if (minDist > 50) {
-            routingControlRef.current.setWaypoints([
-              L.latLng(latitude, longitude),
-              routingControlRef.current.getWaypoints()[1].latLng
-            ]);
-            proximoPasoIndex.current = 0;
-            avisosDados.current.clear();
-            hasArrivedRef.current = false;
-            hablar('Te has desviado de la ruta. Recalculando...');
-            return;
-          }
-        }
-        // --- FIN LÓGICA DE DESVÍO ---
 
-        // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
-        const DISTANCIA_AVISO_PREPARACION = 100; // metros
-        const DISTANCIA_AVISO_EJECUCION = 25;   // metros
-
-        let pasoActual = instrucciones[proximoPasoIndex.current];
-        if (!pasoActual) return; // Ruta terminada
-
-        const distanciaAlPaso = getDistance(latitude, longitude, pasoActual.latLng.lat, pasoActual.latLng.lng);
-        const idAvisoPreparacion = `${proximoPasoIndex.current}-prep`;
-        const idAvisoEjecucion = `${proximoPasoIndex.current}-ejec`;
-
-        // 1. Dar aviso de PREPARACIÓN
-        if (distanciaAlPaso <= DISTANCIA_AVISO_PREPARACION && !avisosDados.current.has(idAvisoPreparacion)) {
-          const instruccionTexto = pasoActual.text.toLowerCase();
-          // Añadimos el nombre de la calle si existe para más contexto
-          const textoCompleto = pasoActual.road ? `${instruccionTexto} en ${pasoActual.road}` : instruccionTexto;
-          hablar(`A ${Math.round(distanciaAlPaso)} metros, ${textoCompleto}`);
-          avisosDados.current.add(idAvisoPreparacion);
-        }
-
-        // 2. Dar aviso de EJECUCIÓN y AVANZAR al siguiente paso
-        if (distanciaAlPaso <= DISTANCIA_AVISO_EJECUCION) {
-          if (!avisosDados.current.has(idAvisoEjecucion)) {
-             // Instrucción más directa para la ejecución
-             hablar(`Ahora, ${pasoActual.text.toLowerCase()}`);
-             avisosDados.current.add(idAvisoEjecucion);
-          }
-          // Si ya dimos el aviso de ejecución, y nos seguimos acercando o ya pasamos, avanzamos el puntero
-          proximoPasoIndex.current++; 
-        }
-
-        // 3. Lógica de LLEGADA al destino
-        const ultimoPasoIndex = instrucciones.length - 1;
-        if (proximoPasoIndex.current > ultimoPasoIndex && !hasArrivedRef.current) {
-            hablar('Has llegado a tu destino.');
-            hasArrivedRef.current = true;
-            if (onRouteFinished) {
-              onRouteFinished();
+          if (routeLine && routeLine.length > 1) {
+            for (let i = 0; i < routeLine.length - 1; i++) {
+              const a = routeLine[i];
+              const b = routeLine[i + 1];
+              if (
+                !a || !b ||
+                typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
+                typeof b.lat !== 'number' || typeof b.lng !== 'number'
+              ) continue;
+              minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
             }
-        }
-      },
-      (error) => console.error("Error en watchPosition:", error),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-    );
+            // Si el usuario está a más de 50m de la ruta, recalcula
+            if (minDist > 50) {
+              routingControlRef.current.setWaypoints([
+                L.latLng(latitude, longitude),
+                routingControlRef.current.getWaypoints()[1].latLng
+              ]);
+              proximoPasoIndex.current = 0;
+              avisosDados.current.clear();
+              hasArrivedRef.current = false;
+              hablar('Te has desviado de la ruta. Recalculando...');
+              return;
+            }
+          }
+          // --- FIN LÓGICA DE DESVÍO ---
+
+          // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
+          const DISTANCIA_AVISO_PREPARACION = 100; // metros
+          const DISTANCIA_AVISO_EJECUCION = 25;   // metros
+
+          let pasoActual = instrucciones[proximoPasoIndex.current];
+          if (!pasoActual) return; // Ruta terminada
+
+          const distanciaAlPaso = getDistance(latitude, longitude, pasoActual.latLng.lat, pasoActual.latLng.lng);
+          const idAvisoPreparacion = `${proximoPasoIndex.current}-prep`;
+          const idAvisoEjecucion = `${proximoPasoIndex.current}-ejec`;
+
+          // 1. Dar aviso de PREPARACIÓN
+          if (distanciaAlPaso <= DISTANCIA_AVISO_PREPARACION && !avisosDados.current.has(idAvisoPreparacion)) {
+            const instruccionTexto = pasoActual.text.toLowerCase();
+            // Añadimos el nombre de la calle si existe para más contexto
+            const textoCompleto = pasoActual.road ? `${instruccionTexto} en ${pasoActual.road}` : instruccionTexto;
+            hablar(`A ${Math.round(distanciaAlPaso)} metros, ${textoCompleto}`);
+            avisosDados.current.add(idAvisoPreparacion);
+          }
+
+          // 2. Dar aviso de EJECUCIÓN y AVANZAR al siguiente paso
+          if (distanciaAlPaso <= DISTANCIA_AVISO_EJECUCION) {
+            if (!avisosDados.current.has(idAvisoEjecucion)) {
+              // Instrucción más directa para la ejecución
+              hablar(`Ahora, ${pasoActual.text.toLowerCase()}`);
+              avisosDados.current.add(idAvisoEjecucion);
+            }
+            // Si ya dimos el aviso de ejecución, y nos seguimos acercando o ya pasamos, avanzamos el puntero
+            proximoPasoIndex.current++; 
+          }
+
+          // 3. Lógica de LLEGADA al destino
+          const ultimoPasoIndex = instrucciones.length - 1;
+          if (proximoPasoIndex.current > ultimoPasoIndex && !hasArrivedRef.current) {
+              hablar('Has llegado a tu destino.');
+              hasArrivedRef.current = true;
+              if (onRouteFinished) {
+                onRouteFinished();
+              }
+          }
+        },
+        (error) => {
+          if (error.code === error.TIMEOUT && reintentos < MAX_REINTENTOS) {
+            reintentos++;
+            iniciarWatchPosition();
+          } else {
+            console.error("Error en watchPosition:", error);
+            // Aquí puedes mostrar un mensaje más claro al usuario si lo deseas
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+      );
+    }
+
+    iniciarWatchPosition();
 
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
