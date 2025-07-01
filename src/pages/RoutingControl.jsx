@@ -6,6 +6,7 @@ import { useMap, Polyline } from 'react-leaflet';
 
 // Función de utilidad para calcular la distancia Haversine (en metros)
 const getDistance = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
   const toRad = (value) => (value * Math.PI) / 180;
   const R = 6371000; // Radio de la Tierra en metros
   const dLat = toRad(lat2 - lat1);
@@ -14,68 +15,41 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-/**
- * [FUNCIÓN MEJORADA Y UNIFICADA]
- * Encuentra el punto más cercano en la polilínea, calcula la distancia a ese punto,
- * y divide la ruta en tramos "recorrido" y "restante".
- * @param {object} userCoords - Coordenadas del usuario { lat, lng }.
- * @param {Array<object>} polylineCoords - Array de coordenadas de la ruta.
- * @returns {{traveled: Array, remaining: Array, distanceToRoute: number}}
- */
+// Función para procesar la ruta: robusta y defensiva
 const processRoute = (userCoords, polylineCoords) => {
-  // **GUARDIA DEFENSIVA PRINCIPAL**: Si no tenemos la ubicación del usuario o la ruta, no hacemos nada.
   if (!userCoords || !polylineCoords || polylineCoords.length < 2) {
-    return { traveled: [], remaining: polylineCoords || [], distanceToRoute: Infinity };
+    return { remaining: polylineCoords || [], distanceToRoute: Infinity };
   }
-
   let closestPoint = null;
   let minDistance = Infinity;
   let segmentIndex = -1;
-
   for (let i = 0; i < polylineCoords.length - 1; i++) {
     const start = polylineCoords[i];
     const end = polylineCoords[i + 1];
-
-    // **GUARDIA DEFENSIVA**: Asegurarse de que los puntos del segmento son válidos.
     if (!start || !end) continue;
-
-    // Proyección del punto sobre el segmento (usando aproximación plana, eficiente y suficiente)
-    const dx = end.lat - start.lat;
-    const dy = end.lng - start.lng;
-    const l2 = dx * dx + dy * dy; // Squared Euclidean distance
-
+    const dx = end.lat - start.lat, dy = end.lng - start.lng;
+    const l2 = dx * dx + dy * dy;
     let projection;
     if (l2 === 0) {
       projection = start;
     } else {
       let t = ((userCoords.lat - start.lat) * dx + (userCoords.lng - start.lng) * dy) / l2;
-      t = Math.max(0, Math.min(1, t)); // Clamp t to the segment
-      projection = {
-        lat: start.lat + t * dx,
-        lng: start.lng + t * dy,
-      };
+      t = Math.max(0, Math.min(1, t));
+      projection = { lat: start.lat + t * dx, lng: start.lng + t * dy };
     }
-    
     const distance = getDistance(userCoords.lat, userCoords.lng, projection.lat, projection.lng);
-
     if (distance < minDistance) {
       minDistance = distance;
       closestPoint = projection;
       segmentIndex = i;
     }
   }
-  
   if (segmentIndex === -1) {
-    // Si algo falló, devolvemos la ruta completa como "restante".
-    return { traveled: [], remaining: polylineCoords, distanceToRoute: minDistance };
+    return { remaining: polylineCoords, distanceToRoute: minDistance };
   }
-  
-  // Construir la ruta restante a partir del punto más cercano.
   const remaining = [closestPoint, ...polylineCoords.slice(segmentIndex + 1)];
-
-  return { traveled: [], remaining, distanceToRoute: minDistance };
+  return { remaining, distanceToRoute: minDistance };
 };
-
 
 const RoutingControl = ({ from, to, userLocation, vozActiva, onRouteFinished }) => {
   const map = useMap();
@@ -96,28 +70,19 @@ const RoutingControl = ({ from, to, userLocation, vozActiva, onRouteFinished }) 
     setTimeout(() => window.speechSynthesis.speak(utter), 100);
   };
 
-  // Efecto para crear y calcular la ruta inicial
+  // EFECTO 1: CREAR Y DESTRUIR el control de forma estable.
+  // **SOLUCIÓN 2**: Las dependencias ahora solo son `map` y `to`. El control solo se
+  // recrea si el mapa cambia o si el DESTINO FINAL cambia.
   useEffect(() => {
-    if (!map || !from || !to) return;
+    if (!map || !to) return;
     
-    if (routingControlRef.current) {
-        map.removeControl(routingControlRef.current);
-    }
-    
-    proximoPasoIndex.current = 0;
-    avisosDados.current.clear();
-    hasArrivedRef.current = false;
-    instruccionesRef.current = [];
-    setRouteCoordinates([]);
+    // El punto de partida `from` es dinámico, se usa al crear los waypoints
+    const waypoints = from ? [L.latLng(from), L.latLng(to)] : [L.latLng(to)];
 
     const control = L.Routing.control({
-      waypoints: [L.latLng(from), L.latLng(to)],
-      createMarker: () => null,
-      show: false,
-      addWaypoints: false,
-      routeWhileDragging: false,
-      fitSelectedRoutes: true,
-      language: 'es',
+      waypoints,
+      createMarker: () => null, show: false, addWaypoints: false,
+      routeWhileDragging: false, fitSelectedRoutes: true, language: 'es',
     }).addTo(map);
 
     routingControlRef.current = control;
@@ -126,46 +91,50 @@ const RoutingControl = ({ from, to, userLocation, vozActiva, onRouteFinished }) 
       if (e.routes && e.routes.length > 0) {
         setRouteCoordinates(e.routes[0].coordinates);
         instruccionesRef.current = e.routes[0].instructions;
+        proximoPasoIndex.current = 0; // Reiniciar para la nueva ruta
+        avisosDados.current.clear();
+        
         const primerPaso = instruccionesRef.current[0];
-        if (primerPaso) {
+        if (primerPaso && !hasArrivedRef.current) {
           hablar(`Iniciando ruta. La primera indicación es: ${primerPaso.text}.`);
         }
       }
     });
 
     return () => {
-      if (routingControlRef.current) {
+      if (map && routingControlRef.current) {
         map.removeControl(routingControlRef.current);
         routingControlRef.current = null;
       }
     };
-  }, [map, from, to]);
+  }, [map, to]); // Solo depende del mapa y del destino final
 
-  // Lógica de renderizado y efectos de navegación
   const { remaining, distanceToRoute } = processRoute(
     userLocation ? { lat: userLocation[0], lng: userLocation[1] } : null,
     routeCoordinates
   );
 
-  // Efecto para la guía por voz y recalculo
+  // EFECTO 2: Guía por voz y RECALCULO DINÁMICO.
   useEffect(() => {
-    if (!vozActiva || !userLocation || routeCoordinates.length === 0 || hasArrivedRef.current) {
-      return;
+    // Si no hay control, no hay ubicación, o la ruta ya terminó, no hacer nada.
+    if (!routingControlRef.current || !userLocation || hasArrivedRef.current) return;
+    
+    // Lógica de recalculo por desvío
+    if (distanceToRoute > 50) {
+        // **SOLUCIÓN 1**: Limpiamos la ruta visible inmediatamente para evitar errores.
+        setRouteCoordinates([]);
+        hablar('Te has desviado. Recalculando ruta...');
+        // Actualizamos los waypoints del control existente, sin destruirlo.
+        routingControlRef.current.setWaypoints([
+            L.latLng(userLocation[0], userLocation[1]),
+            L.latLng(to[0], to[1])
+        ]);
+        return; // Salimos para esperar a que el evento `routesfound` actualice la ruta.
     }
 
-    // Lógica de desvío usando la distancia calculada por processRoute
-    if (distanceToRoute > 50) { // 50 metros de desvío
-        if (routingControlRef.current) {
-            routingControlRef.current.setWaypoints([
-                L.latLng(userLocation[0], userLocation[1]),
-                routingControlRef.current.getWaypoints()[1].latLng
-            ]);
-            hablar('Te has desviado. Recalculando ruta...');
-        }
-        return;
-    }
-
-    // Lógica de navegación por voz
+    // Lógica de guía por voz (si está activa)
+    if (!vozActiva || routeCoordinates.length === 0) return;
+    
     const instrucciones = instruccionesRef.current;
     const DISTANCIA_AVISO_PREPARACION = 100;
     const DISTANCIA_AVISO_EJECUCION = 25;
@@ -190,24 +159,20 @@ const RoutingControl = ({ from, to, userLocation, vozActiva, onRouteFinished }) 
       proximoPasoIndex.current++;
     }
 
-    // Lógica de llegada
     if (proximoPasoIndex.current >= instrucciones.length && !hasArrivedRef.current) {
         hablar('Has llegado a tu destino.');
         hasArrivedRef.current = true;
         if (onRouteFinished) onRouteFinished();
     }
 
-  }, [userLocation, vozActiva, routeCoordinates, onRouteFinished, distanceToRoute]);
-
+  }, [userLocation, vozActiva, onRouteFinished, distanceToRoute, to]);
 
   if (remaining.length === 0) {
     return null;
   }
 
   return (
-    <>
-      <Polyline positions={remaining} pathOptions={{ color: '#007bff', weight: 6, opacity: 0.8 }} />
-    </>
+    <Polyline positions={remaining} pathOptions={{ color: '#007bff', weight: 6, opacity: 0.8 }} />
   );
 };
 
