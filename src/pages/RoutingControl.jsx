@@ -136,8 +136,8 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
     const MAX_REINTENTOS = 3;
 
     function iniciarWatchPosition() {
-      // Verificar que from sea válido antes de iniciar watchPosition
-      if (!from || isNaN(from[0]) || isNaN(from[1])) {
+      // Validar coordenadas de origen
+      if (!from || isNaN(from[0]) || isNaN(from[1]) || from[0] < -90 || from[0] > 90 || from[1] < -180 || from[1] > 180) {
         console.warn('Coordenadas de origen inválidas:', from);
         Swal.fire({
           icon: 'error',
@@ -173,7 +173,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             for (let i = 0; i < routeLine.length - 1; i++) {
               const a = routeLine[i];
               const b = routeLine[i + 1];
-              // Verificación adicional para propiedades lat y lng
+              // Validación reforzada para propiedades lat y lng
               if (
                 !a || !b ||
                 !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
@@ -240,13 +240,13 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
               icon: 'error',
               title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
               text: error.code === error.TIMEOUT
-                ? 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.'
+                ? 'No se pudo obtener tu ubicación en el tiempo permitido. Por favor, verifica tu conexión o permisos de geolocalización y vuelve a intentarlo.'
                 : error.message,
-              confirmButtonText: 'Entendido'
+              confirmButtonText: 'Entendido',
             });
           }
         },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 } // Aumentado a 60 segundos
       );
     }
 
@@ -261,7 +261,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
         routingControlRef.current.off('routesfound', onRoutesFound);
       }
     };
-  }, [vozActiva, map, onRouteFinished]);
+  }, [vozActiva, map, onRouteFinished, from]);
 
   return null;
 };

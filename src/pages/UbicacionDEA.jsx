@@ -408,12 +408,28 @@ const [rutaFrom, setRutaFrom] = useState(null);
 
 const iniciarNavegacion = (dea) => {
   const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+  if (
+    !userLocation ||
+    isNaN(userLocation[0]) || isNaN(userLocation[1]) ||
+    isNaN(destino[0]) || isNaN(destino[1]) ||
+    userLocation[0] < -90 || userLocation[0] > 90 ||
+    userLocation[1] < -180 || userLocation[1] > 180 ||
+    destino[0] < -90 || destino[0] > 90 ||
+    destino[1] < -180 || destino[1] > 180
+  ) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Coordenadas inválidas',
+      text: 'No se puede calcular la ruta debido a coordenadas inválidas.',
+      confirmButtonText: 'Entendido',
+    });
+    return;
+  }
   setCenter(destino);
   setSelectedDeaId(dea.id);
   setTimeout(() => {
     markersRef.current[dea.id]?.openPopup();
   }, 300);
-
   Swal.fire({
     title: '¿Iniciar guía por voz?',
     text: 'Se darán instrucciones de audio para llegar al destino.',
@@ -427,8 +443,6 @@ const iniciarNavegacion = (dea) => {
       setVozActiva(true);
     }
     setDestinoRuta(destino);
-
-    // Cierra el popup del marcador después de la selección
     setTimeout(() => {
       markersRef.current[dea.id]?.closePopup();
     }, 200);
