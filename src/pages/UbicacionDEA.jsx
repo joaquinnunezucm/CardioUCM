@@ -122,13 +122,9 @@ const UbicacionDEA = () => {
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedDeaId, setSelectedDeaId] = useState(null);
-
   const throttledLocation = useThrottle(userLocation, 7000);
 
   const handleLocationError = (error) => {
-    setIsLoading(false); 
     let title = 'Error de Ubicación';
     let text = 'No se pudo obtener tu ubicación. Por favor, inténtalo de nuevo.';
     let showCancelButton = false;
@@ -219,29 +215,29 @@ const UbicacionDEA = () => {
       });
   }, []);
 
-useEffect(() => {
-  if (!navigator.geolocation) {
-    Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
-    setIsLoading(false);
-    return;
-  }
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
+      return;
+    }
 
-  const watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const coords = [position.coords.latitude, position.coords.longitude];
-      setUserLocation(coords);
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const coords = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(coords);
 
-      if (isLoading) {
-        setCenter(coords);
-        setIsLoading(false);
-      }
-    },
-    handleLocationError,
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
+        if (center[0] === initialCenter.current[0] && center[1] === initialCenter.current[1]) {
+          setCenter(coords);
+        }
+      },
+      (error) => {
+        handleLocationError(error);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
 
-  return () => navigator.geolocation.clearWatch(watchId);
-}, [isLoading]);
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -378,53 +374,18 @@ useEffect(() => {
       setIsSubmitting(false);
     }
   };
-  
-const [rutaFrom, setRutaFrom] = useState(null);
 
-const iniciarNavegacion = (dea) => {
-  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-  setCenter(destino);
-  setSelectedDeaId(dea.id);
-  setTimeout(() => {
-    markersRef.current[dea.id]?.openPopup();
-  }, 300);
-
-  Swal.fire({
-    title: '¿Iniciar guía por voz?',
-    text: 'Se darán instrucciones de audio para llegar al destino.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, iniciar',
-    cancelButtonText: 'No, solo mostrar ruta',
-    reverseButtons: true,
-  }).then((result) => {
-    if (result.isConfirmed) {
-      setVozActiva(true);
+  const focusMarkerYRuta = (id, lat, lng) => {
+    if (window.speechSynthesis) {
+      const utter = new SpeechSynthesisUtterance(' ');
+      window.speechSynthesis.speak(utter);
     }
-    setDestinoRuta(destino);
-
-    // Cierra el popup del marcador después de la selección
+    setCenter([parseFloat(lat), parseFloat(lng)]);
+    setDestinoRuta([parseFloat(lat), parseFloat(lng)]);
+    setVozActiva(true);
     setTimeout(() => {
-      markersRef.current[dea.id]?.closePopup();
-    }, 200);
-  });
-};
-
-{rutaFrom && destinoRuta && (
-  <RoutingControl
-    key={destinoRuta.join(',')}
-    from={rutaFrom}
-    to={destinoRuta}
-    vozActiva={vozActiva}
-    onRouteFinished={onRouteFinished}
-    userLocation={userLocation} // para seguimiento, no para recalcular
-  />
-)}
-  const onRouteFinished = () => {
-    Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-    setDestinoRuta(null);
-    setVozActiva(false);
-    setSelectedDeaId(null);
+      markersRef.current[id]?.openPopup();
+    }, 300);
   };
 
   const mapButtonStyle = {
@@ -433,13 +394,13 @@ const iniciarNavegacion = (dea) => {
     fontSize: '14px',
   };
 
-const fromPoint = useMemo(() => {
-  return destinoRuta ? throttledLocation : userLocation;
-}, [destinoRuta, userLocation, throttledLocation]);
+  const fromPoint = useMemo(() => {
+    return destinoRuta ? throttledLocation : userLocation;
+  }, [destinoRuta, userLocation, throttledLocation]);
 
-const toPoint = useMemo(() => {
-  return destinoRuta;
-}, [destinoRuta]);
+  const toPoint = useMemo(() => {
+    return destinoRuta;
+  }, [destinoRuta]);
 
   return (
     <div className="relative min-h-screen">
@@ -458,111 +419,120 @@ const toPoint = useMemo(() => {
       <section className="content py-5">
         <div className="container-fluid">
           <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
-            {isLoading ? (
-              <div className="d-flex justify-content-center align-items-center h-100 bg-light">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="sr-only">Cargando...</span>
-                </div>
-                <p className="ml-3 mb-0">Obteniendo tu ubicación...</p>
-              </div>
-            ) : (
-              <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                />
-                <CenterMap position={center} />
-                <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
-                {userLocation && (
-                  <Marker
-                    position={userLocation}
-                    icon={userIcon}
-                    ref={userMarkerRef}
-                  >
-                    <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
-                  </Marker>
-                )}
-                {cercanos.map((d) => (
-                  <Marker
-                    key={d.id}
-                    position={[parseFloat(d.lat), parseFloat(d.lng)]}
-                    icon={customIcon}
-                    ref={(ref) => (markersRef.current[d.id] = ref)}
-                  >
-                    <Popup>
-                      <b>{d.nombre}</b><br />{d.direccion}
-                      {userLocation && (
-                        <Button size="sm" variant="primary" className="mt-2" onClick={() => iniciarNavegacion(d)}>
-                          Ver Ruta desde mi ubicación
-                        </Button>
-                      )}
-                    </Popup>
-                  </Marker>
-                ))}
-                {fromPoint && toPoint && (
+            <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <CenterMap position={center} />
+              <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
+              {userLocation && (
+                <Marker
+                  position={userLocation}
+                  icon={userIcon}
+                  ref={(ref) => {
+                    userMarkerRef.current = ref;
+                    if (ref) {
+                      setTimeout(() => {
+                        ref.openPopup();
+                      }, 500);
+                    }
+                  }}
+                >
+                  <Popup>
+                    <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1>
+                  </Popup>
+                </Marker>
+              )}
+              {cercanos.map((d) => (
+                <Marker
+                  key={d.id}
+                  position={[parseFloat(d.lat), parseFloat(d.lng)]}
+                  icon={customIcon}
+                  ref={(ref) => (markersRef.current[d.id] = ref)}
+                >
+                  <Popup>
+                    <b>{d.nombre}</b>
+                    <br />
+                    {d.direccion}
+                    {userLocation && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="mt-2"
+                        onClick={() => {
+                          const utter = new SpeechSynthesisUtterance(' ');
+                          window.speechSynthesis.speak(utter);
+                          setDestinoRuta([parseFloat(d.lat), parseFloat(d.lng)]);
+                          setVozActiva(true);
+                        }}
+                      >
+                        Ver Ruta desde mi ubicación
+                      </Button>
+                    )}
+                  </Popup>
+                </Marker>
+              ))}
+              {fromPoint && toPoint && (
                 <RoutingControl
                   key={toPoint.join(',')}
                   from={fromPoint}
                   to={toPoint}
                   vozActiva={vozActiva}
-                  onRouteFinished={onRouteFinished}
                 />
               )}
-              </MapContainer>
-            )}
-            {!isLoading && <>
-              <button
-                onClick={handleShowModal}
-                className="btn btn-success"
-                style={{ ...mapButtonStyle, top: 10, right: 10 }}
-              >
-                <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
-              </button>
+
+            </MapContainer>
+            <button
+              onClick={handleShowModal}
+              className="btn btn-success"
+              style={{ ...mapButtonStyle, top: 10, right: 10 }}
+            >
+              <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
+            </button>
+            <button
+              onClick={() => {
+                if (userLocation) {
+                  setCenter([...userLocation]);
+                  if (userMarkerRef.current) {
+                    userMarkerRef.current.openPopup();
+                  }
+                } else {
+                  handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' }); // Código inventado para un error interno
+                }
+              }}
+              className="btn btn-info"
+              style={{ ...mapButtonStyle, top: 60, right: 10 }}
+            >
+              Mi Ubicación
+            </button>
+            {destinoRuta && (
               <button
                 onClick={() => {
-                  if (userLocation) {
-                    setCenter([...userLocation]);
-                    userMarkerRef.current?.openPopup();
-                  } else {
-                    handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' });
-                  }
+                  setDestinoRuta(null);
+                  setVozActiva(false);
                 }}
-                className="btn btn-info"
-                style={{ ...mapButtonStyle, top: 60, right: 10 }}
+                className="btn btn-danger"
+                style={{ ...mapButtonStyle, top: 110, right: 10 }}
               >
-                Mi Ubicación
+                Detener Ruta
               </button>
-              {destinoRuta && (
-                <button
-                  onClick={() => {
-                    setDestinoRuta(null);
-                    setVozActiva(false);
-                    setSelectedDeaId(null);
-                  }}
-                  className="btn btn-danger"
-                  style={{ ...mapButtonStyle, top: 110, right: 10 }}
-                >
-                  Detener Ruta
-                </button>
-              )}
-            </>}
+            )}
           </div>
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8 mb-4">
               <h4 className="mb-3 text-center">DEAs más cercanos</h4>
-              {isLoading ? (
-                 <p className="text-muted text-center">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
-              ) : cercanos.length > 0 ? (
+              {cercanos.length > 0 ? (
                 <ul className="list-group">
                   {cercanos.map((d) => (
-                    <li key={d.id} className={`list-group-item d-flex justify-content-between align-items-center ${selectedDeaId === d.id ? 'active' : ''}`}>
+                    <li key={d.id} className="list-group-item d-flex justify-content-between align-items-center">
                       <button
                         className="btn btn-link p-0 text-left w-100"
-                        style={{ color: selectedDeaId === d.id ? '#fff' : '#007bff', textDecoration: 'none' }}
-                        onClick={() => iniciarNavegacion(d)}
+                        style={{ color: '#007bff', textDecoration: 'none' }}
+                        onClick={() => focusMarkerYRuta(d.id, d.lat, d.lng)}
                       >
                         <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
-                        <span className={`float-right ${selectedDeaId === d.id ? 'text-white-50' : 'text-muted'}`}>
+                        <span className="float-right text-muted">
                           {typeof d.distancia === 'number' && !isNaN(d.distancia)
                             ? `(${d.distancia.toFixed(2)} km)`
                             : '(Dist. no disp.)'}
@@ -571,10 +541,12 @@ const toPoint = useMemo(() => {
                     </li>
                   ))}
                 </ul>
-              ) : (
+              ) : userLocation ? (
                 <p className="text-muted text-center">
                   No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
                 </p>
+              ) : (
+                <p className="text-muted text-center">Obteniendo tu ubicación para mostrar DEAs cercanos...</p>
               )}
             </div>
           </div>
