@@ -24,10 +24,14 @@ const processRoute = (userCoords, polylineCoords) => {
   let minDistance = Infinity;
   let segmentIndex = -1;
   for (let i = 0; i < polylineCoords.length - 1; i++) {
-    const start = polylineCoords[i];
-    const end = polylineCoords[i + 1];
-    if (!start || !end) continue;
-    const dx = end.lat - start.lat, dy = end.lng - start.lng;
+  const start = polylineCoords[i];
+  const end = polylineCoords[i + 1];
+  if (
+    !start || !end ||
+    typeof start.lat !== 'number' || typeof start.lng !== 'number' ||
+    typeof end.lat !== 'number' || typeof end.lng !== 'number'
+  ) continue;
+  const dx = end.lat - start.lat, dy = end.lng - start.lng;
     const l2 = dx * dx + dy * dy;
     let projection;
     if (l2 === 0) {
