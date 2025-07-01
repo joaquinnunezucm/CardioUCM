@@ -5,8 +5,12 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useMap } from 'react-leaflet';
 import Swal from 'sweetalert2';
 
-// Función de utilidad para calcular distancia (Haversine)
+// Función de utility para calcular distancia (Haversine)
 const getDistance = (lat1, lon1, lat2, lon2) => {
+  if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+    console.warn('Coordenadas inválidas en getDistance:', { lat1, lon1, lat2, lon2 });
+    return Infinity;
+  }
   const toRad = (value) => (value * Math.PI) / 180;
   const R = 6371000; // Radio en metros
   const dLat = toRad(lat2 - lat1);
@@ -17,6 +21,15 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 
 // Calcula la distancia mínima del punto p al segmento [a, b] en metros
 function distanceToSegment(p, a, b) {
+  if (
+    !p || !a || !b ||
+    isNaN(p[0]) || isNaN(p[1]) ||
+    isNaN(a[0]) || isNaN(a[1]) ||
+    isNaN(b[0]) || isNaN(b[1])
+  ) {
+    console.warn('Coordenadas inválidas en distanceToSegment:', { p, a, b });
+    return Infinity;
+  }
   const toRad = (deg) => (deg * Math.PI) / 180;
   const lat1 = toRad(a[0]), lon1 = toRad(a[1]);
   const lat2 = toRad(b[0]), lon2 = toRad(b[1]);
@@ -38,7 +51,12 @@ function distanceToSegment(p, a, b) {
 
   // Proyección del punto sobre el segmento
   const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
-  const t = ((x3 - x1) * dx + (y3 - y1) * dy + (z3 - z1) * dz) / (dx * dx + dy * dy + dz * dz);
+  const denominator = dx * dx + dy * dy + dz * dz;
+  if (denominator === 0) {
+    console.warn('Denominador cero en distanceToSegment, usando punto inicial:', { a });
+    return getDistance(p[0], p[1], a[0], a[1]);
+  }
+  const t = ((x3 - x1) * dx + (y3 - y1) * dy + (z3 - z1) * dz) / denominator;
   let xClosest, yClosest, zClosest;
   if (t < 0) {
     xClosest = x1; yClosest = y1; zClosest = z1;
@@ -51,6 +69,10 @@ function distanceToSegment(p, a, b) {
   }
   // Distancia euclidiana
   const dist = Math.sqrt((x3 - xClosest) ** 2 + (y3 - yClosest) ** 2 + (z3 - zClosest) ** 2);
+  if (isNaN(dist)) {
+    console.warn('Distancia NaN en distanceToSegment:', { p, a, b, xClosest, yClosest, zClosest });
+    return Infinity;
+  }
   return dist;
 }
 
@@ -63,7 +85,7 @@ const hablar = (texto) => {
   utter.lang = 'es-ES';
   utter.rate = 1.1;
   window.speechSynthesis.cancel();
-  setTimeout(() => window.speechSynthesis.speak(utter), 100);
+  window.speechSynthesis.speak(utter);
 };
 
 const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
@@ -73,6 +95,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const avisosDados = useRef(new Set());
   const hasArrivedRef = useRef(false);
   const ultimaPosicion = useRef(null);
+  const watchIdRef = useRef(null);
 
   // Efecto para crear y destruir el control de la ruta
   useEffect(() => {
@@ -80,8 +103,8 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       console.error('Mapa no disponible');
       return;
     }
-    if (!from || !to) {
-      console.warn('Coordenadas from o to no proporcionadas:', { from, to });
+    if (!from || !to || isNaN(from[0]) || isNaN(from[1]) || isNaN(to[0]) || isNaN(to[1])) {
+      console.warn('Coordenadas from o to inválidas o no proporcionadas:', { from, to });
       if (routingControlRef.current) {
         map.removeControl(routingControlRef.current);
         routingControlRef.current = null;
@@ -139,7 +162,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       return;
     }
 
-    let watchId = null;
     let instrucciones = [];
 
     const onRoutesFound = (e) => {
@@ -155,20 +177,19 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
     const MAX_REINTENTOS = 3;
 
     function iniciarWatchPosition() {
-      // Validar coordenadas de origen
       if (!from || isNaN(from[0]) || isNaN(from[1]) || from[0] < -90 || from[0] > 90 || from[1] < -180 || from[1] > 180) {
         console.error('Coordenadas de origen inválidas:', from);
         Swal.fire({
           icon: 'error',
           title: 'Ubicación inválida',
-          text: 'No se puede iniciar la navegación debido a una ubicación de origen inválida.',
+          text: 'No se puede iniciar la navegación debido a una ubicación de origen invalida.',
           confirmButtonText: 'Entendido',
         });
         return;
       }
 
       console.debug('Iniciando watchPosition');
-      watchId = navigator.geolocation.watchPosition(
+      watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
           reintentos = 0;
           if (instrucciones.length === 0 || hasArrivedRef.current) {
@@ -179,7 +200,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
           const { latitude, longitude } = position.coords;
           console.debug('Nueva posición recibida:', { latitude, longitude });
 
-          // Evitar procesamiento si la posición no ha cambiado significativamente
           if (ultimaPosicion.current) {
             const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
             if (distanciaCambio < 5) {
@@ -193,7 +213,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
           let minDist = Infinity;
           let routeLine = null;
 
-          // Validación robusta para _routes y coordinates
           try {
             if (
               routingControlRef.current &&
@@ -209,7 +228,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
                 hasRoutes: !!routingControlRef.current?._routes,
                 hasFirstRoute: !!routingControlRef.current?._routes?.[0],
                 hasCoordinates: !!routingControlRef.current?._routes?.[0]?.coordinates,
-                coordinatesLength: routingControlRef.current?._routes?.[0]?.coordinates?.length
+                coordinatesLength: routingControlRef.current?._routes?.[0]?.coordinates?.length,
               });
               Swal.fire({
                 icon: 'error',
@@ -233,7 +252,8 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
                 console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
                 continue;
               }
-              minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+              const dist = distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]);
+              minDist = Math.min(minDist, dist);
             }
 
             console.debug('Distancia mínima a la ruta:', minDist);
@@ -255,9 +275,9 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             */
 
             const proximoPaso = instrucciones[proximoPasoIndex.current];
-            if (!proximoPaso) {
+            if (!proximoPaso || !proximoPaso.latLng || !proximoPaso.latLng.lat || !proximoPaso.latLng.lng) {
               if (!hasArrivedRef.current) {
-                console.debug('No hay más pasos, usuario ha llegado al destino');
+                console.debug('No hay más pasos o paso inválido, usuario ha llegado al destino');
                 hasArrivedRef.current = true;
                 hablar('Has llegado a tu destino');
                 onRouteFinished();
@@ -269,7 +289,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             console.debug('Distancia al paso actual:', {
               distancia,
               proximoPasoIndex: proximoPasoIndex.current,
-              pasoText: proximoPaso.text
+              pasoText: proximoPaso.text,
             });
 
             if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
@@ -315,15 +335,14 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       );
     }
 
-    setTimeout(() => {
-      console.debug('Iniciando watchPosition con retraso');
-      iniciarWatchPosition();
-    }, 200);
+    console.debug('Iniciando watchPosition directamente');
+    iniciarWatchPosition();
 
     return () => {
-      if (watchId) {
+      if (watchIdRef.current) {
         console.debug('Limpiando watchPosition');
-        navigator.geolocation.clearWatch(watchId);
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
       if (routingControlRef.current) {
         console.debug('Eliminando listener de routesfound');

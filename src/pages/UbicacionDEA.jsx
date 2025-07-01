@@ -408,6 +408,7 @@ const [rutaFrom, setRutaFrom] = useState(null);
 
 const iniciarNavegacion = (dea) => {
   const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+  console.debug('Iniciando navegación:', { userLocation, destino });
   if (
     !userLocation ||
     isNaN(userLocation[0]) || isNaN(userLocation[1]) ||
@@ -417,6 +418,7 @@ const iniciarNavegacion = (dea) => {
     destino[0] < -90 || destino[0] > 90 ||
     destino[1] < -180 || destino[1] > 180
   ) {
+    console.error('Coordenadas inválidas para navegación:', { userLocation, destino });
     Swal.fire({
       icon: 'error',
       title: 'Coordenadas inválidas',
@@ -442,6 +444,7 @@ const iniciarNavegacion = (dea) => {
     if (result.isConfirmed) {
       setVozActiva(true);
     }
+    setRutaFrom(userLocation); // Usar userLocation directamente para evitar cambios frecuentes
     setDestinoRuta(destino);
     setTimeout(() => {
       markersRef.current[dea.id]?.closePopup();
@@ -539,14 +542,14 @@ const toPoint = useMemo(() => {
                   </Marker>
                 ))}
                 {fromPoint && toPoint && (
-                <RoutingControl
-                  key={toPoint.join(',')}
-                  from={fromPoint}
-                  to={toPoint}
-                  vozActiva={vozActiva}
-                  onRouteFinished={onRouteFinished}
-                />
-              )}
+                  <RoutingControl
+                    key={`${fromPoint.join(',')}-${toPoint.join(',')}`}
+                    from={fromPoint}
+                    to={toPoint}
+                    vozActiva={vozActiva}
+                    onRouteFinished={onRouteFinished}
+                  />
+                )}
               </MapContainer>
             )}
             {!isLoading && <>
