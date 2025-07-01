@@ -1,0 +1,158 @@
+import { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import { useMap } from 'react-leaflet';
+
+// Función de utilidad para calcular distancia (sin cambios)
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371000; // Radio en metros
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
+  const map = useMap();
+  const routingControlRef = useRef(null);
+
+  // --- MEJORAS DE LÓGICA DE NAVEGACIÓN ---
+  const proximoPasoIndex = useRef(0); // Puntero para la navegación secuencial
+  const avisosDados = useRef(new Set()); // Para controlar los avisos (preparación/ejecución)
+  const hasArrivedRef = useRef(false);
+  // --- FIN MEJORAS ---
+  
+  const hablar = (texto) => {
+    if (!vozActiva || !window.speechSynthesis) return;
+    const utter = new SpeechSynthesisUtterance(texto);
+    utter.lang = 'es-ES';
+    utter.rate = 1.1; // Un poco más rápido para sonar más natural
+    window.speechSynthesis.cancel();
+    setTimeout(() => window.speechSynthesis.speak(utter), 100);
+  };
+
+  // Efecto para crear y destruir el control de la ruta
+  useEffect(() => {
+    if (!map) return;
+    if (!from || !to) {
+      if (routingControlRef.current) {
+        map.removeControl(routingControlRef.current);
+        routingControlRef.current = null;
+      }
+      return;
+    }
+    if (routingControlRef.current) {
+      routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
+      return;
+    }
+    
+    // Reiniciar estado para una nueva ruta
+    proximoPasoIndex.current = 0;
+    avisosDados.current.clear();
+    hasArrivedRef.current = false;
+
+    const control = L.Routing.control({
+      waypoints: [L.latLng(from), L.latLng(to)],
+      createMarker: () => null, routeWhileDragging: false, addWaypoints: false,
+      fitSelectedRoutes: true, show: false, language: 'es',
+      lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
+    }).addTo(map);
+
+    control.on('routeselected', (e) => {
+      const primerPaso = e.route.instructions[0];
+      if (primerPaso) {
+        // MEJORA: Instrucción inicial más clara
+        hablar(`Iniciando ruta. La primera indicación es: ${primerPaso.text}.`);
+      }
+    });
+
+    routingControlRef.current = control;
+
+    return () => {
+      if (routingControlRef.current) {
+        map.removeControl(routingControlRef.current);
+        routingControlRef.current = null;
+      }
+    };
+  }, [map, from, to]);
+
+  // Efecto para la guía por voz y seguimiento en tiempo real
+  useEffect(() => {
+    if (!vozActiva || !routingControlRef.current) return;
+
+    let watchId = null;
+    let instrucciones = [];
+
+    const onRoutesFound = (e) => {
+      instrucciones = e.routes[0].instructions;
+      proximoPasoIndex.current = 0; // Reiniciar puntero cuando se encuentra la ruta
+      avisosDados.current.clear();
+    };
+    routingControlRef.current.on('routesfound', onRoutesFound);
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        if (instrucciones.length === 0 || hasArrivedRef.current) return;
+
+        const { latitude, longitude } = position.coords;
+        map.panTo([latitude, longitude]); // Seguir al usuario
+
+        // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
+        const DISTANCIA_AVISO_PREPARACION = 100; // metros
+        const DISTANCIA_AVISO_EJECUCION = 25;   // metros
+
+        let pasoActual = instrucciones[proximoPasoIndex.current];
+        if (!pasoActual) return; // Ruta terminada
+
+        const distanciaAlPaso = getDistance(latitude, longitude, pasoActual.latLng.lat, pasoActual.latLng.lng);
+        const idAvisoPreparacion = `${proximoPasoIndex.current}-prep`;
+        const idAvisoEjecucion = `${proximoPasoIndex.current}-ejec`;
+
+        // 1. Dar aviso de PREPARACIÓN
+        if (distanciaAlPaso <= DISTANCIA_AVISO_PREPARACION && !avisosDados.current.has(idAvisoPreparacion)) {
+          const instruccionTexto = pasoActual.text.toLowerCase();
+          // Añadimos el nombre de la calle si existe para más contexto
+          const textoCompleto = pasoActual.road ? `${instruccionTexto} en ${pasoActual.road}` : instruccionTexto;
+          hablar(`A ${Math.round(distanciaAlPaso)} metros, ${textoCompleto}`);
+          avisosDados.current.add(idAvisoPreparacion);
+        }
+
+        // 2. Dar aviso de EJECUCIÓN y AVANZAR al siguiente paso
+        if (distanciaAlPaso <= DISTANCIA_AVISO_EJECUCION) {
+          if (!avisosDados.current.has(idAvisoEjecucion)) {
+             // Instrucción más directa para la ejecución
+             hablar(`Ahora, ${pasoActual.text.toLowerCase()}`);
+             avisosDados.current.add(idAvisoEjecucion);
+          }
+          // Si ya dimos el aviso de ejecución, y nos seguimos acercando o ya pasamos, avanzamos el puntero
+          proximoPasoIndex.current++; 
+        }
+
+        // 3. Lógica de LLEGADA al destino
+        const ultimoPasoIndex = instrucciones.length - 1;
+        if (proximoPasoIndex.current > ultimoPasoIndex && !hasArrivedRef.current) {
+            hablar('Has llegado a tu destino.');
+            hasArrivedRef.current = true;
+            if (onRouteFinished) {
+              onRouteFinished();
+            }
+        }
+      },
+      (error) => console.error("Error en watchPosition:", error),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (routingControlRef.current) {
+        routingControlRef.current.off('routesfound', onRoutesFound);
+      }
+    };
+  }, [vozActiva, map, onRouteFinished]);
+
+  return null;
+};
+
+export default RoutingControl;

@@ -20,7 +20,7 @@ import {
   isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
-import { useThrottle } from '../utils/hooks';
+import { useThrottle } from '../utils/hooks'; // Asegúrate de que la ruta sea correcta
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -30,8 +30,8 @@ const customIcon = new L.Icon({
   popupAnchor: [1, -34],
 });
 
-// Icono para la ubicación del usuario (marcador rojo estático)
-const staticUserIcon = new L.Icon({
+// Icono para la ubicación del usuario
+const userIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -95,7 +95,16 @@ const UbicacionDEA = () => {
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '', email: '', termsAccepted: false,
+    nombre: '',
+    calle: '',
+    numero: '',
+    comuna: '',
+    lat: '',
+    lng: '',
+    solicitante: '',
+    rut: '',
+    email: '',
+    termsAccepted: false,
   });
 
   const [errors, setErrors] = useState({});
@@ -106,17 +115,17 @@ const UbicacionDEA = () => {
   const markersRef = useRef({});
   const [cercanos, setCercanos] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const staticUserMarkerRef = useRef(null);
+  const userMarkerRef = useRef(null);
   const [destinoRuta, setDestinoRuta] = useState(null);
-  const [puntoInicioRuta, setPuntoInicioRuta] = useState(null);
-  
-  // NUEVO: Estado para controlar el modo de navegación activa
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [vozActiva, setVozActiva] = useState(false);
 
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
+
+  const throttledLocation = useThrottle(userLocation, 7000);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -370,40 +379,57 @@ const UbicacionDEA = () => {
     }
   };
   
-const iniciarNavegacion = (dea) => {
-    if (!userLocation) {
-      Swal.fire('Error', 'No se puede iniciar la ruta sin conocer tu ubicación actual.', 'error');
-      return;
-    }
-    
-    setPuntoInicioRuta(userLocation);
-    setDestinoRuta([parseFloat(dea.lat), parseFloat(dea.lng)]);
-    setIsNavigating(true); // Activa el modo de seguimiento visual
-    setSelectedDeaId(dea.id);
-    
-    setCenter(userLocation);
-  };
+  const iniciarNavegacion = (dea) => {
+  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+  setCenter(destino);
+  setSelectedDeaId(dea.id);
+  setTimeout(() => {
+    markersRef.current[dea.id]?.openPopup();
+  }, 300);
 
-  const detenerNavegacion = () => {
-    setDestinoRuta(null);
-    setPuntoInicioRuta(null);
-    setIsNavigating(false);
-    setSelectedDeaId(null);
-  };
+  Swal.fire({
+    title: '¿Iniciar guía por voz?',
+    text: 'Se darán instrucciones de audio para llegar al destino.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, iniciar',
+    cancelButtonText: 'No, solo mostrar ruta',
+    reverseButtons: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      setVozActiva(true);
+    }
+    setDestinoRuta(destino);
+
+    // Cierra el popup del marcador después de la selección
+    setTimeout(() => {
+      markersRef.current[dea.id]?.closePopup();
+    }, 200);
+  });
+};
 
   const onRouteFinished = () => {
     Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-    detenerNavegacion();
+    setDestinoRuta(null);
+    setVozActiva(false);
+    setSelectedDeaId(null);
   };
-  
+
   const mapButtonStyle = {
     position: 'absolute', zIndex: 1000, border: 'none', borderRadius: '5px',
     padding: '10px 15px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     fontSize: '14px',
   };
 
+  const fromPoint = useMemo(() => {
+    return destinoRuta ? throttledLocation : userLocation;
+  }, [destinoRuta, userLocation, throttledLocation]);
 
-return (
+  const toPoint = useMemo(() => {
+    return destinoRuta;
+  }, [destinoRuta]);
+
+  return (
     <div className="relative min-h-screen">
       <BackButton />
       <div className="content-header py-3 md:py-5 bg-white-50 pt-12">
@@ -435,18 +461,15 @@ return (
                 />
                 <CenterMap position={center} />
                 <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
-                
-                {/* El marcador rojo estático solo se muestra si NO estamos navegando */}
-                {userLocation && !isNavigating && (
+                {userLocation && (
                   <Marker
                     position={userLocation}
-                    icon={staticUserIcon}
-                    ref={staticUserMarkerRef}
+                    icon={userIcon}
+                    ref={userMarkerRef}
                   >
                     <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
                   </Marker>
                 )}
-                
                 {cercanos.map((d) => (
                   <Marker
                     key={d.id}
@@ -455,22 +478,21 @@ return (
                     ref={(ref) => (markersRef.current[d.id] = ref)}
                   >
                     <Popup>
-                      <b>{d.nombre}</b><br />{d.direccion || 'Dirección no disponible'}
+                      <b>{d.nombre}</b><br />{d.direccion}
                       {userLocation && (
                         <Button size="sm" variant="primary" className="mt-2" onClick={() => iniciarNavegacion(d)}>
-                          Iniciar Navegación
+                          Ver Ruta desde mi ubicación
                         </Button>
                       )}
                     </Popup>
                   </Marker>
                 ))}
-
-                {puntoInicioRuta && destinoRuta && (
+                {fromPoint && toPoint && (
                   <RoutingControl
-                    key={`${puntoInicioRuta.join(',')}-${destinoRuta.join(',')}`}
-                    from={puntoInicioRuta}
-                    to={destinoRuta}
-                    isNavigating={isNavigating}
+                    key={toPoint.join(',')}
+                    from={fromPoint}
+                    to={toPoint}
+                    vozActiva={vozActiva}
                     onRouteFinished={onRouteFinished}
                   />
                 )}
@@ -488,9 +510,7 @@ return (
                 onClick={() => {
                   if (userLocation) {
                     setCenter([...userLocation]);
-                    if (staticUserMarkerRef.current) {
-                      staticUserMarkerRef.current.openPopup();
-                    }
+                    userMarkerRef.current?.openPopup();
                   } else {
                     handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' });
                   }
@@ -500,13 +520,17 @@ return (
               >
                 Mi Ubicación
               </button>
-              {isNavigating && (
+              {destinoRuta && (
                 <button
-                  onClick={detenerNavegacion}
+                  onClick={() => {
+                    setDestinoRuta(null);
+                    setVozActiva(false);
+                    setSelectedDeaId(null);
+                  }}
                   className="btn btn-danger"
                   style={{ ...mapButtonStyle, top: 110, right: 10 }}
                 >
-                  Detener Navegación
+                  Detener Ruta
                 </button>
               )}
             </>}
@@ -525,11 +549,11 @@ return (
                         style={{ color: selectedDeaId === d.id ? '#fff' : '#007bff', textDecoration: 'none' }}
                         onClick={() => iniciarNavegacion(d)}
                       >
-                        <strong>{d.nombre}</strong> - {d.direccion || 'Dirección no disponible'}
+                        <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
                         <span className={`float-right ${selectedDeaId === d.id ? 'text-white-50' : 'text-muted'}`}>
                           {typeof d.distancia === 'number' && !isNaN(d.distancia)
                             ? `(${d.distancia.toFixed(2)} km)`
-                            : ''}
+                            : '(Dist. no disp.)'}
                         </span>
                       </button>
                     </li>
@@ -537,7 +561,7 @@ return (
                 </ul>
               ) : (
                 <p className="text-muted text-center">
-                  No hay DEAs activos registrados cerca de tu ubicación.
+                  No hay DEAs activos registrados cerca de tu ubicación o no se pudo calcular la distancia.
                 </p>
               )}
             </div>
