@@ -358,5 +358,4 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
 
   return null;
 };
-
 export default RoutingControl;
