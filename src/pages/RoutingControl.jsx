@@ -4,7 +4,7 @@ import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useMap } from 'react-leaflet';
 
-// Función de utilidad para calcular distancia (sin cambios)
+// Función de utilidad para calcular distancia (Haversine)
 const getDistance = (lat1, lon1, lat2, lon2) => {
   const toRad = (value) => (value * Math.PI) / 180;
   const R = 6371000; // Radio en metros
@@ -13,6 +13,45 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
+
+// Calcula la distancia mínima del punto p al segmento [a, b] en metros
+function distanceToSegment(p, a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const lat1 = toRad(a[0]), lon1 = toRad(a[1]);
+  const lat2 = toRad(b[0]), lon2 = toRad(b[1]);
+  const lat3 = toRad(p[0]), lon3 = toRad(p[1]);
+
+  // Convertir a coordenadas cartesianas
+  const R = 6371000;
+  const x1 = R * Math.cos(lat1) * Math.cos(lon1);
+  const y1 = R * Math.cos(lat1) * Math.sin(lon1);
+  const z1 = R * Math.sin(lat1);
+
+  const x2 = R * Math.cos(lat2) * Math.cos(lon2);
+  const y2 = R * Math.cos(lat2) * Math.sin(lon2);
+  const z2 = R * Math.sin(lat2);
+
+  const x3 = R * Math.cos(lat3) * Math.cos(lon3);
+  const y3 = R * Math.cos(lat3) * Math.sin(lon3);
+  const z3 = R * Math.sin(lat3);
+
+  // Proyección del punto sobre el segmento
+  const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+  const t = ((x3 - x1) * dx + (y3 - y1) * dy + (z3 - z1) * dz) / (dx * dx + dy * dy + dz * dz);
+  let xClosest, yClosest, zClosest;
+  if (t < 0) {
+    xClosest = x1; yClosest = y1; zClosest = z1;
+  } else if (t > 1) {
+    xClosest = x2; yClosest = y2; zClosest = z2;
+  } else {
+    xClosest = x1 + t * dx;
+    yClosest = y1 + t * dy;
+    zClosest = z1 + t * dz;
+  }
+  // Distancia euclidiana
+  const dist = Math.sqrt((x3 - xClosest) ** 2 + (y3 - yClosest) ** 2 + (z3 - zClosest) ** 2);
+  return dist;
+}
 
 const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const map = useMap();
@@ -98,6 +137,39 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
 
         const { latitude, longitude } = position.coords;
         map.panTo([latitude, longitude]); // Seguir al usuario
+
+        // --- LÓGICA DE DESVÍO USANDO POLILÍNEA ---
+        let minDist = Infinity;
+        let routeLine = null;
+        if (
+          routingControlRef.current &&
+          routingControlRef.current._routes &&
+          routingControlRef.current._routes[0] &&
+          routingControlRef.current._routes[0].coordinates
+        ) {
+          routeLine = routingControlRef.current._routes[0].coordinates;
+        }
+
+        if (routeLine && routeLine.length > 1) {
+          for (let i = 0; i < routeLine.length - 1; i++) {
+            const a = routeLine[i];
+            const b = routeLine[i + 1];
+            minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+          }
+          // Si el usuario está a más de 50m de la ruta, recalcula
+          if (minDist > 50) {
+            routingControlRef.current.setWaypoints([
+              L.latLng(latitude, longitude),
+              routingControlRef.current.getWaypoints()[1].latLng
+            ]);
+            proximoPasoIndex.current = 0;
+            avisosDados.current.clear();
+            hasArrivedRef.current = false;
+            hablar('Te has desviado de la ruta. Recalculando...');
+            return;
+          }
+        }
+        // --- FIN LÓGICA DE DESVÍO ---
 
         // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
         const DISTANCIA_AVISO_PREPARACION = 100; // metros
