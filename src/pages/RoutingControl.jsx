@@ -63,15 +63,6 @@ const hablar = (texto) => {
   setTimeout(() => window.speechSynthesis.speak(utter), 100);
 };
 
-// Función de debounce
-const debounce = (func, wait) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
 const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -79,7 +70,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const avisosDados = useRef(new Set());
   const hasArrivedRef = useRef(false);
   const ultimaPosicion = useRef(null); // Para detectar cambios en la posición
-  const desviosConsecutivos = useRef(0); // Contador para desvíos consecutivos
 
   // Efecto para crear y destruir el control de la ruta
   useEffect(() => {
@@ -100,7 +90,6 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
     proximoPasoIndex.current = 0;
     avisosDados.current.clear();
     hasArrivedRef.current = false;
-    desviosConsecutivos.current = 0;
 
     const control = L.Routing.control({
       waypoints: [L.latLng(from), L.latLng(to)],
@@ -115,9 +104,8 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
 
     control.on('routeselected', (e) => {
       const primerPaso = e.route.instructions[0];
-      if (primerPaso && !avisosDados.current.has('initial')) {
+      if (primerPaso) {
         hablar(`Iniciando ruta. La primera indicación es: ${primerPaso.text}.`);
-        avisosDados.current.add('initial');
       }
     });
 
@@ -142,116 +130,12 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       instrucciones = e.routes[0].instructions;
       proximoPasoIndex.current = 0;
       avisosDados.current.clear();
-      avisosDados.current.add('initial'); // Marcar la instrucción inicial como dada
-      ultimaPosicion.current = null;
-      desviosConsecutivos.current = 0;
+      ultimaPosicion.current = null; // Reiniciar última posición
     };
     routingControlRef.current.on('routesfound', onRoutesFound);
 
     let reintentos = 0;
     const MAX_REINTENTOS = 3;
-
-    // Función para procesar la posición con debounce
-    const procesarPosicion = debounce((latitude, longitude) => {
-      if (instrucciones.length === 0 || hasArrivedRef.current) return;
-
-      // Evitar procesamiento si la posición no ha cambiado significativamente
-      if (ultimaPosicion.current) {
-        const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
-        if (distanciaCambio < 5) {
-          console.debug('Posición sin cambios significativos:', { latitude, longitude });
-          return;
-        }
-      }
-      ultimaPosicion.current = { lat: latitude, lng: longitude };
-
-      map.panTo([latitude, longitude]);
-      let minDist = Infinity;
-      let routeLine = null;
-
-      // Validación robusta para _routes y coordinates
-      if (
-        routingControlRef.current &&
-        routingControlRef.current._routes &&
-        routingControlRef.current._routes[0] &&
-        Array.isArray(routingControlRef.current._routes[0].coordinates) &&
-        routingControlRef.current._routes[0].coordinates.length > 1
-      ) {
-        routeLine = routingControlRef.current._routes[0].coordinates;
-      }
-
-      if (routeLine) {
-        for (let i = 0; i < routeLine.length - 1; i++) {
-          const a = routeLine[i];
-          const b = routeLine[i + 1];
-          if (
-            !a || !b ||
-            !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
-            !b.hasOwnProperty('lat') || !b.hasOwnProperty('lng') ||
-            isNaN(a.lat) || isNaN(a.lng) ||
-            isNaN(b.lat) || isNaN(b.lng)
-          ) {
-            console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
-            continue;
-          }
-          minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
-        }
-
-        if (minDist > 100) { // Umbral de desvío aumentado a 100 metros
-          desviosConsecutivos.current++;
-          console.debug('Desvío detectado:', { minDist, desviosConsecutivos: desviosConsecutivos.current });
-          if (desviosConsecutivos.current >= 3) { // Requerir 3 lecturas consecutivas
-            routingControlRef.current.setWaypoints([
-              L.latLng(latitude, longitude),
-              routingControlRef.current.getWaypoints()[1].latLng
-            ]);
-            proximoPasoIndex.current = 0;
-            avisosDados.current.clear();
-            hasArrivedRef.current = false;
-            desviosConsecutivos.current = 0;
-            hablar('Te has desviado de la ruta. Recalculando...');
-            return;
-          }
-        } else {
-          desviosConsecutivos.current = 0; // Reiniciar contador si no hay desvío
-        }
-      } else {
-        console.warn('No se pudo obtener la polilínea de la ruta. Estado de _routes:', routingControlRef.current?._routes);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error en la ruta',
-          text: 'No se pudo calcular la ruta. Por favor, intenta de nuevo.',
-          confirmButtonText: 'Entendido',
-        });
-        return;
-      }
-
-      const proximoPaso = instrucciones[proximoPasoIndex.current];
-      if (!proximoPaso) {
-        if (!hasArrivedRef.current) {
-          hasArrivedRef.current = true;
-          hablar('Has llegado a tu destino');
-          onRouteFinished();
-        }
-        return;
-      }
-
-      const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
-      console.debug('Distancia al paso actual:', { distancia, proximoPasoIndex: proximoPasoIndex.current, avisosDados: [...avisosDados.current] });
-
-      if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
-        hablar(proximoPaso.text);
-        avisosDados.current.add(proximoPasoIndex.current);
-        proximoPasoIndex.current++;
-        console.debug('Instrucción emitida, avanzando al siguiente paso:', proximoPasoIndex.current);
-      } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
-        let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
-        if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
-        hablar(texto);
-        avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
-        console.debug('Aviso de preparación emitido:', `prep_${proximoPasoIndex.current}`);
-      }
-    }, 2000); // Debounce de 2 segundos
 
     function iniciarWatchPosition() {
       // Validar coordenadas de origen
@@ -269,8 +153,99 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           reintentos = 0;
+          if (instrucciones.length === 0 || hasArrivedRef.current) return;
+
           const { latitude, longitude } = position.coords;
-          procesarPosicion(latitude, longitude);
+
+          // Evitar procesamiento si la posición no ha cambiado significativamente
+          if (ultimaPosicion.current) {
+            const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
+            if (distanciaCambio < 5) { // Ignorar cambios menores a 5 metros
+              console.debug('Posición sin cambios significativos:', { latitude, longitude });
+              return;
+            }
+          }
+          ultimaPosicion.current = { lat: latitude, lng: longitude };
+
+          map.panTo([latitude, longitude]);
+          let minDist = Infinity;
+          let routeLine = null;
+
+          // Validación robusta para _routes y coordinates
+          if (
+            routingControlRef.current &&
+            routingControlRef.current._routes &&
+            routingControlRef.current._routes[0] &&
+            Array.isArray(routingControlRef.current._routes[0].coordinates) &&
+            routingControlRef.current._routes[0].coordinates.length > 1
+          ) {
+            routeLine = routingControlRef.current._routes[0].coordinates;
+          }
+
+          if (routeLine) {
+            for (let i = 0; i < routeLine.length - 1; i++) {
+              const a = routeLine[i];
+              const b = routeLine[i + 1];
+              if (
+                !a || !b ||
+                !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
+                !b.hasOwnProperty('lat') || !b.hasOwnProperty('lng') ||
+                isNaN(a.lat) || isNaN(a.lng) ||
+                isNaN(b.lat) || isNaN(b.lng)
+              ) {
+                console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
+                continue;
+              }
+              minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+            }
+
+            if (minDist > 100) {
+              routingControlRef.current.setWaypoints([
+                L.latLng(latitude, longitude),
+                routingControlRef.current.getWaypoints()[1].latLng
+              ]);
+              proximoPasoIndex.current = 0;
+              avisosDados.current.clear();
+              hasArrivedRef.current = false;
+              hablar('Te has desviado de la ruta. Recalculando...');
+              return;
+            }
+          } else {
+            console.warn('No se pudo obtener la polilínea de la ruta. Estado de _routes:', routingControlRef.current?._routes);
+            Swal.fire({
+              icon: 'error',
+              title: 'Error en la ruta',
+              text: 'No se pudo calcular la ruta. Por favor, intenta de nuevo.',
+              confirmButtonText: 'Entendido',
+            });
+            return;
+          }
+
+          const proximoPaso = instrucciones[proximoPasoIndex.current];
+          if (!proximoPaso) {
+            if (!hasArrivedRef.current) {
+              hasArrivedRef.current = true;
+              hablar('Has llegado a tu destino');
+              onRouteFinished();
+            }
+            return;
+          }
+
+          const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+          console.debug('Distancia al paso actual:', { distancia, proximoPasoIndex: proximoPasoIndex.current, avisosDados: [...avisosDados.current] });
+
+          if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
+            hablar(proximoPaso.text);
+            avisosDados.current.add(proximoPasoIndex.current);
+            proximoPasoIndex.current++;
+            console.debug('Instrucción emitida, avanzando al siguiente paso:', proximoPasoIndex.current);
+          } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
+            let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
+            if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
+            hablar(texto);
+            avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+            console.debug('Aviso de preparación emitido:', `prep_${proximoPasoIndex.current}`);
+          }
         },
         (error) => {
           if (error.code === error.TIMEOUT && reintentos < MAX_REINTENTOS) {
@@ -288,7 +263,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
             });
           }
         },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 } // Timeout de 90 segundos
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 } // Aumentado a 90 segundos
       );
     }
 
