@@ -20,6 +20,7 @@ import {
   isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
+import { useThrottle } from '../utils/hooks'; // Asegúrate de que la ruta sea correcta
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -124,6 +125,8 @@ const UbicacionDEA = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
 
+  const throttledLocation = useThrottle(userLocation, 7000);
+
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -216,30 +219,29 @@ const UbicacionDEA = () => {
       });
   }, []);
 
-  // Este es el ÚNICO lugar en la aplicación que obtiene la ubicación del usuario.
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
-      setIsLoading(false);
-      return;
-    }
+useEffect(() => {
+  if (!navigator.geolocation) {
+    Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
+    setIsLoading(false);
+    return;
+  }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const coords = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords); // Actualiza la ubicación en tiempo real.
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      const coords = [position.coords.latitude, position.coords.longitude];
+      setUserLocation(coords);
 
-        if (isLoading) {
-          setCenter(coords);
-          setIsLoading(false);
-        }
-      },
-      handleLocationError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      if (isLoading) {
+        setCenter(coords);
+        setIsLoading(false);
+      }
+    },
+    handleLocationError,
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
 
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [isLoading]);
+  return () => navigator.geolocation.clearWatch(watchId);
+}, [isLoading]);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -377,39 +379,47 @@ const UbicacionDEA = () => {
     }
   };
   
-  const iniciarNavegacion = (dea) => {
-    if (!userLocation) {
-        Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación actual.', 'error');
-        return;
+const [rutaFrom, setRutaFrom] = useState(null);
+
+const iniciarNavegacion = (dea) => {
+  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+  setCenter(destino);
+  setSelectedDeaId(dea.id);
+  setTimeout(() => {
+    markersRef.current[dea.id]?.openPopup();
+  }, 300);
+
+  Swal.fire({
+    title: '¿Iniciar guía por voz?',
+    text: 'Se darán instrucciones de audio para llegar al destino.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, iniciar',
+    cancelButtonText: 'No, solo mostrar ruta',
+    reverseButtons: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      setVozActiva(true);
     }
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    setCenter(destino);
-    setSelectedDeaId(dea.id);
-    
+    setDestinoRuta(destino);
+
+    // Cierra el popup del marcador después de la selección
     setTimeout(() => {
-      markersRef.current[dea.id]?.openPopup();
-    }, 300);
+      markersRef.current[dea.id]?.closePopup();
+    }, 200);
+  });
+};
 
-    Swal.fire({
-      title: '¿Iniciar guía por voz?',
-      text: 'Se darán instrucciones de audio para llegar al destino.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, iniciar',
-      cancelButtonText: 'No, solo mostrar ruta',
-      reverseButtons: true,
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setVozActiva(true);
-      }
-      setDestinoRuta(destino);
-
-      setTimeout(() => {
-        markersRef.current[dea.id]?.closePopup();
-      }, 200);
-    });
-  };
-
+{rutaFrom && destinoRuta && (
+  <RoutingControl
+    key={destinoRuta.join(',')}
+    from={rutaFrom}
+    to={destinoRuta}
+    vozActiva={vozActiva}
+    onRouteFinished={onRouteFinished}
+    userLocation={userLocation} // para seguimiento, no para recalcular
+  />
+)}
   const onRouteFinished = () => {
     Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
     setDestinoRuta(null);
@@ -423,8 +433,13 @@ const UbicacionDEA = () => {
     fontSize: '14px',
   };
 
-  const fromPoint = userLocation;
-  const toPoint = destinoRuta;
+const fromPoint = useMemo(() => {
+  return destinoRuta ? throttledLocation : userLocation;
+}, [destinoRuta, userLocation, throttledLocation]);
+
+const toPoint = useMemo(() => {
+  return destinoRuta;
+}, [destinoRuta]);
 
   return (
     <div className="relative min-h-screen">
@@ -485,15 +500,14 @@ const UbicacionDEA = () => {
                   </Marker>
                 ))}
                 {fromPoint && toPoint && (
-                  <RoutingControl
-                    key={toPoint.join(',')}
-                    from={fromPoint}
-                    to={toPoint}
-                    userLocation={userLocation}
-                    vozActiva={vozActiva}
-                    onRouteFinished={onRouteFinished}
-                  />
-                )}
+                <RoutingControl
+                  key={toPoint.join(',')}
+                  from={fromPoint}
+                  to={toPoint}
+                  vozActiva={vozActiva}
+                  onRouteFinished={onRouteFinished}
+                />
+              )}
               </MapContainer>
             )}
             {!isLoading && <>
