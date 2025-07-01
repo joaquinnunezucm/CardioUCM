@@ -13,7 +13,7 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
-
+const instruccionesRef = useRef([]);
 // Calcula la distancia mínima del punto p al segmento [a, b] en metros
 function distanceToSegment(p, a, b) {
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -124,16 +124,17 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
     let watchId = null;
     let instrucciones = [];
 
-    const onRoutesFound = (e) => {
-      instrucciones = e.routes[0].instructions;
-      proximoPasoIndex.current = 0; // Reiniciar puntero cuando se encuentra la ruta
-      avisosDados.current.clear();
-    };
+      const onRoutesFound = (e) => {
+        instruccionesRef.current = e.routes[0].instructions;
+        proximoPasoIndex.current = 0;
+        avisosDados.current.clear();
+      };
     routingControlRef.current.on('routesfound', onRoutesFound);
 
     watchId = navigator.geolocation.watchPosition(
       (position) => {
-        if (instrucciones.length === 0 || hasArrivedRef.current) return;
+    const instrucciones = instruccionesRef.current;
+    if (instrucciones.length === 0 || hasArrivedRef.current) return;
 
         const { latitude, longitude } = position.coords;
         map.panTo([latitude, longitude]); // Seguir al usuario
