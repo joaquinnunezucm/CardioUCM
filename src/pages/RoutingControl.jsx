@@ -118,71 +118,71 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   }, [map, from, to]);
 
   // Efecto para la guía por voz y seguimiento en tiempo real
-  useEffect(() => {
-    if (!vozActiva || !routingControlRef.current) return;
+useEffect(() => {
+  if (!vozActiva || !routingControlRef.current) return;
 
-    let watchId = null;
-    let instrucciones = [];
+  let watchId = null;
+  let instrucciones = [];
 
-    const onRoutesFound = (e) => {
-      instrucciones = e.routes[0].instructions;
-      proximoPasoIndex.current = 0; // Reiniciar puntero cuando se encuentra la ruta
-      avisosDados.current.clear();
-    };
-    routingControlRef.current.on('routesfound', onRoutesFound);
-
-    // Reintentos automáticos si ocurre TIMEOUT
-    let reintentos = 0;
-    const MAX_REINTENTOS = 3;
-
-    function iniciarWatchPosition() {
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          reintentos = 0;
-          if (instrucciones.length === 0 || hasArrivedRef.current) return;
-
-          const { latitude, longitude } = position.coords;
-          map.panTo([latitude, longitude]); // Seguir al usuario
-
-          // --- LÓGICA DE DESVÍO USANDO POLILÍNEA ---
-          let minDist = Infinity;
-let routeLine = null;
-if (
-  routingControlRef.current &&
-  routingControlRef.current._routes &&
-  routingControlRef.current._routes[0] &&
-  Array.isArray(routingControlRef.current._routes[0].coordinates) &&
-  routingControlRef.current._routes[0].coordinates.length > 1
-) {
-  routeLine = routingControlRef.current._routes[0].coordinates;
-}
-
-if (routeLine) {
-  for (let i = 0; i < routeLine.length - 1; i++) {
-    const a = routeLine[i];
-    const b = routeLine[i + 1];
-    if (
-      !a || !b ||
-      typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
-      typeof b.lat !== 'number' || typeof b.lng !== 'number'
-    ) continue;
-    minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
-  }
-  // Si el usuario está a más de 50m de la ruta, recalcula
-  if (minDist > 50) {
-    routingControlRef.current.setWaypoints([
-      L.latLng(latitude, longitude),
-      routingControlRef.current.getWaypoints()[1].latLng
-    ]);
+  const onRoutesFound = (e) => {
+    instrucciones = e.routes[0].instructions;
     proximoPasoIndex.current = 0;
     avisosDados.current.clear();
-    hasArrivedRef.current = false;
-    hablar('Te has desviado de la ruta. Recalculando...');
-    return;
-  }
-} else {
-  console.warn('No se pudo obtener la polilínea de la ruta.');
-}
+  };
+  routingControlRef.current.on('routesfound', onRoutesFound);
+
+  let reintentos = 0;
+  const MAX_REINTENTOS = 3;
+
+  function iniciarWatchPosition() {
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        reintentos = 0;
+        if (instrucciones.length === 0 || hasArrivedRef.current) return;
+
+        const { latitude, longitude } = position.coords;
+        map.panTo([latitude, longitude]);
+        let minDist = Infinity;
+        let routeLine = null;
+
+        // Validación robusta para _routes y coordinates
+        if (
+          routingControlRef.current &&
+          routingControlRef.current._routes &&
+          routingControlRef.current._routes[0] &&
+          Array.isArray(routingControlRef.current._routes[0].coordinates) &&
+          routingControlRef.current._routes[0].coordinates.length > 1
+        ) {
+          routeLine = routingControlRef.current._routes[0].coordinates;
+        }
+
+        if (routeLine) {
+          for (let i = 0; i < routeLine.length - 1; i++) {
+            const a = routeLine[i];
+            const b = routeLine[i + 1];
+            if (
+              !a || !b ||
+              typeof a.lat !== 'number' || typeof a.lng !== 'number' ||
+              typeof b.lat !== 'number' || typeof b.lng !== 'number'
+            ) continue;
+            minDist = Math.min(minDist, distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]));
+          }
+
+          if (minDist > 50) {
+            routingControlRef.current.setWaypoints([
+              L.latLng(latitude, longitude),
+              routingControlRef.current.getWaypoints()[1].latLng
+            ]);
+            proximoPasoIndex.current = 0;
+            avisosDados.current.clear();
+            hasArrivedRef.current = false;
+            hablar('Te has desviado de la ruta. Recalculando...');
+            return;
+          }
+        } else {
+          console.warn('No se pudo obtener la polilínea de la ruta. Esperando cálculo de ruta...');
+          return;
+        }
           // --- FIN LÓGICA DE DESVÍO ---
 
           // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
@@ -195,67 +195,59 @@ if (routeLine) {
           const distanciaAlPaso = getDistance(latitude, longitude, pasoActual.latLng.lat, pasoActual.latLng.lng);
           const idAvisoPreparacion = `${proximoPasoIndex.current}-prep`;
           const idAvisoEjecucion = `${proximoPasoIndex.current}-ejec`;
-
-          // 1. Dar aviso de PREPARACIÓN
-          if (distanciaAlPaso <= DISTANCIA_AVISO_PREPARACION && !avisosDados.current.has(idAvisoPreparacion)) {
-            const instruccionTexto = pasoActual.text.toLowerCase();
-            // Añadimos el nombre de la calle si existe para más contexto
-            const textoCompleto = pasoActual.road ? `${instruccionTexto} en ${pasoActual.road}` : instruccionTexto;
-            hablar(`A ${Math.round(distanciaAlPaso)} metros, ${textoCompleto}`);
-            avisosDados.current.add(idAvisoPreparacion);
+          const proximoPaso = instrucciones[proximoPasoIndex.current];
+        if (!proximoPaso) {
+          if (!hasArrivedRef.current) {
+            hasArrivedRef.current = true;
+            hablar('Has llegado a tu destino');
+            onRouteFinished();
           }
+          return;
+        }
+        const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+        if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
+          hablar(proximoPaso.text);
+          avisosDados.current.add(proximoPasoIndex.current);
+          proximoPasoIndex.current++;
+        } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
+          let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
+          if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
+          hablar(texto);
+          avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
+        }
+      },
+      (error) => {
+        if (error.code === error.TIMEOUT && reintentos < MAX_REINTENTOS) {
+          reintentos++;
+          iniciarWatchPosition();
+        } else {
+          console.error('Error en watchPosition:', error);
+          window.Swal && Swal.fire({
+            icon: 'error',
+            title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
+            text: error.code === error.TIMEOUT
+              ? 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.'
+              : error.message,
+            confirmButtonText: 'Entendido'
+          });
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    );
+  }
 
-          // 2. Dar aviso de EJECUCIÓN y AVANZAR al siguiente paso
-          if (distanciaAlPaso <= DISTANCIA_AVISO_EJECUCION) {
-            if (!avisosDados.current.has(idAvisoEjecucion)) {
-              // Instrucción más directa para la ejecución
-              hablar(`Ahora, ${pasoActual.text.toLowerCase()}`);
-              avisosDados.current.add(idAvisoEjecucion);
-            }
-            // Si ya dimos el aviso de ejecución, y nos seguimos acercando o ya pasamos, avanzamos el puntero
-            proximoPasoIndex.current++; 
-          }
-
-          // 3. Lógica de LLEGADA al destino
-          const ultimoPasoIndex = instrucciones.length - 1;
-          if (proximoPasoIndex.current > ultimoPasoIndex && !hasArrivedRef.current) {
-              hablar('Has llegado a tu destino.');
-              hasArrivedRef.current = true;
-              if (onRouteFinished) {
-                onRouteFinished();
-              }
-          }
-        },
-        (error) => {
-          if (error.code === error.TIMEOUT && reintentos < MAX_REINTENTOS) {
-            reintentos++;
-            iniciarWatchPosition();
-          } else {
-            console.error("Error en watchPosition:", error);
-            // Mostrar alerta visual
-            window.Swal && Swal.fire({
-              icon: 'error',
-              title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
-              text: error.code === error.TIMEOUT
-                ? 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.'
-                : error.message,
-              confirmButtonText: 'Entendido'
-            });
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-      );
-    }
-
+  // Retraso para mantener el contexto del gesto
+  setTimeout(() => {
     iniciarWatchPosition();
+  }, 100);
 
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (routingControlRef.current) {
-        routingControlRef.current.off('routesfound', onRoutesFound);
-      }
-    };
-  }, [vozActiva, map, onRouteFinished]);
+  return () => {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    if (routingControlRef.current) {
+      routingControlRef.current.off('routesfound', onRoutesFound);
+    }
+  };
+}, [vozActiva, map, onRouteFinished]);
 
   return null;
 };
