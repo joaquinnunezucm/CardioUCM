@@ -171,12 +171,21 @@ const RoutingControl = ({ from, to, userLocation, vozActiva, onRouteFinished }) 
 
   }, [userLocation, vozActiva, onRouteFinished, distanceToRoute, to]);
 
-  if (remaining.length === 0) {
+  if (!Array.isArray(remaining) || remaining.length === 0) {
+    return null;
+  }
+
+  // Solo puntos válidos (lat/lng numéricos)
+  const validPositions = remaining.filter(
+    p => p && typeof p.lat === 'number' && typeof p.lng === 'number'
+  );
+
+  if (validPositions.length < 2) {
     return null;
   }
 
   return (
-    <Polyline positions={remaining} pathOptions={{ color: '#007bff', weight: 6, opacity: 0.8 }} />
+    <Polyline positions={validPositions} pathOptions={{ color: '#007bff', weight: 6, opacity: 0.8 }} />
   );
 };
 
