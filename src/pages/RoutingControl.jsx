@@ -5,369 +5,192 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useMap } from 'react-leaflet';
 import Swal from 'sweetalert2';
 
-// Función de utilidad para calcular distancia (Haversine)
+// FUNCIÓN DE UTILIDAD: Calcular distancia Haversine en metros
 const getDistance = (lat1, lon1, lat2, lon2) => {
   if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
     console.warn('Coordenadas inválidas en getDistance:', { lat1, lon1, lat2, lon2 });
     return Infinity;
   }
   const toRad = (value) => (value * Math.PI) / 180;
-  const R = 6371000; // Radio en metros
+  const R = 6371000; // Radio de la Tierra en metros
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
-// Calcula la distancia mínima del punto p al segmento [a, b] en metros
-function distanceToSegment(p, a, b) {
-  if (
-    !p || !a || !b ||
-    isNaN(p[0]) || isNaN(p[1]) ||
-    isNaN(a[0]) || isNaN(a[1]) ||
-    isNaN(b[0]) || isNaN(b[1])
-  ) {
-    console.warn('Coordenadas inválidas en distanceToSegment:', { p, a, b });
-    return Infinity;
-  }
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const lat1 = toRad(a[0]), lon1 = toRad(a[1]);
-  const lat2 = toRad(b[0]), lon2 = toRad(b[1]);
-  const lat3 = toRad(p[0]), lon3 = toRad(p[1]);
-
-  // Convertir a coordenadas cartesianas
-  const R = 6371000;
-  const x1 = R * Math.cos(lat1) * Math.cos(lon1);
-  const y1 = R * Math.cos(lat1) * Math.sin(lon1);
-  const z1 = R * Math.sin(lat1);
-
-  const x2 = R * Math.cos(lat2) * Math.cos(lon2);
-  const y2 = R * Math.cos(lat2) * Math.sin(lon2);
-  const z2 = R * Math.sin(lat2);
-
-  const x3 = R * Math.cos(lat3) * Math.cos(lon3);
-  const y3 = R * Math.cos(lat3) * Math.sin(lon3);
-  const z3 = R * Math.sin(lat3);
-
-  // Proyección del punto sobre el segmento
-  const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
-  const denominator = dx * dx + dy * dy + dz * dz;
-  if (denominator === 0) {
-    console.warn('Denominador cero en distanceToSegment, usando punto inicial:', { a });
-    return getDistance(p[0], p[1], a[0], a[1]);
-  }
-  const t = ((x3 - x1) * dx + (y3 - y1) * dy + (z3 - z1) * dz) / denominator;
-  let xClosest, yClosest, zClosest;
-  if (t < 0) {
-    xClosest = x1; yClosest = y1; zClosest = z1;
-  } else if (t > 1) {
-    xClosest = x2; yClosest = y2; zClosest = z2;
-  } else {
-    xClosest = x1 + t * dx;
-    yClosest = y1 + t * dy;
-    zClosest = z1 + t * dz;
-  }
-  // Distancia euclidiana
-  const dist = Math.sqrt((x3 - xClosest) ** 2 + (y3 - yClosest) ** 2 + (z3 - zClosest) ** 2);
-  if (isNaN(dist)) {
-    console.warn('Distancia NaN en distanceToSegment:', { p, a, b, xClosest, yClosest, zClosest });
-    return Infinity;
-  }
-  return dist;
-}
-
+// FUNCIÓN DE UTILIDAD: Síntesis de voz
 const hablar = (texto) => {
   if (!window.speechSynthesis) {
-    console.warn('SpeechSynthesis no soportado en este navegador');
+    console.warn('SpeechSynthesis no es soportado en este navegador.');
     return;
   }
-  const utter = new SpeechSynthesisUtterance(texto);
-  utter.lang = 'es-ES';
-  utter.rate = 1.1;
+  // Cancelar cualquier discurso anterior para no solapar instrucciones
   window.speechSynthesis.cancel();
+
+  const utter = new SpeechSynthesisUtterance(texto);
+  utter.lang = 'es-ES'; // Asegurar idioma español
+  utter.rate = 1.1;     // Un poco más rápido para que sea más fluido
+  utter.pitch = 1;
   window.speechSynthesis.speak(utter);
 };
 
+
+/**
+ * Componente de React para mostrar y gestionar una ruta en un mapa de Leaflet.
+ * Utiliza leaflet-routing-machine y la API de Geolocalización para guía por voz.
+ *
+ * @param {number[]} from - Coordenadas de inicio [lat, lng].
+ * @param {number[]} to - Coordenadas de destino [lat, lng].
+ * @param {boolean} vozActiva - Activa o desactiva la guía por voz.
+ * @param {function} onRouteFinished - Callback que se ejecuta al llegar al destino.
+ */
 const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const map = useMap();
+  // Ref para mantener la instancia del control de ruta a través de los renders.
   const routingControlRef = useRef(null);
-  const proximoPasoIndex = useRef(0);
-  const avisosDados = useRef(new Set());
-  const hasArrivedRef = useRef(false);
-  const ultimaPosicion = useRef(null);
-  const watchIdRef = useRef(null);
-  const isMountedRef = useRef(false);
 
-  // Efecto para crear y destruir el control de la ruta
+  // El useEffect unificado que maneja TODO el ciclo de vida de la ruta.
+  // Se ejecuta cada vez que 'from', 'to', o 'vozActiva' cambian.
   useEffect(() => {
+    // --- 1. VALIDACIONES Y PREPARACIÓN ---
     if (!map) {
-      console.error('Mapa no disponible');
+      console.error('El objeto `map` no está disponible en RoutingControl.');
       return;
     }
     if (!from || !to || isNaN(from[0]) || isNaN(from[1]) || isNaN(to[0]) || isNaN(to[1])) {
-      console.warn('Coordenadas from o to inválidas o no proporcionadas:', { from, to });
-      if (routingControlRef.current) {
-        map.removeControl(routingControlRef.current);
-        routingControlRef.current = null;
-      }
+      console.warn('Coordenadas `from` o `to` inválidas. No se creará la ruta.', { from, to });
       return;
     }
 
-    isMountedRef.current = true;
-
+    // Si ya existe un control de una ruta anterior, lo eliminamos del mapa.
+    // Esto es crucial para asegurar un estado limpio en cada nueva ruta.
     if (routingControlRef.current) {
-      console.debug('Actualizando waypoints:', { from, to });
-      routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
-      return;
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
     }
 
-    // Reiniciar estado para una nueva ruta
-    proximoPasoIndex.current = 0;
-    avisosDados.current.clear();
-    hasArrivedRef.current = false;
-
-    console.debug('Creando nuevo control de ruta:', { from, to });
+    // --- 2. CREACIÓN DEL NUEVO CONTROL DE RUTA ---
     const control = L.Routing.control({
       waypoints: [L.latLng(from), L.latLng(to)],
-      createMarker: () => null,
+      // Opciones para personalizar la apariencia y comportamiento
+      createMarker: () => null,      // No queremos los marcadores A y B por defecto.
       routeWhileDragging: false,
       addWaypoints: false,
       fitSelectedRoutes: true,
-      show: false,
+      show: false,                  // Ocultamos el panel de instrucciones de la librería.
       language: 'es',
-      lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
+      lineOptions: {
+        styles: [{ color: '#007bff', weight: 6, opacity: 0.8 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 100
+      },
     }).addTo(map);
 
-    const onRouteSelected = (e) => {
-      const primerPaso = e.route.instructions[0];
-      if (primerPaso && isMountedRef.current) {
-        console.debug('Ruta seleccionada, primera instrucción:', primerPaso.text);
-        hablar(`Iniciando ruta. La primera indicación es: ${primerPaso.text}.`);
-      } else {
-        console.warn('No se encontraron instrucciones en la ruta seleccionada o componente desmontado');
-      }
-    };
-
-    control.on('routeselected', onRouteSelected);
+    // Guardamos la nueva instancia en nuestra ref para poder limpiarla después.
     routingControlRef.current = control;
 
-    return () => {
-      isMountedRef.current = false;
-      if (routingControlRef.current) {
-        console.debug('Eliminando control de ruta');
-        routingControlRef.current.off('routeselected', onRouteSelected);
-        map.removeControl(routingControlRef.current);
-        routingControlRef.current = null;
-      }
-    };
-  }, [map, from, to]);
-
-  // Efecto para la guía por voz y seguimiento en tiempo real
-    useEffect(() => {
-    if (!vozActiva || !routingControlRef.current) {
-      console.debug('Guía por voz desactivada o routingControl no disponible:', { vozActiva, hasRoutingControl: !!routingControlRef.current });
-      return;
-    }
-
+    // Variables para la lógica de seguimiento y voz. Se reinician en cada ejecución del efecto.
+    let watchId = null;
+    const isMounted = { current: true }; // Para evitar actualizaciones en componente desmontado.
+    const hasArrived = { current: false };
+    const avisosDados = new Set();
+    let proximoPasoIndex = 0;
     let instrucciones = [];
-    let reintentos = 0;
-    let onSuccess, onError;
 
-    onSuccess = (position) => {
-      if (!isMountedRef.current) {
-        console.debug('Componente desmontado, ignorando posición');
-        return;
-      }
-      const { latitude, longitude } = position.coords;
-      console.debug('Nueva posición recibida:', { latitude, longitude });
-
-      if (ultimaPosicion.current) {
-        const distanciaCambio = getDistance(latitude, longitude, ultimaPosicion.current.lat, ultimaPosicion.current.lng);
-        if (distanciaCambio < 5) {
-          console.debug('Posición sin cambios significativos:', { distanciaCambio });
-          return;
-        }
-      }
-      ultimaPosicion.current = { lat: latitude, lng: longitude };
-
-      map.panTo([latitude, longitude]);
-      let minDist = Infinity;
-      let routeLine = null;
-
-      try {
-        if (
-          routingControlRef.current &&
-          routingControlRef.current._routes &&
-          routingControlRef.current._routes[0] &&
-          Array.isArray(routingControlRef.current._routes[0].coordinates) &&
-          routingControlRef.current._routes[0].coordinates.length > 1
-        ) {
-          routeLine = routingControlRef.current._routes[0].coordinates;
-          console.debug('Polilínea de ruta obtenida, longitud:', routeLine.length);
-        } else {
-          console.warn('No se pudo obtener la polilínea de la ruta:', {
-            hasRoutes: !!routingControlRef.current?._routes,
-            hasFirstRoute: !!routingControlRef.current?._routes?.[0],
-            hasCoordinates: !!routingControlRef.current?._routes?.[0]?.coordinates,
-            coordinatesLength: routingControlRef.current?._routes?.[0]?.coordinates?.length,
-          });
-          Swal.fire({
-            icon: 'error',
-            title: 'Error en la ruta',
-            text: 'No se pudo calcular la ruta. Por favor, intenta de nuevo.',
-            confirmButtonText: 'Entendido',
-          });
-          return;
-        }
-
-        for (let i = 0; i < routeLine.length - 1; i++) {
-          const a = routeLine[i];
-          const b = routeLine[i + 1];
-          if (
-            !a || !b ||
-            !a.hasOwnProperty('lat') || !a.hasOwnProperty('lng') ||
-            !b.hasOwnProperty('lat') || !b.hasOwnProperty('lng') ||
-            isNaN(a.lat) || isNaN(a.lng) ||
-            isNaN(b.lat) || isNaN(b.lng)
-          ) {
-            console.warn(`Elemento inválido en routeLine[${i}]:`, { a, b });
-            continue;
-          }
-          const dist = distanceToSegment([latitude, longitude], [a.lat, a.lng], [b.lat, b.lng]);
-          minDist = Math.min(minDist, dist);
-        }
-
-        console.debug('Distancia mínima a la ruta:', minDist);
-
-        // Lógica de desvío comentada para pruebas
-        /*
-        if (minDist > 100) {
-          console.warn('Usuario desviado de la ruta:', { minDist });
-          routingControlRef.current.setWaypoints([
-            L.latLng(latitude, longitude),
-            routingControlRef.current.getWaypoints()[1].latLng
-          ]);
-          proximoPasoIndex.current = 0;
-          avisosDados.current.clear();
-          hasArrivedRef.current = false;
-          hablar('Te has desviado de la ruta. Recalculando...');
-          return;
-        }
-        */
-
-        const proximoPaso = instrucciones[proximoPasoIndex.current];
-        if (!proximoPaso || !proximoPaso.latLng || !proximoPaso.latLng.lat || !proximoPaso.latLng.lng) {
-          if (!hasArrivedRef.current) {
-            console.debug('No hay más pasos o paso inválido, usuario ha llegado al destino');
-            hasArrivedRef.current = true;
-            hablar('Has llegado a tu destino');
-            onRouteFinished();
-          }
-          return;
-        }
-
-const distancia = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
-        console.debug('Distancia al paso actual:', {
-          distancia,
-          proximoPasoIndex: proximoPasoIndex.current,
-          pasoText: proximoPaso.text,
-        });
-
-        // Solo avanzar si no estamos en el último paso
-        if (proximoPasoIndex.current < instrucciones.length - 1) {
-          if (distancia <= 25 && !avisosDados.current.has(proximoPasoIndex.current)) {
-            console.debug('Emitiendo instrucción:', proximoPaso.text);
-            hablar(proximoPaso.text);
-            avisosDados.current.add(proximoPasoIndex.current);
-            proximoPasoIndex.current++;
-          } else if (distancia <= 100 && !avisosDados.current.has(`prep_${proximoPasoIndex.current}`)) {
-            let texto = `A 100 metros, ${proximoPaso.text.toLowerCase()}`;
-            if (proximoPaso.road) texto += ` en ${proximoPaso.road}`;
-            console.debug('Emitiendo aviso de preparación:', texto);
-            hablar(texto);
-            avisosDados.current.add(`prep_${proximoPasoIndex.current}`);
-          }
-        } else {
-          // Último paso: solo marcar llegada si realmente estamos cerca del destino
-          if (distancia <= 25 && !hasArrivedRef.current) {
-            console.debug('Usuario ha llegado al destino');
-            hasArrivedRef.current = true;
-            hablar('Has llegado a tu destino');
-            onRouteFinished();
-          }
-        }
-      } catch (error) {
-        console.error('Error al procesar la posición:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error en el procesamiento',
-          text: 'Ocurrió un error al procesar la posición. Por favor, intenta de nuevo.',
-          confirmButtonText: 'Entendido',
-        });
-      }
-    };
-
-    onError = (error) => {
-      console.error('Error en watchPosition:', { code: error.code, message: error.message });
-      if (error.code === error.TIMEOUT && reintentos < 3) {
-        reintentos++;
-        console.debug(`Reintento ${reintentos} de watchPosition`);
-        if (isMountedRef.current) {
-          watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 });
-        }
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: error.code === error.TIMEOUT ? 'Tiempo de Espera Agotado' : 'Error de ubicación',
-          text: error.code === error.TIMEOUT
-            ? 'No se pudo obtener tu ubicación en el tiempo permitido. Por favor, verifica tu conexión o permisos de geolocalización y vuelve a intentarlo.'
-            : error.message,
-          confirmButtonText: 'Entendido',
-        });
-      }
-    };
-
+    // --- 3. LÓGICA DE GUÍA POR VOZ (SI ESTÁ ACTIVA) ---
     const onRoutesFound = (e) => {
-      if (!isMountedRef.current) {
-        console.debug('Componente desmontado, ignorando routesfound');
-        return;
-      }
+      if (!isMounted.current) return; // No hacer nada si el componente ya se desmontó.
+
       instrucciones = e.routes[0]?.instructions || [];
-      proximoPasoIndex.current = 0;
-      avisosDados.current.clear();
-      ultimaPosicion.current = null;
-      console.debug('Rutas encontradas, total de instrucciones:', instrucciones.length);
+      console.log(`Ruta encontrada con ${instrucciones.length} instrucciones.`);
 
       if (instrucciones.length === 0) {
-        console.warn('No se encontraron instrucciones, abortando watchPosition');
-        Swal.fire({
-          icon: 'error',
-          title: 'Error en la ruta',
-          text: 'No se pudieron obtener las instrucciones de la ruta. Por favor, intenta de nuevo.',
-          confirmButtonText: 'Entendido',
-        });
+        Swal.fire('Error de Ruta', 'No se pudieron obtener las instrucciones de la ruta. Inténtalo de nuevo.', 'error');
         return;
       }
 
-      console.debug('Iniciando watchPosition tras rutas encontradas');
-      watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, { enableHighAccuracy: true, maximumAge: 0, timeout: 90000 });
+      // Dar la primera instrucción de la ruta.
+      const primerPaso = instrucciones[0];
+      if (primerPaso) {
+        hablar(`Iniciando ruta. ${primerPaso.text}.`);
+      }
+
+      // Callback para cuando se obtiene una nueva posición del usuario.
+      const onSuccess = (position) => {
+        if (!isMounted.current || hasArrived.current) return;
+
+        const { latitude, longitude } = position.coords;
+
+        // Centrar el mapa en la nueva ubicación del usuario.
+        map.panTo([latitude, longitude]);
+
+        const proximoPaso = instrucciones[proximoPasoIndex];
+        if (!proximoPaso) {
+          if (!hasArrived.current) {
+            hasArrived.current = true;
+            hablar('Has llegado a tu destino.');
+            if (onRouteFinished) onRouteFinished();
+          }
+          return;
+        }
+
+        const distanciaAlProximoPaso = getDistance(latitude, longitude, proximoPaso.latLng.lat, proximoPaso.latLng.lng);
+        console.debug(`Distancia al paso #${proximoPasoIndex}: ${distanciaAlProximoPaso.toFixed(1)}m`);
+
+        // Si el usuario está a menos de 25 metros del siguiente punto de instrucción...
+        if (distanciaAlProximoPaso <= 25 && !avisosDados.has(proximoPasoIndex)) {
+          hablar(proximoPaso.text);
+          avisosDados.add(proximoPasoIndex);
+          proximoPasoIndex++; // Avanzar al siguiente paso.
+        }
+      };
+
+      const onError = (error) => {
+        console.error('Error de Geolocalización:', { code: error.code, message: error.message });
+        Swal.fire('Error de Ubicación', 'No se puede seguir tu posición. Por favor, revisa los permisos de ubicación.', 'error');
+      };
+
+      // Iniciar el seguimiento de la ubicación del usuario.
+      watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      });
     };
 
-    routingControlRef.current.on('routesfound', onRoutesFound);
+    // Solo activamos la lógica de voz si el prop 'vozActiva' es true.
+    if (vozActiva) {
+      control.on('routesfound', onRoutesFound);
+    }
 
+    // --- 4. FUNCIÓN DE LIMPIEZA ---
+    // Se ejecuta cuando el componente se desmonta O cuando las dependencias del useEffect cambian.
+    // Es CRUCIAL para evitar fugas de memoria y listeners "zombis".
     return () => {
-      isMountedRef.current = false;
-      if (watchIdRef.current) {
-        console.debug('Limpiando watchPosition');
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
+      isMounted.current = false; // Marcar como desmontado.
+
+      // Detener el seguimiento de la ubicación para no consumir batería.
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
       }
-      if (routingControlRef.current) {
-        console.debug('Eliminando listener de routesfound');
+      
+      // Detener cualquier síntesis de voz en curso.
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      // Eliminar el control del mapa si aún existe.
+      if (map && routingControlRef.current) {
+        // Quitar listeners para evitar fugas de memoria.
         routingControlRef.current.off('routesfound', onRoutesFound);
+        map.removeControl(routingControlRef.current);
       }
     };
-  }, [vozActiva, map, onRouteFinished]);
+  }, [map, from, to, vozActiva, onRouteFinished]); // Dependencias del efecto.
+
+  // Este componente no renderiza ningún elemento DOM, solo manipula el mapa.
   return null;
 };
 
