@@ -1,5 +1,3 @@
-// src/pages/RoutingControl.jsx (COMPLETO Y REESCRITO)
-
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
@@ -16,151 +14,145 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// Icono personalizado para la posición del usuario (el círculo azul)
-const userPositionIcon = L.divIcon({
-  className: 'user-position-marker',
-  html: '<div></div>',
-  iconSize: [20, 20],
-});
-
-const RoutingControl = ({ from, to, isNavigating, onRouteFinished }) => {
+const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
   const map = useMap();
   const routingControlRef = useRef(null);
+
+  // --- MEJORAS DE LÓGICA DE NAVEGACIÓN ---
+  const proximoPasoIndex = useRef(0); // Puntero para la navegación secuencial
+  const avisosDados = useRef(new Set()); // Para controlar los avisos (preparación/ejecución)
+  const hasArrivedRef = useRef(false);
+  // --- FIN MEJORAS ---
   
-  // Refs para gestionar los elementos visuales de la navegación
-  const fullRouteCoords = useRef([]);
-  const routeLineRef = useRef(null); // Nuestra propia línea de ruta
-  const userMarkerRef = useRef(null); // El marcador azul que se mueve
+  const hablar = (texto) => {
+    if (!vozActiva || !window.speechSynthesis) return;
+    const utter = new SpeechSynthesisUtterance(texto);
+    utter.lang = 'es-ES';
+    utter.rate = 1.1; // Un poco más rápido para sonar más natural
+    window.speechSynthesis.cancel();
+    setTimeout(() => window.speechSynthesis.speak(utter), 100);
+  };
 
-  // Efecto #1: Calcular la ruta una sola vez y prepararla
+  // Efecto para crear y destruir el control de la ruta
   useEffect(() => {
-    if (!map || !from || !to) return;
+    if (!map) return;
+    if (!from || !to) {
+      if (routingControlRef.current) {
+        map.removeControl(routingControlRef.current);
+        routingControlRef.current = null;
+      }
+      return;
+    }
+    if (routingControlRef.current) {
+      routingControlRef.current.setWaypoints([L.latLng(from), L.latLng(to)]);
+      return;
+    }
+    
+    // Reiniciar estado para una nueva ruta
+    proximoPasoIndex.current = 0;
+    avisosDados.current.clear();
+    hasArrivedRef.current = false;
 
-    // Crear el control de ruta de Leaflet, pero hacerlo INVISIBLE.
-    // Solo lo usamos para calcular la geometría de la ruta.
     const control = L.Routing.control({
       waypoints: [L.latLng(from), L.latLng(to)],
-      createMarker: () => null, // No queremos sus marcadores por defecto
-      routeWhileDragging: false,
-      addWaypoints: false,
-      // Hacemos la línea de ruta por defecto completamente transparente
-      lineOptions: {
-        styles: [{ opacity: 0, weight: 0 }]
-      }
+      createMarker: () => null, routeWhileDragging: false, addWaypoints: false,
+      fitSelectedRoutes: true, show: false, language: 'es',
+      lineOptions: { styles: [{ color: '#007bff', weight: 5 }] },
     }).addTo(map);
 
-    // Cuando la ruta se calcula, guardamos sus coordenadas y dibujamos la nuestra
-    control.on('routesfound', (e) => {
-      // Guardamos todas las coordenadas de la ruta calculada
-      fullRouteCoords.current = e.routes[0].coordinates;
-
-      // Si no existe nuestra línea de ruta, la creamos
-      if (!routeLineRef.current) {
-        routeLineRef.current = L.polyline(fullRouteCoords.current, {
-          color: '#007bff', // Color azul vivo
-          weight: 6,
-          opacity: 0.8,
-        }).addTo(map);
-      } else {
-        // Si ya existe, solo actualizamos las coordenadas
-        routeLineRef.current.setLatLngs(fullRouteCoords.current);
+    control.on('routeselected', (e) => {
+      const primerPaso = e.route.instructions[0];
+      if (primerPaso) {
+        // MEJORA: Instrucción inicial más clara
+        hablar(`Iniciando ruta. La primera indicación es: ${primerPaso.text}.`);
       }
-      map.fitBounds(e.routes[0].bounds); // Ajustar el zoom para ver toda la ruta inicialmente
     });
 
     routingControlRef.current = control;
 
     return () => {
-      if (control) {
-        map.removeControl(control);
+      if (routingControlRef.current) {
+        map.removeControl(routingControlRef.current);
+        routingControlRef.current = null;
       }
     };
   }, [map, from, to]);
 
-
-  // Efecto #2: Gestionar la navegación activa (seguimiento, recorte de ruta)
+  // Efecto para la guía por voz y seguimiento en tiempo real
   useEffect(() => {
-    // Si no estamos en modo navegación, nos aseguramos de que todo esté limpio
-    if (!isNavigating) {
-      if (userMarkerRef.current) {
-        map.removeLayer(userMarkerRef.current);
-        userMarkerRef.current = null;
-      }
-      return;
-    }
+    if (!vozActiva || !routingControlRef.current) return;
 
-    // Si estamos navegando y aún no hay marcador de usuario, lo creamos
-    if (!userMarkerRef.current) {
-      userMarkerRef.current = L.marker(from, { icon: userPositionIcon }).addTo(map);
-    }
+    let watchId = null;
+    let instrucciones = [];
 
-    // Iniciamos el seguimiento por GPS
-    const watchId = navigator.geolocation.watchPosition(
+    const onRoutesFound = (e) => {
+      instrucciones = e.routes[0].instructions;
+      proximoPasoIndex.current = 0; // Reiniciar puntero cuando se encuentra la ruta
+      avisosDados.current.clear();
+    };
+    routingControlRef.current.on('routesfound', onRoutesFound);
+
+    watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const userCoords = L.latLng(position.coords.latitude, position.coords.longitude);
+        if (instrucciones.length === 0 || hasArrivedRef.current) return;
 
-        // 1. Mover el marcador del usuario a su nueva posición
-        if (userMarkerRef.current) {
-          userMarkerRef.current.setLatLng(userCoords);
+        const { latitude, longitude } = position.coords;
+        map.panTo([latitude, longitude]); // Seguir al usuario
+
+        // --- LÓGICA DE NAVEGACIÓN SECUENCIAL MEJORADA ---
+        const DISTANCIA_AVISO_PREPARACION = 100; // metros
+        const DISTANCIA_AVISO_EJECUCION = 25;   // metros
+
+        let pasoActual = instrucciones[proximoPasoIndex.current];
+        if (!pasoActual) return; // Ruta terminada
+
+        const distanciaAlPaso = getDistance(latitude, longitude, pasoActual.latLng.lat, pasoActual.latLng.lng);
+        const idAvisoPreparacion = `${proximoPasoIndex.current}-prep`;
+        const idAvisoEjecucion = `${proximoPasoIndex.current}-ejec`;
+
+        // 1. Dar aviso de PREPARACIÓN
+        if (distanciaAlPaso <= DISTANCIA_AVISO_PREPARACION && !avisosDados.current.has(idAvisoPreparacion)) {
+          const instruccionTexto = pasoActual.text.toLowerCase();
+          // Añadimos el nombre de la calle si existe para más contexto
+          const textoCompleto = pasoActual.road ? `${instruccionTexto} en ${pasoActual.road}` : instruccionTexto;
+          hablar(`A ${Math.round(distanciaAlPaso)} metros, ${textoCompleto}`);
+          avisosDados.current.add(idAvisoPreparacion);
         }
 
-        // 2. Centrar el mapa en la posición del usuario
-        map.setView(userCoords, Math.max(map.getZoom(), 17), {
-            animate: true,
-            pan: { duration: 0.8 }
-        });
+        // 2. Dar aviso de EJECUCIÓN y AVANZAR al siguiente paso
+        if (distanciaAlPaso <= DISTANCIA_AVISO_EJECUCION) {
+          if (!avisosDados.current.has(idAvisoEjecucion)) {
+             // Instrucción más directa para la ejecución
+             hablar(`Ahora, ${pasoActual.text.toLowerCase()}`);
+             avisosDados.current.add(idAvisoEjecucion);
+          }
+          // Si ya dimos el aviso de ejecución, y nos seguimos acercando o ya pasamos, avanzamos el puntero
+          proximoPasoIndex.current++; 
+        }
 
-        // 3. Lógica de "recorte" de la ruta
-        if (routeLineRef.current && fullRouteCoords.current.length > 0) {
-          let closestPointIndex = -1;
-          let minDistance = Infinity;
-
-          // Encontramos el punto (vértice) más cercano en la ruta a nuestra posición actual
-          fullRouteCoords.current.forEach((coord, index) => {
-            const distance = userCoords.distanceTo(coord);
-            if (distance < minDistance) {
-              minDistance = distance;
-              closestPointIndex = index;
+        // 3. Lógica de LLEGADA al destino
+        const ultimoPasoIndex = instrucciones.length - 1;
+        if (proximoPasoIndex.current > ultimoPasoIndex && !hasArrivedRef.current) {
+            hablar('Has llegado a tu destino.');
+            hasArrivedRef.current = true;
+            if (onRouteFinished) {
+              onRouteFinished();
             }
-          });
-
-          // Creamos un nuevo array de coordenadas para la ruta restante
-          // Empezamos desde el punto más cercano hasta el final
-          const remainingRoute = fullRouteCoords.current.slice(closestPointIndex);
-
-          // Para una línea suave, el primer punto de la ruta restante es la posición actual del usuario
-          remainingRoute.unshift(userCoords);
-
-          // Actualizamos nuestra línea de polígono para que solo muestre la ruta restante
-          routeLineRef.current.setLatLngs(remainingRoute);
-        }
-
-        // 4. Lógica de llegada (opcional, pero útil)
-        const distanciaAlDestino = userCoords.distanceTo(to);
-        if (distanciaAlDestino < 25) { // Si está a menos de 25 metros
-          if (onRouteFinished) onRouteFinished();
         }
       },
       (error) => console.error("Error en watchPosition:", error),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
     );
 
-    // Función de limpieza del efecto
     return () => {
-      navigator.geolocation.clearWatch(watchId);
-      // Cuando se detiene la navegación, eliminamos los elementos visuales
-      if (userMarkerRef.current) {
-        map.removeLayer(userMarkerRef.current);
-        userMarkerRef.current = null;
-      }
-      if (routeLineRef.current) {
-        map.removeLayer(routeLineRef.current);
-        routeLineRef.current = null;
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (routingControlRef.current) {
+        routingControlRef.current.off('routesfound', onRoutesFound);
       }
     };
-  }, [isNavigating, map, to, from, onRouteFinished]);
+  }, [vozActiva, map, onRouteFinished]);
 
-  return null; // El componente no renderiza nada, solo manipula el mapa
+  return null;
 };
 
 export default RoutingControl;
