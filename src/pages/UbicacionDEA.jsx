@@ -410,6 +410,16 @@ const iniciarNavegacion = (dea) => {
   });
 };
 
+{rutaFrom && destinoRuta && (
+  <RoutingControl
+    key={destinoRuta.join(',')}
+    from={rutaFrom}
+    to={destinoRuta}
+    vozActiva={vozActiva}
+    onRouteFinished={onRouteFinished}
+    userLocation={userLocation} // para seguimiento, no para recalcular
+  />
+)}
   const onRouteFinished = () => {
     Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
     setDestinoRuta(null);
