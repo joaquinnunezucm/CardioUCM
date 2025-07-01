@@ -218,7 +218,7 @@ const RoutingControl = ({ from, to, vozActiva, onRouteFinished }) => {
         }
       },
       (error) => console.error("Error en watchPosition:", error),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
     );
 
     return () => {
