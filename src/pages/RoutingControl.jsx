@@ -18,7 +18,13 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 // Función para procesar la ruta: robusta y defensiva
 const processRoute = (userCoords, polylineCoords) => {
   if (!userCoords || !polylineCoords || polylineCoords.length < 2) {
-    return { remaining: polylineCoords || [], distanceToRoute: Infinity };
+    // Filtra aquí también
+    const safeCoords = Array.isArray(polylineCoords)
+      ? polylineCoords.filter(
+          p => p && typeof p.lat === 'number' && typeof p.lng === 'number'
+        )
+      : [];
+    return { remaining: safeCoords, distanceToRoute: Infinity };
   }
   let closestPoint = null;
   let minDistance = Infinity;
