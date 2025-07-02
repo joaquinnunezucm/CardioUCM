@@ -5,7 +5,7 @@ import L from 'leaflet';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
-import * as turf from '@turf/turf'; // Importación de Turf.js para cálculos de desvío
+import * as turf from '@turf/turf'; // Importación de Turf.js para cálculos geoespaciales
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
 import ORSRouting from '../pages/ORSRouting';
@@ -200,7 +200,16 @@ const UbicacionDEA = () => {
     routeGeoJSONRef.current = null;
   };
 
-
+  const iniciarNavegacion = (dea) => {
+    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+    detenerNavegacion();
+    
+    Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    setRutaFrom(userLocation);
+    setDestinoRuta(destino);
+    setSelectedDeaId(dea.id);
+  };
 
   const updateRouteDisplay = (currentLocation) => {
     if (!routeGeoJSONRef.current || !mapRef.current) return;
@@ -211,6 +220,7 @@ const UbicacionDEA = () => {
     
     const endPoint = turf.point(routeLine.geometry.coordinates[routeLine.geometry.coordinates.length - 1]);
 
+    // Comprobación para evitar un error cuando el usuario está en el último punto.
     if (turf.booleanEqual(nearestPoint, endPoint)) {
         if (routeLayerRef.current) {
             mapRef.current.removeLayer(routeLayerRef.current);
@@ -257,7 +267,9 @@ const UbicacionDEA = () => {
     }
     Swal.close();
     routeGeoJSONRef.current = routeGeoJSON;
+    // Dibuja la ruta completa la primera vez
     updateRouteDisplay(userLocation);
+    // Inicia el seguimiento que la irá actualizando
     startRealTimeTracking();
   };
 
@@ -271,7 +283,7 @@ const UbicacionDEA = () => {
     if (!isSubmitting) {
       setShowModal(false);
       setFormData({
-        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '',
+        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '', email: '', termsAccepted: false
       });
       setErrors({});
       setTermsAccepted(false);
@@ -280,19 +292,22 @@ const UbicacionDEA = () => {
 
   const handleShowTermsModal = () => setShowTermsModal(true);
   const handleCloseTermsModal = () => setShowTermsModal(false);
-  const handleInputChange = (e) => {
-  const { name, value } = e.target;
-  setFormData((prev) => ({
-    ...prev,
-    [name]: value,
-  }));
-};
 
   const handleTermsChange = (e) => {
     setTermsAccepted(e.target.checked);
     if (errors.terms) {
       setErrors(prev => ({ ...prev, terms: null }));
     }
+  };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+    if (name === 'numero') finalValue = value.replace(/[^0-9]/g, '');
+    else if (name === 'nombre' || name === 'calle') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, '');
+    else if (name === 'solicitante') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z\s]/g, '');
+    setFormData(prev => ({...prev, [name]: finalValue}));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
 
   const validate = () => {
@@ -304,7 +319,7 @@ const UbicacionDEA = () => {
     if (errorCalle) newErrors.calle = errorCalle;
     let errorNumero = (numero && maxLength(10)(numero)) || (numero && isInteger(numero));
     if (errorNumero) newErrors.numero = errorNumero;
-    let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe en nuestra base de datos.');
+    let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe.');
     if (errorComuna) newErrors.comuna = errorComuna;
     let errorLat = isRequired(lat) || isCoordinate(lat);
     if (errorLat) newErrors.lat = errorLat;
@@ -316,9 +331,7 @@ const UbicacionDEA = () => {
     if (errorRut) newErrors.rut = errorRut;
     let errorEmail = isRequired(email) || isEmail(email);
     if (errorEmail) newErrors.email = errorEmail;
-    if (!termsAccepted) {
-      newErrors.terms = 'Debes aceptar los términos y condiciones para poder enviar la solicitud.';
-    }
+    if (!termsAccepted) newErrors.terms = 'Debes aceptar los términos y condiciones.';
     return newErrors;
   };
 
@@ -329,39 +342,16 @@ const UbicacionDEA = () => {
     const formErrors = validate();
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
-      if (formErrors.comuna && formErrors.comuna.includes('existe')) {
-        setComunaNoExiste(true);
-      }
-      Swal.fire({
-        icon: 'error',
-        title: 'Hay errores en el formulario',
-        text: 'Por favor, corrige los campos marcados en rojo antes de enviar.',
-        confirmButtonText: 'Entendido'
-      });
+      if (formErrors.comuna && formErrors.comuna.includes('existe')) setComunaNoExiste(true);
+      Swal.fire({ icon: 'error', title: 'Hay errores en el formulario', text: 'Por favor, corrige los campos marcados en rojo.' });
       return;
     }
     setIsSubmitting(true);
     const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
-    const dataParaEnviar = {
-      nombre,
-      gl_instalacion_calle: calle,
-      nr_instalacion_numero: numero,
-      gl_instalacion_comuna: comuna,
-      lat,
-      lng,
-      solicitante,
-      rut,
-      email,
-      terms_accepted: termsAccepted
-    };
+    const dataParaEnviar = { nombre, gl_instalacion_calle: calle, nr_instalacion_numero: numero, gl_instalacion_comuna: comuna, lat, lng, solicitante, rut, email, terms_accepted: termsAccepted };
     try {
       await axios.post(`${API_BASE_URL}/api/solicitudes-dea`, dataParaEnviar);
-      Swal.fire({
-        title: 'Sugerencia Enviada',
-        text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión. Recibirás notificaciones por correo sobre el estado de tu solicitud.',
-        icon: 'success',
-        confirmButtonText: 'Aceptar',
-      });
+      Swal.fire({ title: 'Sugerencia Enviada', text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión.', icon: 'success' });
       handleCloseModal();
     } catch (err) {
       const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
@@ -369,31 +359,6 @@ const UbicacionDEA = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-
-
-    const iniciarNavegacion = (dea) => {
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-    detenerNavegacion();
-    
-    Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    setRutaFrom(userLocation);
-    setDestinoRuta(destino);
-    setSelectedDeaId(dea.id);
-  };
-  
-  const onRouteFinished = () => {
-    Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-    setDestinoRuta(null);
-    setRutaFrom(null);
-    setSelectedDeaId(null);
-  };
-
-  const handleRecalculate = (newFromLocation) => {
-    console.log("Recalculando ruta desde la nueva ubicación:", newFromLocation);
-    setRutaFrom(newFromLocation);
   };
 
   const mapButtonStyle = {
@@ -567,44 +532,25 @@ const UbicacionDEA = () => {
               <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-
               <h5>1. Generalidades</h5>
-              <p>
-                Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM, desarrollada por la Universidad Católica del Maule. Al enviar el formulario, aceptas estos términos, conforme a las leyes de la República de Chile, en particular la Ley N° 19.628 sobre Protección de la Vida Privada, la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y la Ley N° 19.799 sobre Documentos Electrónicos.
-              </p>
+              <p>Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM.</p>
               <h5>2. Recopilación y Uso de Datos Personales</h5>
-              <p>
-                Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad, asegurando la credibilidad de la solicitud. Estos datos no serán compartidos con terceros, salvo obligación legal (por ejemplo, requerimientos de autoridades competentes). Nos comprometemos a almacenar tus datos de forma segura.
-              </p>
+              <p>Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad.</p>
               <h5>3. Conservación de datos personales</h5>
-              <p>
-                Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm1@gmail.com
-              </p>
+              <p>Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos.</p>
               <h5>4. Consentimiento</h5>
-              <p>
-                Al marcar la casilla de aceptación en el formulario, autorizas expresamente el uso de tus datos según lo descrito en este documento. Sin esta aceptación, no podrás enviar la solicitud.
-              </p>
+              <p>Al marcar la casilla de aceptación, autorizas expresamente el uso de tus datos.</p>
               <h5>5. Limitaciones de Responsabilidad</h5>
-              <p>
-                CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario, fallos técnicos en el envío del formulario o interrupciones en el servicio debido a causas ajenas a nuestro control. La aprobación de las sugerencias de DEA depende de un proceso de revisión y no garantizamos su aceptación.
-              </p>
+              <p>CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario.</p>
               <h5>6. Modificaciones a los Términos</h5>
-              <p>
-                Nos reservamos el derecho a modificar estos términos y condiciones. Cualquier cambio será notificado a través de la aplicación CardioUCM o por correo electrónico a los usuarios registrados.
-              </p>
+              <p>Nos reservamos el derecho a modificar estos términos y condiciones.</p>
               <h5>7. Ley Aplicable y Resolución de Conflictos</h5>
-              <p>
-                Este acuerdo se rige por las leyes de la República de Chile. Cualquier disputa derivada de este documento será resuelta en los tribunales de la ciudad de Talca, Región del Maule.
-              </p>
+              <p>Este acuerdo se rige por las leyes de la República de Chile.</p>
               <h5>8. Contacto</h5>
-              <p>
-                Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm1@gmail.com">cardioucm1@gmail.com</a>.
-              </p>
+              <p>Para consultas, contáctanos en <a href="mailto:cardioucm1@gmail.com">cardioucm1@gmail.com</a>.</p>
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="secondary" onClick={handleCloseTermsModal}>
-                Cerrar
-              </Button>
+              <Button variant="secondary" onClick={handleCloseTermsModal}>Cerrar</Button>
             </Modal.Footer>
           </Modal>
         </div>
