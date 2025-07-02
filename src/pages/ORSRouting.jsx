@@ -78,12 +78,31 @@ const ORSRouting = ({ from, to, onRouteFinished, onRecalculateNeeded }) => {
             throw new Error(`Error de OpenRouteService: ${errorBody?.error?.message || response.statusText}`);
         }
 
-        const data = await response.json();
+                const data = await response.json();
         if (data.routes && data.routes.length > 0) {
-          // Envolver la geometría en un Feature GeoJSON válido
+          // Asegura que geometry tiene type y coordinates
+          let geometry = data.routes[0].geometry;
+          // Si geometry está codificada (tipo string), decodifica
+          if (geometry && geometry.type && geometry.coordinates) {
+            // Ok, es GeoJSON geometry
+          } else if (data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+            geometry = {
+              type: data.routes[0].geometry.type || "LineString",
+              coordinates: data.routes[0].geometry.coordinates
+            };
+          } else if (data.routes[0].geometry) {
+            // Si geometry es un array, asume LineString
+            geometry = {
+              type: "LineString",
+              coordinates: data.routes[0].geometry
+            };
+          } else {
+            console.error("Respuesta de ORS sin geometría válida:", data.routes[0]);
+            throw new Error("Respuesta de ORS sin geometría válida");
+          }
           const geojsonFeature = {
             type: "Feature",
-            geometry: data.routes[0].geometry,
+            geometry,
             properties: {}
           };
           setRouteGeoJSON(geojsonFeature);
