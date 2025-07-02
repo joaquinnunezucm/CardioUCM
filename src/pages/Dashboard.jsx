@@ -17,14 +17,14 @@ export default function Dashboard() {
   // --- useEffect de Cierre de Sesión Automático al SALIR del layout ---
   // Este es el mecanismo que "blinda" la sesión. Se ejecuta cuando el componente se desmonta.
   // Es decir, cuando el usuario navega a una ruta que NO usa este layout.
-  useEffect(() => {
+ /*  useEffect(() => {
     return () => {
       console.log('Saliendo del layout de administración. La sesión será cerrada.');
       // Al salir del área de admin, forzamos el cierre de sesión.
       logout();
     };
   }, [logout]); // La dependencia es `logout` para que el efecto se mantenga actualizado.
-
+ */
   // --- NUEVO y CRUCIAL: useEffect para manejar la restauración desde bfcache ---
   // Este efecto soluciona el problema de poder volver con el botón "adelante" del navegador.
   useEffect(() => {
