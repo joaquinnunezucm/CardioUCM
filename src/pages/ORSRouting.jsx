@@ -1,14 +1,10 @@
-// En ORSRouting.js (Versión Simplificada)
+// Reemplaza TODO el contenido de ORSRouting.js con esto:
 
-import { useEffect, useRef } from 'react';
-import { useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { useEffect } from 'react';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 
-const ORSRouting = ({ from, to }) => {
-  const map = useMap();
-  const routeLayerRef = useRef(null);
+const ORSRouting = ({ from, to, onRouteCalculated }) => {
 
   useEffect(() => {
     if (!from || !to) return;
@@ -23,36 +19,31 @@ const ORSRouting = ({ from, to }) => {
           },
           body: JSON.stringify({ coordinates: [[from[1], from[0]], [to[1], to[0]]] })
         });
-        if (!response.ok) throw new Error('Failed to fetch route');
+
+        if (!response.ok) {
+          const errorBody = await response.json();
+          throw new Error(`Error de ORS: ${errorBody?.error?.message || response.statusText}`);
+        }
         
         const data = await response.json();
 
         if (data && data.features && data.features.length > 0) {
-          if (routeLayerRef.current) {
-            map.removeLayer(routeLayerRef.current);
-          }
-          const routeGeoJSON = data.features[0];
-          const layer = L.geoJSON(routeGeoJSON, {
-            style: { color: '#007bff', weight: 6, opacity: 0.85 }
-          }).addTo(map);
-          routeLayerRef.current = layer;
-          map.fitBounds(layer.getBounds(), { padding: [50, 50] });
+          // Llama al callback del padre con la ruta completa
+          if (onRouteCalculated) onRouteCalculated(data.features[0]);
+        } else {
+          if (onRouteCalculated) onRouteCalculated(null);
         }
       } catch (error) {
         console.error("Error al obtener la ruta:", error);
+        if (onRouteCalculated) onRouteCalculated(null); // Notifica al padre en caso de error
       }
     };
 
     fetchRoute();
 
-    return () => {
-      if (routeLayerRef.current) {
-        map.removeLayer(routeLayerRef.current);
-        routeLayerRef.current = null;
-      }
-    };
-  }, [from, to, map]);
+  }, [from, to, onRouteCalculated]); // Dependencias
 
+  // Este componente ya no renderiza nada en el mapa, solo calcula.
   return null;
 };
 
