@@ -200,16 +200,7 @@ const UbicacionDEA = () => {
     routeGeoJSONRef.current = null;
   };
 
-  const iniciarNavegacion = (dea) => {
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-    detenerNavegacion();
-    
-    Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    setRutaFrom(userLocation);
-    setDestinoRuta(destino);
-    setSelectedDeaId(dea.id);
-  };
+
 
   const updateRouteDisplay = (currentLocation) => {
     if (!routeGeoJSONRef.current || !mapRef.current) return;
@@ -373,27 +364,17 @@ const UbicacionDEA = () => {
     }
   };
 
-  const iniciarNavegacion = (dea) => {
+
+
+    const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    Swal.fire({
-      title: '¿Iniciar navegación?',
-      text: `Se trazará la ruta hacia ${dea.nombre}.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, iniciar',
-      cancelButtonText: 'Cancelar',
-      reverseButtons: true,
-    }).then((result) => {
-      if (result.isConfirmed) {
-        if (userLocation) {
-          setRutaFrom(userLocation);
-          setDestinoRuta(destino);
-          setSelectedDeaId(dea.id);
-        } else {
-          Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-        }
-      }
-    });
+    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+    detenerNavegacion();
+    
+    Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    setRutaFrom(userLocation);
+    setDestinoRuta(destino);
+    setSelectedDeaId(dea.id);
   };
   
   const onRouteFinished = () => {
