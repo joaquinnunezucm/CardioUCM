@@ -280,6 +280,13 @@ const UbicacionDEA = () => {
 
   const handleShowTermsModal = () => setShowTermsModal(true);
   const handleCloseTermsModal = () => setShowTermsModal(false);
+  const handleInputChange = (e) => {
+  const { name, value } = e.target;
+  setFormData((prev) => ({
+    ...prev,
+    [name]: value,
+  }));
+};
 
   const handleTermsChange = (e) => {
     setTermsAccepted(e.target.checked);
