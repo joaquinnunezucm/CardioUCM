@@ -1,4 +1,4 @@
-// En ORSRouting.js (Versión con Instrucciones)
+// En ORSRouting.js (Versión Simplificada)
 
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
@@ -6,8 +6,7 @@ import L from 'leaflet';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 
-// Añadimos onRouteCalculated a las props
-const ORSRouting = ({ from, to, onRouteCalculated }) => {
+const ORSRouting = ({ from, to }) => {
   const map = useMap();
   const routeLayerRef = useRef(null);
 
@@ -22,44 +21,25 @@ const ORSRouting = ({ from, to, onRouteCalculated }) => {
             'Authorization': ORS_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            coordinates: [[from[1], from[0]], [to[1], to[0]]],
-            // ¡NUEVO! Pedimos las instrucciones en español
-            language: 'es' 
-          })
+          body: JSON.stringify({ coordinates: [[from[1], from[0]], [to[1], to[0]]] })
         });
-
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(`Error de ORS: ${errorBody?.error?.message || response.statusText}`);
-        }
+        if (!response.ok) throw new Error('Failed to fetch route');
         
         const data = await response.json();
 
         if (data && data.features && data.features.length > 0) {
-          const routeFeature = data.features[0];
-          
           if (routeLayerRef.current) {
             map.removeLayer(routeLayerRef.current);
           }
-          
-          const layer = L.geoJSON(routeFeature, {
+          const routeGeoJSON = data.features[0];
+          const layer = L.geoJSON(routeGeoJSON, {
             style: { color: '#007bff', weight: 6, opacity: 0.85 }
           }).addTo(map);
-
           routeLayerRef.current = layer;
           map.fitBounds(layer.getBounds(), { padding: [50, 50] });
-
-          // ¡NUEVO! Devolvemos no solo la geometría, sino toda la información de la ruta
-          if (onRouteCalculated) {
-            onRouteCalculated(routeFeature);
-          }
         }
       } catch (error) {
         console.error("Error al obtener la ruta:", error);
-        if (onRouteCalculated) {
-            onRouteCalculated(null);
-        }
       }
     };
 
@@ -71,7 +51,7 @@ const ORSRouting = ({ from, to, onRouteCalculated }) => {
         routeLayerRef.current = null;
       }
     };
-  }, [from, to, map, onRouteCalculated]);
+  }, [from, to, map]);
 
   return null;
 };
