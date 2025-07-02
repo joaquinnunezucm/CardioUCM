@@ -5,7 +5,6 @@ import L from 'leaflet';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
-import * as turf from '@turf/turf'; // Importación de Turf.js para cálculos de desvío
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
 import ORSRouting from '../pages/ORSRouting';
@@ -70,7 +69,6 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
 };
 
 const UbicacionDEA = () => {
-  // Estados de la UI y datos
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -94,36 +92,26 @@ const UbicacionDEA = () => {
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
-  
-  // Estados del mapa y ubicación
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
-
-  // Estados y referencias para la navegación
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
-  const routeGeoJSONRef = useRef(null);
   const watchIdRef = useRef(null);
+  const routeInstructionsRef = useRef([]);
+  const nextStepIndexRef = useRef(0);
+  const spokenInstructionsRef = useRef(new Set());
 
-  // --- Lógica de la API y efectos de carga ---
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
     let text = 'No se pudo obtener tu ubicación. Por favor, inténtalo de nuevo.';
-    let showCancelButton = false;
-    let confirmButtonText = 'Entendido';
-    let onConfirm = () => {};
-
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
         text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
-        showCancelButton = true;
-        confirmButtonText = 'Recargar Página';
-        onConfirm = () => window.location.reload();
         break;
       case error.POSITION_UNAVAILABLE:
         title = 'Ubicación no Disponible';
@@ -131,25 +119,13 @@ const UbicacionDEA = () => {
         break;
       case error.TIMEOUT:
         title = 'Tiempo de Espera Agotado';
-        text = 'La solicitud para obtener tu ubicación tardó demasiado. Por favor, comprueba tu conexión y vuelve a intentarlo.';
+        text = 'La solicitud para obtener tu ubicación tardó demasiado.';
         break;
       default:
         text = `Ocurrió un error inesperado al obtener la ubicación: ${error.message}`;
         break;
     }
-
-    Swal.fire({
-      icon: 'error',
-      title: title,
-      text: text,
-      showCancelButton: showCancelButton,
-      confirmButtonText: confirmButtonText,
-      cancelButtonText: 'Cerrar',
-    }).then((result) => {
-      if (result.isConfirmed) {
-        onConfirm();
-      }
-    });
+    Swal.fire({ icon: 'error', title: title, text: text });
   };
 
   useEffect(() => {
@@ -193,9 +169,6 @@ const UbicacionDEA = () => {
     }
   }, [userLocation, desfibriladores]);
 
-  const lastRecalculationTime = useRef(0); // Ref para guardar la marca de tiempo del último recalculo
-
-  // --- Lógica de navegación ---
   const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
     const R = 6371000;
@@ -206,65 +179,126 @@ const UbicacionDEA = () => {
     return R * c;
   };
 
+  const speak = (text) => {
+    if (!('speechSynthesis' in window)) {
+      console.warn("La síntesis de voz no es soportada por este navegador.");
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    utterance.rate = 1.1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
   const detenerNavegacion = () => {
     if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-        console.log("Seguimiento detenido.");
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      console.log("Seguimiento detenido.");
     }
+    window.speechSynthesis.cancel();
     setDestinoRuta(null);
     setRutaFrom(null);
     setSelectedDeaId(null);
-    routeGeoJSONRef.current = null;
-};
+    routeInstructionsRef.current = [];
+    nextStepIndexRef.current = 0;
+    spokenInstructionsRef.current.clear();
+  };
 
-const iniciarNavegacion = (dea) => {
+  const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     detenerNavegacion();
 
-    Swal.fire({ title: 'Iniciando Navegación', text: `Calculando la ruta hacia ${dea.nombre}...`, icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+      title: '¿Iniciar navegación con guía por voz?',
+      text: `Se calculará la ruta hacia ${dea.nombre} y se darán indicaciones de audio.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, iniciar',
+      cancelButtonText: 'Cancelar',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        setRutaFrom(userLocation);
+        setDestinoRuta(destino);
+        setSelectedDeaId(dea.id);
+      }
+    });
+  };
 
-    setRutaFrom(userLocation);
-    setDestinoRuta(destino);
-    setSelectedDeaId(dea.id);
+  const handleRouteCalculated = (routeFeature) => {
+    if (!routeFeature) {
+      Swal.fire('Error', 'No se pudo calcular la ruta. Inténtalo de nuevo.', 'error');
+      detenerNavegacion();
+      return;
+    }
 
-    console.log("Iniciando seguimiento por gesto del usuario...");
+    const steps = routeFeature.properties.segments[0].steps;
+    routeInstructionsRef.current = steps;
+    nextStepIndexRef.current = 0;
+    spokenInstructionsRef.current.clear();
+    
+    Swal.close();
+
+    const primeraInstruccion = steps[0]?.instruction;
+    if (primeraInstruccion) {
+      speak(`Iniciando ruta. ${primeraInstruccion}`);
+    } else {
+      speak("Iniciando ruta. Dirígete al destino.");
+    }
+    
+    startVoiceGuidance(routeFeature);
+  };
+
+  const startVoiceGuidance = (routeFeature) => {
+    // La API de ORS devuelve [longitud, latitud], pero Leaflet usa [latitud, longitud].
+    // El último punto de la geometría es el destino.
+    const lastCoord = routeFeature.geometry.coordinates[routeFeature.geometry.coordinates.length - 1];
+    const destino = [lastCoord[1], lastCoord[0]]; // Invertimos para [lat, lng]
+
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(nuevaUbicacion); // Mueve el marcador rojo
+        setUserLocation(nuevaUbicacion);
 
-        // Lógica de llegada (sin cambios)
-        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 25) {
-          Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-          detenerNavegacion();
-          return;
-        }
-
-        // Lógica de desvío y recalculo (CON CONTROL DE TIEMPO)
-        if (routeGeoJSONRef.current) {
-          const routeLine = turf.lineString(routeGeoJSONRef.current.geometry.coordinates);
-          const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
-          const distanceFromRoute = turf.pointToLineDistance(userPoint, routeLine, { units: 'meters' });
-          
-          if (distanceFromRoute > 50) {
-            const now = Date.now();
-            // ¡EL CAMBIO CLAVE! Solo recalcula si han pasado más de 10 segundos
-            if (now - lastRecalculationTime.current > 10000) { 
-              console.log("¡Desvío detectado! Recalculando ruta...");
-              lastRecalculationTime.current = now; // Actualiza la marca de tiempo
-              setRutaFrom(nuevaUbicacion); // Dispara el recalculo
+        const currentStepIndex = nextStepIndexRef.current;
+        const instructions = routeInstructionsRef.current;
+        
+        if (currentStepIndex >= instructions.length) {
+          if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 25) {
+            if (!spokenInstructionsRef.current.has('llegada')) {
+              speak("Has llegado a tu destino.");
+              spokenInstructionsRef.current.add('llegada');
+              detenerNavegacion();
             }
           }
+          return;
+        }
+        
+        const nextInstruction = instructions[currentStepIndex];
+        // way_points[0] es el índice del punto en la polilínea principal donde comienza esta instrucción.
+        const waypointIndex = nextInstruction.way_points[0];
+        const nextWaypoint = routeFeature.geometry.coordinates[waypointIndex];
+        // Invertimos las coordenadas para el cálculo de distancia, ya que nuestra función espera [lat, lng]
+        const distanceToNextStep = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], nextWaypoint[1], nextWaypoint[0]);
+
+        const DISTANCIA_AVISO = 30;
+        
+        if (distanceToNextStep < DISTANCIA_AVISO) {
+          if (!spokenInstructionsRef.current.has(currentStepIndex)) {
+            speak(nextInstruction.instruction);
+            spokenInstructionsRef.current.add(currentStepIndex);
+          }
+          nextStepIndexRef.current++;
         }
       },
       (error) => console.error("Error durante el seguimiento:", error.message),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     );
-};
+  };
 
-  // --- Funciones del Modal y Formulario ---
   const handleShowModal = () => {
     setShowModal(true);
     setErrors({});
@@ -274,9 +308,7 @@ const iniciarNavegacion = (dea) => {
   const handleCloseModal = () => {
     if (!isSubmitting) {
       setShowModal(false);
-      setFormData({
-        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '', email: '', termsAccepted: false
-      });
+      setFormData({ nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '', email: '', termsAccepted: false });
       setErrors({});
       setTermsAccepted(false);
     }
@@ -287,18 +319,16 @@ const iniciarNavegacion = (dea) => {
 
   const handleTermsChange = (e) => {
     setTermsAccepted(e.target.checked);
-    if (errors.terms) {
-      setErrors(prev => ({ ...prev, terms: null }));
-    }
+    if (errors.terms) setErrors(prev => ({ ...prev, terms: null }));
   };
-  
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let finalValue = value;
     if (name === 'numero') finalValue = value.replace(/[^0-9]/g, '');
     else if (name === 'nombre' || name === 'calle') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, '');
     else if (name === 'solicitante') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z\s]/g, '');
-    setFormData(prev => ({...prev, [name]: finalValue}));
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
 
@@ -397,7 +427,7 @@ const iniciarNavegacion = (dea) => {
                       <b>{d.nombre}</b><br />{d.direccion}
                       {userLocation && (
                         <Button size="sm" variant="primary" className="mt-2" onClick={() => iniciarNavegacion(d)}>
-                          Ver Ruta desde mi ubicación
+                          Ver Ruta con Voz
                         </Button>
                       )}
                     </Popup>
@@ -407,10 +437,7 @@ const iniciarNavegacion = (dea) => {
                   <ORSRouting
                     from={rutaFrom}
                     to={destinoRuta}
-                    onRouteCalculated={(routeGeoJSON) => {
-                      routeGeoJSONRef.current = routeGeoJSON;
-                      Swal.close();
-                    }}
+                    onRouteCalculated={handleRouteCalculated}
                   />
                 )}
               </MapContainer>
