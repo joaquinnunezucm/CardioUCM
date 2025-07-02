@@ -100,6 +100,13 @@ const ORSRouting = ({ from, to, onRouteFinished, onRecalculateNeeded }) => {
             console.error("Respuesta de ORS sin geometría válida:", data.routes[0]);
             throw new Error("Respuesta de ORS sin geometría válida");
           }
+                    if (geometry && Array.isArray(geometry.coordinates)) {
+            geometry.coordinates = geometry.coordinates.filter(
+              c => Array.isArray(c) && c.length === 2 && 
+                   typeof c[0] === 'number' && typeof c[1] === 'number' &&
+                   !isNaN(c[0]) && !isNaN(c[1])
+            );
+          }
           const geojsonFeature = {
             type: "Feature",
             geometry,
