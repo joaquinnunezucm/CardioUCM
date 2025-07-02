@@ -351,9 +351,13 @@ const UbicacionDEA = () => {
                     </Popup>
                   </Marker>
                 ))}
-                {rutaFrom && destinoRuta && (
-                  <ORSRouting from={rutaFrom} to={destinoRuta} />
-                )}
+{rutaFrom && destinoRuta && (
+  <ORSRouting 
+    from={rutaFrom} 
+    to={destinoRuta} 
+    userPosition={userLocation} // <-- ¡AQUÍ ESTÁ EL CAMBIO!
+  />
+)}
               </MapContainer>
             )}
             {!isLoading && <>

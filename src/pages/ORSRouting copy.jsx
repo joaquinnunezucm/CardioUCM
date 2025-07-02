@@ -1,4 +1,4 @@
-// En ORSRouting.js (Versión Simplificada)
+// En ORSRouting.js (Versión Final y Simple)
 
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
@@ -23,7 +23,10 @@ const ORSRouting = ({ from, to }) => {
           },
           body: JSON.stringify({ coordinates: [[from[1], from[0]], [to[1], to[0]]] })
         });
-        if (!response.ok) throw new Error('Failed to fetch route');
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(`Error de ORS: ${errorBody?.error?.message || response.statusText}`);
+        }
         
         const data = await response.json();
 
