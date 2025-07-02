@@ -5,19 +5,13 @@ import L from 'leaflet';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
+import * as turf from '@turf/turf'; // Importación de Turf.js para cálculos de desvío
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
-import ORSRouting from '../pages/ORSRouting'; // Importamos el nuevo componente de enrutamiento
+import ORSRouting from '../pages/ORSRouting';
 import {
-  isRUT,
-  isCoordinate,
-  minLength,
-  maxLength,
-  isRequired,
-  isInteger,
-  isSimpleAlphaWithSpaces,
-  isSimpleAlphaNumericWithSpaces,
-  isEmail
+  isRUT, isCoordinate, minLength, maxLength, isRequired, isInteger,
+  isSimpleAlphaWithSpaces, isSimpleAlphaNumericWithSpaces, isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
 
@@ -75,21 +69,8 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
-// Función para calcular la distancia (Haversine)
-const getDistance = (lat1, lon1, lat2, lon2) => {
-  const toRad = (value) => (value * Math.PI) / 180;
-  const R = 6371; // Radio de la Tierra en km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 const UbicacionDEA = () => {
+  // Estados de la UI y datos
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -105,26 +86,29 @@ const UbicacionDEA = () => {
     email: '',
     termsAccepted: false,
   });
-
   const [errors, setErrors] = useState({});
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [cercanos, setCercanos] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [comunas, setComunas] = useState([]);
+  const [comunaNoExiste, setComunaNoExiste] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDeaId, setSelectedDeaId] = useState(null);
+  
+  // Estados del mapa y ubicación
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
-  const [cercanos, setCercanos] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const userMarkerRef = useRef(null);
-  
+
+  // Estados y referencias para la navegación
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
-  
-  const [comunas, setComunas] = useState([]);
-  const [comunaNoExiste, setComunaNoExiste] = useState(false);
+  const routeGeoJSONRef = useRef(null);
+  const watchIdRef = useRef(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedDeaId, setSelectedDeaId] = useState(null);
-
+  // --- Lógica de la API y efectos de carga ---
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -168,53 +152,9 @@ const UbicacionDEA = () => {
     });
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    let finalValue = value;
-
-    if (name === 'numero') {
-      finalValue = value.replace(/[^0-9]/g, '');
-    } else if (name === 'nombre' || name === 'calle') {
-      finalValue = value
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9\s]/g, '');
-    } else if (name === 'solicitante') {
-      finalValue = value
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z\s]/g, '');
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      [name]: finalValue
-    }));
-
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
-  };
-
   useEffect(() => {
-    axios.get(`${API_BASE_URL}/api/comunas`)
-      .then(res => {
-        const nombresComunas = res.data.map(c => c.nombre);
-        setComunas(nombresComunas);
-      })
-      .catch((err) => {
-        console.error('Error al cargar comunas:', err);
-        setComunas([]);
-      });
-  }, []);
-
-  useEffect(() => {
-    axios.get(`${API_BASE_URL}/api/defibriladores`)
-      .then((res) => {
-        setDesfibriladores(res.data);
-      })
-      .catch((err) => {
-        console.error('Error cargando DEAs aprobados:', err);
-        Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error');
-      });
+    axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
+    axios.get(`${API_BASE_URL}/api/defibriladores`).then(res => setDesfibriladores(res.data)).catch(err => Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error'));
   }, []);
 
   useEffect(() => {
@@ -223,8 +163,7 @@ const UbicacionDEA = () => {
       setIsLoading(false);
       return;
     }
-
-    const watchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       (position) => {
         const coords = [position.coords.latitude, position.coords.longitude];
         setUserLocation(coords);
@@ -234,28 +173,88 @@ const UbicacionDEA = () => {
         }
       },
       handleLocationError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
   }, [isLoading]);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
-      const cercanosCalculados = desfibriladores
-        .map((dea) => {
-          const lat = parseFloat(dea.lat);
-          const lng = parseFloat(dea.lng);
-          if (isNaN(lat) || isNaN(lng)) { return { ...dea, distancia: Infinity }; }
-          return { ...dea, distancia: getDistance(userLocation[0], userLocation[1], lat, lng) };
-        })
-        .sort((a, b) => a.distancia - b.distancia)
-        .slice(0, 10);
+      const getDistance = (lat1, lon1, lat2, lon2) => {
+        const toRad = (value) => (value * Math.PI) / 180;
+        const R = 6371;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+      const cercanosCalculados = desfibriladores.map(dea => ({...dea, distancia: getDistance(userLocation[0], userLocation[1], parseFloat(dea.lat), parseFloat(dea.lng))})).sort((a, b) => a.distancia - b.distancia).slice(0, 10);
       setCercanos(cercanosCalculados);
-    } else {
-      setCercanos([]);
     }
   }, [userLocation, desfibriladores]);
 
+  // --- Lógica de navegación ---
+  const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const detenerNavegacion = () => {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      console.log("Seguimiento detenido.");
+    }
+    setDestinoRuta(null);
+    setRutaFrom(null);
+    setSelectedDeaId(null);
+    routeGeoJSONRef.current = null;
+  };
+
+  const iniciarNavegacion = (dea) => {
+    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+    detenerNavegacion();
+
+    Swal.fire({ title: 'Iniciando Navegación', text: `Calculando la ruta hacia ${dea.nombre}...`, icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    setRutaFrom(userLocation);
+    setDestinoRuta(destino);
+    setSelectedDeaId(dea.id);
+
+    console.log("Iniciando seguimiento por gesto del usuario...");
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(nuevaUbicacion);
+
+        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 25) {
+          Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
+          detenerNavegacion();
+          return;
+        }
+
+        if (routeGeoJSONRef.current) {
+          const routeLine = turf.lineString(routeGeoJSONRef.current.geometry.coordinates);
+          const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
+          const distanceFromRoute = turf.pointToLineDistance(userPoint, routeLine, { units: 'meters' });
+          if (distanceFromRoute > 50) {
+            console.log("¡Desvío detectado! Recalculando ruta...");
+            setRutaFrom(nuevaUbicacion);
+          }
+        }
+      },
+      (error) => console.error("Error durante el seguimiento:", error.message),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+    );
+  };
+
+  // --- Funciones del Modal y Formulario ---
   const handleShowModal = () => {
     setShowModal(true);
     setErrors({});
@@ -266,7 +265,7 @@ const UbicacionDEA = () => {
     if (!isSubmitting) {
       setShowModal(false);
       setFormData({
-        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '',
+        nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '', solicitante: '', rut: '', email: '', termsAccepted: false
       });
       setErrors({});
       setTermsAccepted(false);
@@ -282,6 +281,16 @@ const UbicacionDEA = () => {
       setErrors(prev => ({ ...prev, terms: null }));
     }
   };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+    if (name === 'numero') finalValue = value.replace(/[^0-9]/g, '');
+    else if (name === 'nombre' || name === 'calle') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, '');
+    else if (name === 'solicitante') finalValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z\s]/g, '');
+    setFormData(prev => ({...prev, [name]: finalValue}));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -292,7 +301,7 @@ const UbicacionDEA = () => {
     if (errorCalle) newErrors.calle = errorCalle;
     let errorNumero = (numero && maxLength(10)(numero)) || (numero && isInteger(numero));
     if (errorNumero) newErrors.numero = errorNumero;
-    let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe en nuestra base de datos.');
+    let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe.');
     if (errorComuna) newErrors.comuna = errorComuna;
     let errorLat = isRequired(lat) || isCoordinate(lat);
     if (errorLat) newErrors.lat = errorLat;
@@ -304,9 +313,7 @@ const UbicacionDEA = () => {
     if (errorRut) newErrors.rut = errorRut;
     let errorEmail = isRequired(email) || isEmail(email);
     if (errorEmail) newErrors.email = errorEmail;
-    if (!termsAccepted) {
-      newErrors.terms = 'Debes aceptar los términos y condiciones para poder enviar la solicitud.';
-    }
+    if (!termsAccepted) newErrors.terms = 'Debes aceptar los términos y condiciones.';
     return newErrors;
   };
 
@@ -317,39 +324,16 @@ const UbicacionDEA = () => {
     const formErrors = validate();
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
-      if (formErrors.comuna && formErrors.comuna.includes('existe')) {
-        setComunaNoExiste(true);
-      }
-      Swal.fire({
-        icon: 'error',
-        title: 'Hay errores en el formulario',
-        text: 'Por favor, corrige los campos marcados en rojo antes de enviar.',
-        confirmButtonText: 'Entendido'
-      });
+      if (formErrors.comuna && formErrors.comuna.includes('existe')) setComunaNoExiste(true);
+      Swal.fire({ icon: 'error', title: 'Hay errores en el formulario', text: 'Por favor, corrige los campos marcados en rojo.' });
       return;
     }
     setIsSubmitting(true);
     const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
-    const dataParaEnviar = {
-      nombre,
-      gl_instalacion_calle: calle,
-      nr_instalacion_numero: numero,
-      gl_instalacion_comuna: comuna,
-      lat,
-      lng,
-      solicitante,
-      rut,
-      email,
-      terms_accepted: termsAccepted
-    };
+    const dataParaEnviar = { nombre, gl_instalacion_calle: calle, nr_instalacion_numero: numero, gl_instalacion_comuna: comuna, lat, lng, solicitante, rut, email, terms_accepted: termsAccepted };
     try {
       await axios.post(`${API_BASE_URL}/api/solicitudes-dea`, dataParaEnviar);
-      Swal.fire({
-        title: 'Sugerencia Enviada',
-        text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión. Recibirás notificaciones por correo sobre el estado de tu solicitud.',
-        icon: 'success',
-        confirmButtonText: 'Aceptar',
-      });
+      Swal.fire({ title: 'Sugerencia Enviada', text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión.', icon: 'success' });
       handleCloseModal();
     } catch (err) {
       const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
@@ -357,41 +341,6 @@ const UbicacionDEA = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const iniciarNavegacion = (dea) => {
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    Swal.fire({
-      title: '¿Iniciar navegación?',
-      text: `Se trazará la ruta hacia ${dea.nombre}.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, iniciar',
-      cancelButtonText: 'Cancelar',
-      reverseButtons: true,
-    }).then((result) => {
-      if (result.isConfirmed) {
-        if (userLocation) {
-          setRutaFrom(userLocation);
-          setDestinoRuta(destino);
-          setSelectedDeaId(dea.id);
-        } else {
-          Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-        }
-      }
-    });
-  };
-  
-  const onRouteFinished = () => {
-    Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-    setDestinoRuta(null);
-    setRutaFrom(null);
-    setSelectedDeaId(null);
-  };
-
-  const handleRecalculate = (newFromLocation) => {
-    console.log("Recalculando ruta desde la nueva ubicación:", newFromLocation);
-    setRutaFrom(newFromLocation);
   };
 
   const mapButtonStyle = {
@@ -419,17 +368,12 @@ const UbicacionDEA = () => {
           <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
             {isLoading ? (
               <div className="d-flex justify-content-center align-items-center h-100 bg-light">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="sr-only">Cargando...</span>
-                </div>
+                <div className="spinner-border text-primary" role="status"><span className="sr-only">Cargando...</span></div>
                 <p className="ml-3 mb-0">Obteniendo tu ubicación...</p>
               </div>
             ) : (
               <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                />
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
                 <CenterMap position={center} />
                 <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
                 {userLocation && (
@@ -438,12 +382,7 @@ const UbicacionDEA = () => {
                   </Marker>
                 )}
                 {cercanos.map((d) => (
-                  <Marker
-                    key={d.id}
-                    position={[parseFloat(d.lat), parseFloat(d.lng)]}
-                    icon={customIcon}
-                    ref={(ref) => (markersRef.current[d.id] = ref)}
-                  >
+                  <Marker key={d.id} position={[parseFloat(d.lat), parseFloat(d.lng)]} icon={customIcon} ref={(ref) => (markersRef.current[d.id] = ref)}>
                     <Popup>
                       <b>{d.nombre}</b><br />{d.direccion}
                       {userLocation && (
@@ -456,47 +395,25 @@ const UbicacionDEA = () => {
                 ))}
                 {rutaFrom && destinoRuta && (
                   <ORSRouting
-                    key={destinoRuta.join(',')}
                     from={rutaFrom}
                     to={destinoRuta}
-                    onRouteFinished={onRouteFinished}
-                    onRecalculateNeeded={handleRecalculate}
+                    onRouteCalculated={(routeGeoJSON) => {
+                      routeGeoJSONRef.current = routeGeoJSON;
+                      Swal.close();
+                    }}
                   />
                 )}
               </MapContainer>
             )}
             {!isLoading && <>
-              <button
-                onClick={handleShowModal}
-                className="btn btn-success"
-                style={{ ...mapButtonStyle, top: 10, right: 10 }}
-              >
+              <button onClick={handleShowModal} className="btn btn-success" style={{ ...mapButtonStyle, top: 10, right: 10 }}>
                 <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
               </button>
-              <button
-                onClick={() => {
-                  if (userLocation) {
-                    setCenter([...userLocation]);
-                    userMarkerRef.current?.openPopup();
-                  } else {
-                    handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' });
-                  }
-                }}
-                className="btn btn-info"
-                style={{ ...mapButtonStyle, top: 60, right: 10 }}
-              >
+              <button onClick={() => { if (userLocation) { setCenter([...userLocation]); userMarkerRef.current?.openPopup(); } else { handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' }); } }} className="btn btn-info" style={{ ...mapButtonStyle, top: 60, right: 10 }}>
                 Mi Ubicación
               </button>
               {destinoRuta && (
-                <button
-                  onClick={() => {
-                    setDestinoRuta(null);
-                    setRutaFrom(null);
-                    setSelectedDeaId(null);
-                  }}
-                  className="btn btn-danger"
-                  style={{ ...mapButtonStyle, top: 110, right: 10 }}
-                >
+                <button onClick={detenerNavegacion} className="btn btn-danger" style={{ ...mapButtonStyle, top: 110, right: 10 }}>
                   Detener Ruta
                 </button>
               )}
@@ -511,16 +428,10 @@ const UbicacionDEA = () => {
                 <ul className="list-group">
                   {cercanos.map((d) => (
                     <li key={d.id} className={`list-group-item d-flex justify-content-between align-items-center ${selectedDeaId === d.id ? 'active' : ''}`}>
-                      <button
-                        className="btn btn-link p-0 text-left w-100"
-                        style={{ color: selectedDeaId === d.id ? '#fff' : '#007bff', textDecoration: 'none' }}
-                        onClick={() => iniciarNavegacion(d)}
-                      >
+                      <button className="btn btn-link p-0 text-left w-100" style={{ color: selectedDeaId === d.id ? '#fff' : '#007bff', textDecoration: 'none' }} onClick={() => iniciarNavegacion(d)}>
                         <strong>{d.nombre}</strong> - {d.direccion ? d.direccion : 'Dirección no disponible'}
                         <span className={`float-right ${selectedDeaId === d.id ? 'text-white-50' : 'text-muted'}`}>
-                          {typeof d.distancia === 'number' && !isNaN(d.distancia)
-                            ? `(${d.distancia.toFixed(2)} km)`
-                            : '(Dist. no disp.)'}
+                          {typeof d.distancia === 'number' && !isNaN(d.distancia) ? `(${d.distancia.toFixed(2)} km)` : '(Dist. no disp.)'}
                         </span>
                       </button>
                     </li>
@@ -542,31 +453,22 @@ const UbicacionDEA = () => {
                 <Form.Group controlId="formNombre">
                   <Form.Label>Nombre del lugar*</Form.Label>
                   <Form.Control type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} placeholder="Ej: Centro Comercial Talca" required disabled={isSubmitting} maxLength={58} isInvalid={!!errors.nombre} />
-                  <Form.Text muted>
-                    Solo letras, números y espacios. Sin tildes ni símbolos.
-                  </Form.Text>
+                  <Form.Text muted>Solo letras, números y espacios. Sin tildes ni símbolos.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.nombre}</Form.Control.Feedback>
                 </Form.Group>
-
                 <h5 className="mt-4 mb-2">Dirección de Instalación</h5>
                 <Form.Group controlId="formCalle">
                   <Form.Label>Calle*</Form.Label>
                   <Form.Control type="text" name="calle" value={formData.calle} onChange={handleInputChange} placeholder="Ej: Avenida San Miguel" required disabled={isSubmitting} maxLength={45} isInvalid={!!errors.calle} />
-                  <Form.Text muted>
-                    Solo letras, números y espacios. Sin tildes ni símbolos.
-                  </Form.Text>
+                  <Form.Text muted>Solo letras, números y espacios. Sin tildes ni símbolos.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.calle}</Form.Control.Feedback>
                 </Form.Group>
-
                 <Form.Group controlId="formNumero" className="mt-3">
                   <Form.Label>Número</Form.Label>
                   <Form.Control type="text" inputMode="numeric" name="numero" value={formData.numero} onChange={handleInputChange} placeholder="Ej: 742" disabled={isSubmitting} maxLength={10} isInvalid={!!errors.numero} />
-                  <Form.Text muted>
-                    Solo números. Dejar en blanco si no aplica.
-                  </Form.Text>
+                  <Form.Text muted>Solo números. Dejar en blanco si no aplica.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.numero}</Form.Control.Feedback>
                 </Form.Group>
-
                 <Form.Group controlId="formComuna" className="mt-3">
                   <Form.Label>Comuna*</Form.Label>
                   <Select name="comuna" options={comunas.map(c => ({ value: c, label: c }))} value={formData.comuna ? { value: formData.comuna, label: formData.comuna } : null}
@@ -580,66 +482,41 @@ const UbicacionDEA = () => {
                   {errors.comuna && <div className="text-danger mt-1" style={{ fontSize: '0.875em' }}>{errors.comuna}</div>}
                 </Form.Group>
                 {comunaNoExiste && <div className="alert alert-warning mt-2 p-2">La comuna ingresada no existe en nuestra base de datos. Por favor, <a href="/contacto">contáctanos</a> para agregarla.</div>}
-
                 <h5 className="mt-4 mb-2">Coordenadas Geográficas</h5>
                 <Form.Group controlId="formLatitud">
                   <Form.Label>Latitud*</Form.Label>
                   <Form.Control type="number" step="any" name="lat" value={formData.lat} onChange={handleInputChange} placeholder="Ej: -35.123456" required disabled={isSubmitting} isInvalid={!!errors.lat} />
-                  <Form.Text muted>
-                    Se rellena automáticamente al hacer clic en el mapa.
-                  </Form.Text>
+                  <Form.Text muted>Se rellena automáticamente al hacer clic en el mapa.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.lat}</Form.Control.Feedback>
                 </Form.Group>
-
                 <Form.Group controlId="formLongitud" className="mt-3">
                   <Form.Label>Longitud*</Form.Label>
                   <Form.Control type="number" step="any" name="lng" value={formData.lng} onChange={handleInputChange} placeholder="Ej: -71.123456" required disabled={isSubmitting} isInvalid={!!errors.lng} />
-                  <Form.Text muted>
-                    Se rellena automáticamente al hacer clic en el mapa.
-                  </Form.Text>
+                  <Form.Text muted>Se rellena automáticamente al hacer clic en el mapa.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.lng}</Form.Control.Feedback>
                 </Form.Group>
-
                 <h5 className="mt-4 mb-2">Información del Solicitante</h5>
                 <Form.Group controlId="formSolicitante">
                   <Form.Label>Nombre del Solicitante*</Form.Label>
                   <Form.Control type="text" name="solicitante" value={formData.solicitante} onChange={handleInputChange} placeholder="Nombre completo" required disabled={isSubmitting} maxLength={50} isInvalid={!!errors.solicitante} />
-                  <Form.Text muted>
-                    Solo letras y espacios. Sin tildes, números o símbolos.
-                  </Form.Text>
+                  <Form.Text muted>Solo letras y espacios. Sin tildes, números o símbolos.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.solicitante}</Form.Control.Feedback>
                 </Form.Group>
-
                 <Form.Group controlId="formRut" className="mt-3">
                   <Form.Label>RUT del Solicitante*</Form.Label>
                   <Form.Control type="text" name="rut" value={formData.rut} onChange={handleInputChange} placeholder="Ej: 12345678-9" required disabled={isSubmitting} isInvalid={!!errors.rut} />
-                  <Form.Text muted>
-                    Ingresar sin puntos y con guion.
-                  </Form.Text>
+                  <Form.Text muted>Ingresar sin puntos y con guion.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.rut}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group controlId="formEmail" className="mt-3">
                   <Form.Label>Correo electrónico*</Form.Label>
-                  <Form.Control
-                    type="email"
-                    name="email"
-                    value={formData.email || ''}
-                    onChange={handleInputChange}
-                    placeholder="ejemplo@correo.com"
-                    required
-                    disabled={isSubmitting}
-                    isInvalid={!!errors.email}
-                  />
-                  <Form.Text muted>
-                    Ingresa tu correo para recibir notificaciones sobre tu solicitud.
-                  </Form.Text>
+                  <Form.Control type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="ejemplo@correo.com" required disabled={isSubmitting} isInvalid={!!errors.email} />
+                  <Form.Text muted>Ingresa tu correo para recibir notificaciones sobre tu solicitud.</Form.Text>
                   <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className="mt-3">
-                  <Form.Check type="checkbox" label={<>Acepto los <span style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }} onClick={handleShowTermsModal}>términos y condiciones</span>*</>}
-                    checked={termsAccepted} onChange={handleTermsChange} disabled={isSubmitting} isInvalid={!!errors.terms} feedback={errors.terms} feedbackType="invalid" />
+                  <Form.Check type="checkbox" label={<>Acepto los <span style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }} onClick={handleShowTermsModal}>términos y condiciones</span>*</>} checked={termsAccepted} onChange={handleTermsChange} disabled={isSubmitting} isInvalid={!!errors.terms} feedback={errors.terms} feedbackType="invalid" />
                 </Form.Group>
-
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>Cancelar</Button>
@@ -647,49 +524,30 @@ const UbicacionDEA = () => {
               </Modal.Footer>
             </Form>
           </Modal>
-
           <Modal show={showTermsModal} onHide={handleCloseTermsModal} size="lg">
             <Modal.Header closeButton>
               <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               <h5>1. Generalidades</h5>
-              <p>
-                Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM, desarrollada por la Universidad Católica del Maule. Al enviar el formulario, aceptas estos términos, conforme a las leyes de la República de Chile, en particular la Ley N° 19.628 sobre Protección de la Vida Privada, la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y la Ley N° 19.799 sobre Documentos Electrónicos.
-              </p>
+              <p>Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM, desarrollada por la Universidad Católica del Maule. Al enviar el formulario, aceptas estos términos, conforme a las leyes de la República de Chile, en particular la Ley N° 19.628 sobre Protección de la Vida Privada, la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores y la Ley N° 19.799 sobre Documentos Electrónicos.</p>
               <h5>2. Recopilación y Uso de Datos Personales</h5>
-              <p>
-                Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad, asegurando la credibilidad de la solicitud. Estos datos no serán compartidos con terceros, salvo obligación legal (por ejemplo, requerimientos de autoridades competentes). Nos comprometemos a almacenar tus datos de forma segura.
-              </p>
+              <p>Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad, asegurando la credibilidad de la solicitud. Estos datos no serán compartidos con terceros, salvo obligación legal (por ejemplo, requerimientos de autoridades competentes). Nos comprometemos a almacenar tus datos de forma segura.</p>
               <h5>3. Conservación de datos personales</h5>
-              <p>
-                Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm1@gmail.com
-              </p>
+              <p>Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos contactándonos en cardioucm1@gmail.com</p>
               <h5>4. Consentimiento</h5>
-              <p>
-                Al marcar la casilla de aceptación en el formulario, autorizas expresamente el uso de tus datos según lo descrito en este documento. Sin esta aceptación, no podrás enviar la solicitud.
-              </p>
+              <p>Al marcar la casilla de aceptación en el formulario, autorizas expresamente el uso de tus datos según lo descrito en este documento. Sin esta aceptación, no podrás enviar la solicitud.</p>
               <h5>5. Limitaciones de Responsabilidad</h5>
-              <p>
-                CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario, fallos técnicos en el envío del formulario o interrupciones en el servicio debido a causas ajenas a nuestro control. La aprobación de las sugerencias de DEA depende de un proceso de revisión y no garantizamos su aceptación.
-              </p>
+              <p>CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario, fallos técnicos en el envío del formulario o interrupciones en el servicio debido a causas ajenas a nuestro control. La aprobación de las sugerencias de DEA depende de un proceso de revisión y no garantizamos su aceptación.</p>
               <h5>6. Modificaciones a los Términos</h5>
-              <p>
-                Nos reservamos el derecho a modificar estos términos y condiciones. Cualquier cambio será notificado a través de la aplicación CardioUCM o por correo electrónico a los usuarios registrados.
-              </p>
+              <p>Nos reservamos el derecho a modificar estos términos y condiciones. Cualquier cambio será notificado a través de la aplicación CardioUCM o por correo electrónico a los usuarios registrados.</p>
               <h5>7. Ley Aplicable y Resolución de Conflictos</h5>
-              <p>
-                Este acuerdo se rige por las leyes de la República de Chile. Cualquier disputa derivada de este documento será resuelta en los tribunales de la ciudad de Talca, Región del Maule.
-              </p>
+              <p>Este acuerdo se rige por las leyes de la República de Chile. Cualquier disputa derivada de este documento será resuelta en los tribunales de la ciudad de Talca, Región del Maule.</p>
               <h5>8. Contacto</h5>
-              <p>
-                Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm1@gmail.com">cardioucm1@gmail.com</a>.
-              </p>
+              <p>Para consultas, solicitudes relacionadas con tus datos personales o cualquier duda sobre estos términos, contáctanos en <a href="mailto:cardioucm1@gmail.com">cardioucm1@gmail.com</a>.</p>
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="secondary" onClick={handleCloseTermsModal}>
-                Cerrar
-              </Button>
+              <Button variant="secondary" onClick={handleCloseTermsModal}>Cerrar</Button>
             </Modal.Footer>
           </Modal>
         </div>
