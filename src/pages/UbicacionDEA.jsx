@@ -5,7 +5,6 @@ import L from 'leaflet';
 import axios from 'axios';
 import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
-import * as turf from '@turf/turf'; // Importación de Turf.js para cálculos geoespaciales
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
 import ORSRouting from '../pages/ORSRouting';
@@ -70,21 +69,12 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
 };
 
 const UbicacionDEA = () => {
-  // Estados de la UI y datos
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '',
-    calle: '',
-    numero: '',
-    comuna: '',
-    lat: '',
-    lng: '',
-    solicitante: '',
-    rut: '',
-    email: '',
-    termsAccepted: false,
+    nombre: '', calle: '', numero: '', comuna: '', lat: '', lng: '',
+    solicitante: '', rut: '', email: '', termsAccepted: false,
   });
   const [errors, setErrors] = useState({});
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -94,21 +84,14 @@ const UbicacionDEA = () => {
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
-  
-  // Estados del mapa y ubicación
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
-
-  // Estados y referencias para la navegación con ruta actualizable
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
-  const routeGeoJSONRef = useRef(null);
   const watchIdRef = useRef(null);
-  const routeLayerRef = useRef(null);
-  const mapRef = useRef(null);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -189,88 +172,45 @@ const UbicacionDEA = () => {
     if (watchIdRef.current) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
-    }
-    if (routeLayerRef.current && mapRef.current) {
-        mapRef.current.removeLayer(routeLayerRef.current);
-        routeLayerRef.current = null;
+      console.log("Seguimiento detenido.");
     }
     setDestinoRuta(null);
     setRutaFrom(null);
     setSelectedDeaId(null);
-    routeGeoJSONRef.current = null;
   };
 
   const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     detenerNavegacion();
-    
-    Swal.fire({ title: 'Calculando Ruta...', icon: 'info', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    setRutaFrom(userLocation);
-    setDestinoRuta(destino);
-    setSelectedDeaId(dea.id);
-  };
 
-  const updateRouteDisplay = (currentLocation) => {
-    if (!routeGeoJSONRef.current || !mapRef.current) return;
-    
-    const routeLine = turf.lineString(routeGeoJSONRef.current.geometry.coordinates);
-    const userPoint = turf.point([currentLocation[1], currentLocation[0]]);
-    const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
-    
-    const endPoint = turf.point(routeLine.geometry.coordinates[routeLine.geometry.coordinates.length - 1]);
+    Swal.fire({
+      title: '¿Iniciar navegación?',
+      text: `Se trazará la ruta hacia ${dea.nombre}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, iniciar',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setRutaFrom(userLocation);
+        setDestinoRuta(destino);
+        setSelectedDeaId(dea.id);
 
-    // Comprobación para evitar un error cuando el usuario está en el último punto.
-    if (turf.booleanEqual(nearestPoint, endPoint)) {
-        if (routeLayerRef.current) {
-            mapRef.current.removeLayer(routeLayerRef.current);
-            routeLayerRef.current = null;
-        }
-        return;
-    }
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (position) => {
+            const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+            setUserLocation(nuevaUbicacion);
 
-    const remainingRoute = turf.lineSlice(nearestPoint, endPoint, routeLine);
-
-    if (routeLayerRef.current) {
-      routeLayerRef.current.clearLayers().addData(remainingRoute);
-    } else {
-      routeLayerRef.current = L.geoJSON(remainingRoute, {
-        style: { color: '#007bff', weight: 6, opacity: 0.85 }
-      }).addTo(mapRef.current);
-    }
-  };
-
-  const startRealTimeTracking = () => {
-    if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
-
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(nuevaUbicacion);
-        updateRouteDisplay(nuevaUbicacion);
-
-        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 20) {
-          Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-          detenerNavegacion();
-        }
-      },
-      (error) => console.error("Error durante el seguimiento:", error.message),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-    );
-  };
-
-  const handleRouteCalculated = (routeGeoJSON) => {
-    if (!routeGeoJSON) {
-      Swal.fire('Error', 'No se pudo calcular la ruta.', 'error');
-      detenerNavegacion();
-      return;
-    }
-    Swal.close();
-    routeGeoJSONRef.current = routeGeoJSON;
-    // Dibuja la ruta completa la primera vez
-    updateRouteDisplay(userLocation);
-    // Inicia el seguimiento que la irá actualizando
-    startRealTimeTracking();
+            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 20) {
+              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
+              detenerNavegacion();
+            }
+          },
+          (error) => console.error("Error durante el seguimiento:", error.message),
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+        );
+      }
+    });
   };
 
   const handleShowModal = () => {
@@ -361,7 +301,7 @@ const UbicacionDEA = () => {
     }
   };
 
-  const mapButtonStyle = {
+   const mapButtonStyle = {
     position: 'absolute', zIndex: 1000, border: 'none', borderRadius: '5px',
     padding: '10px 15px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     fontSize: '14px',
@@ -390,7 +330,7 @@ const UbicacionDEA = () => {
                 <p className="ml-3 mb-0">Obteniendo tu ubicación...</p>
               </div>
             ) : (
-              <MapContainer ref={mapRef} center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
+              <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
                 <CenterMap position={center} />
                 <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
@@ -412,11 +352,7 @@ const UbicacionDEA = () => {
                   </Marker>
                 ))}
                 {rutaFrom && destinoRuta && (
-                  <ORSRouting
-                    from={rutaFrom}
-                    to={destinoRuta}
-                    onRouteCalculated={handleRouteCalculated}
-                  />
+                  <ORSRouting from={rutaFrom} to={destinoRuta} />
                 )}
               </MapContainer>
             )}
