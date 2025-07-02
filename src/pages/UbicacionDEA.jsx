@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -7,7 +7,7 @@ import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
-import RoutingControl from '../pages/RoutingControl';
+import ORSRouting from '../pages/ORSRouting'; // Importamos el nuevo componente de enrutamiento
 import {
   isRUT,
   isCoordinate,
@@ -20,7 +20,6 @@ import {
   isEmail
 } from '../utils/validators.js';
 import Select from 'react-select';
-import { useThrottle } from '../utils/hooks'; // Asegúrate de que la ruta sea correcta
 
 // Icono personalizado para los DEAs
 const customIcon = new L.Icon({
@@ -116,16 +115,15 @@ const UbicacionDEA = () => {
   const [cercanos, setCercanos] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const userMarkerRef = useRef(null);
+  
   const [destinoRuta, setDestinoRuta] = useState(null);
-  const [vozActiva, setVozActiva] = useState(false);
-
+  const [rutaFrom, setRutaFrom] = useState(null);
+  
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDeaId, setSelectedDeaId] = useState(null);
-
-  const throttledLocation = useThrottle(userLocation, 7000);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -219,29 +217,27 @@ const UbicacionDEA = () => {
       });
   }, []);
 
-useEffect(() => {
-  if (!navigator.geolocation) {
-    Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
-    setIsLoading(false);
-    return;
-  }
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
+      setIsLoading(false);
+      return;
+    }
 
-  const watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const coords = [position.coords.latitude, position.coords.longitude];
-      setUserLocation(coords);
-
-      if (isLoading) {
-        setCenter(coords);
-        setIsLoading(false);
-      }
-    },
-    handleLocationError,
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
-
-  return () => navigator.geolocation.clearWatch(watchId);
-}, [isLoading]);
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const coords = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(coords);
+        if (isLoading) {
+          setCenter(coords);
+          setIsLoading(false);
+        }
+      },
+      handleLocationError,
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isLoading]);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -290,38 +286,27 @@ useEffect(() => {
   const validate = () => {
     const newErrors = {};
     const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
-
     let errorNombre = isRequired(nombre) || minLength(3)(nombre) || maxLength(58)(nombre) || isSimpleAlphaNumericWithSpaces(nombre);
     if (errorNombre) newErrors.nombre = errorNombre;
-
     let errorCalle = isRequired(calle) || minLength(3)(calle) || maxLength(45)(calle) || isSimpleAlphaNumericWithSpaces(calle);
     if (errorCalle) newErrors.calle = errorCalle;
-
     let errorNumero = (numero && maxLength(10)(numero)) || (numero && isInteger(numero));
     if (errorNumero) newErrors.numero = errorNumero;
-
     let errorComuna = isRequired(comuna) || (!comunas.includes(comuna) && 'La comuna seleccionada no existe en nuestra base de datos.');
     if (errorComuna) newErrors.comuna = errorComuna;
-
     let errorLat = isRequired(lat) || isCoordinate(lat);
     if (errorLat) newErrors.lat = errorLat;
-
     let errorLng = isRequired(lng) || isCoordinate(lng);
     if (errorLng) newErrors.lng = errorLng;
-
     let errorSolicitante = isRequired(solicitante) || minLength(3)(solicitante) || maxLength(50)(solicitante) || isSimpleAlphaWithSpaces(solicitante);
     if (errorSolicitante) newErrors.solicitante = errorSolicitante;
-
     let errorRut = isRequired(rut) || isRUT(rut);
     if (errorRut) newErrors.rut = errorRut;
-
     let errorEmail = isRequired(email) || isEmail(email);
     if (errorEmail) newErrors.email = errorEmail;
-
     if (!termsAccepted) {
       newErrors.terms = 'Debes aceptar los términos y condiciones para poder enviar la solicitud.';
     }
-
     return newErrors;
   };
 
@@ -329,9 +314,7 @@ useEffect(() => {
     e.preventDefault();
     setErrors({});
     setComunaNoExiste(false);
-
     const formErrors = validate();
-
     if (Object.keys(formErrors).length > 0) {
       setErrors(formErrors);
       if (formErrors.comuna && formErrors.comuna.includes('existe')) {
@@ -345,10 +328,8 @@ useEffect(() => {
       });
       return;
     }
-
     setIsSubmitting(true);
     const { nombre, calle, numero, comuna, lat, lng, solicitante, rut, email } = formData;
-
     const dataParaEnviar = {
       nombre,
       gl_instalacion_calle: calle,
@@ -361,7 +342,6 @@ useEffect(() => {
       email,
       terms_accepted: termsAccepted
     };
-
     try {
       await axios.post(`${API_BASE_URL}/api/solicitudes-dea`, dataParaEnviar);
       Swal.fire({
@@ -378,53 +358,40 @@ useEffect(() => {
       setIsSubmitting(false);
     }
   };
+
+  const iniciarNavegacion = (dea) => {
+    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+    Swal.fire({
+      title: '¿Iniciar navegación?',
+      text: `Se trazará la ruta hacia ${dea.nombre}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, iniciar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        if (userLocation) {
+          setRutaFrom(userLocation);
+          setDestinoRuta(destino);
+          setSelectedDeaId(dea.id);
+        } else {
+          Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+        }
+      }
+    });
+  };
   
-const [rutaFrom, setRutaFrom] = useState(null);
-
-const iniciarNavegacion = (dea) => {
-  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-  setCenter(destino);
-  setSelectedDeaId(dea.id);
-  setTimeout(() => {
-    markersRef.current[dea.id]?.openPopup();
-  }, 300);
-
-  Swal.fire({
-    title: '¿Iniciar guía por voz?',
-    text: 'Se darán instrucciones de audio para llegar al destino.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, iniciar',
-    cancelButtonText: 'No, solo mostrar ruta',
-    reverseButtons: true,
-  }).then((result) => {
-    if (result.isConfirmed) {
-      setVozActiva(true);
-    }
-    setDestinoRuta(destino);
-
-    // Cierra el popup del marcador después de la selección
-    setTimeout(() => {
-      markersRef.current[dea.id]?.closePopup();
-    }, 200);
-  });
-};
-
-{rutaFrom && destinoRuta && (
-  <RoutingControl
-    key={destinoRuta.join(',')}
-    from={rutaFrom}
-    to={destinoRuta}
-    vozActiva={vozActiva}
-    onRouteFinished={onRouteFinished}
-    userLocation={userLocation} // para seguimiento, no para recalcular
-  />
-)}
   const onRouteFinished = () => {
     Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
     setDestinoRuta(null);
-    setVozActiva(false);
+    setRutaFrom(null);
     setSelectedDeaId(null);
+  };
+
+  const handleRecalculate = (newFromLocation) => {
+    console.log("Recalculando ruta desde la nueva ubicación:", newFromLocation);
+    setRutaFrom(newFromLocation);
   };
 
   const mapButtonStyle = {
@@ -432,14 +399,6 @@ const iniciarNavegacion = (dea) => {
     padding: '10px 15px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     fontSize: '14px',
   };
-
-const fromPoint = useMemo(() => {
-  return destinoRuta ? throttledLocation : userLocation;
-}, [destinoRuta, userLocation, throttledLocation]);
-
-const toPoint = useMemo(() => {
-  return destinoRuta;
-}, [destinoRuta]);
 
   return (
     <div className="relative min-h-screen">
@@ -474,11 +433,7 @@ const toPoint = useMemo(() => {
                 <CenterMap position={center} />
                 <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
                 {userLocation && (
-                  <Marker
-                    position={userLocation}
-                    icon={userIcon}
-                    ref={userMarkerRef}
-                  >
+                  <Marker position={userLocation} icon={userIcon} ref={userMarkerRef}>
                     <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
                   </Marker>
                 )}
@@ -499,15 +454,15 @@ const toPoint = useMemo(() => {
                     </Popup>
                   </Marker>
                 ))}
-                {fromPoint && toPoint && (
-                <RoutingControl
-                  key={toPoint.join(',')}
-                  from={fromPoint}
-                  to={toPoint}
-                  vozActiva={vozActiva}
-                  onRouteFinished={onRouteFinished}
-                />
-              )}
+                {rutaFrom && destinoRuta && (
+                  <ORSRouting
+                    key={destinoRuta.join(',')}
+                    from={rutaFrom}
+                    to={destinoRuta}
+                    onRouteFinished={onRouteFinished}
+                    onRecalculateNeeded={handleRecalculate}
+                  />
+                )}
               </MapContainer>
             )}
             {!isLoading && <>
@@ -536,7 +491,7 @@ const toPoint = useMemo(() => {
                 <button
                   onClick={() => {
                     setDestinoRuta(null);
-                    setVozActiva(false);
+                    setRutaFrom(null);
                     setSelectedDeaId(null);
                   }}
                   className="btn btn-danger"
