@@ -178,7 +178,7 @@ const ORSRouting = ({ from, to, onRouteFinished, onRecalculateNeeded }) => {
         const DISTANCIA_MAX_DESVIO = 50; // metros
         
         // Creamos objetos de Turf.js para el cálculo
-        const routeLine = turf.lineString(routeGeoJSON.coordinates);
+        const routeLine = turf.lineString(routeGeoJSON.geometry.coordinates);
         const userPoint = turf.point([userLocation[1], userLocation[0]]); // Turf también usa [lng, lat]
         
         // Calculamos la distancia más corta desde la ubicación del usuario a la línea de la ruta
