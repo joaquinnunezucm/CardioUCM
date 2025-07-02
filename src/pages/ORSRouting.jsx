@@ -105,46 +105,48 @@ const ORSRouting = ({ from, to, onRouteFinished, onRecalculateNeeded }) => {
   }, [routeGeoJSON, map]);
 
   // --- EFECTO 3: SEGUIMIENTO DEL USUARIO EN TIEMPO REAL (CORREGIDO) ---
-  useEffect(() => {
-    // La comprobación robusta del Efecto 2 nos protege aquí también
-    if (!routeGeoJSON) return;
+ useEffect(() => {
+  if (!routeGeoJSON) return;
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        if (hasArrivedRef.current) return;
+  console.log("Iniciando seguimiento de geolocalización...");
 
-        const userLocation = [position.coords.latitude, position.coords.longitude];
-
-        const distanceToDestination = getDistance(userLocation[0], userLocation[1], to[0], to[1]);
-        if (distanceToDestination < 25) {
-          hasArrivedRef.current = true;
-          onRouteFinished();
-          return;
-        }
-
-        // ¡CORRECCIÓN CLAVE! Accedemos a las coordenadas a través de 'geometry'
-        const routeLine = turf.lineString(routeGeoJSON.geometry.coordinates);
-        const userPoint = turf.point([userLocation[1], userLocation[0]]);
-        const distanceFromRoute = turf.pointToLineDistance(userPoint, routeLine, { units: 'meters' });
-        
-        if (distanceFromRoute > 50) {
-          onRecalculateNeeded(userLocation);
-        }
-      },
-      (error) => {
-        console.error("Error en el seguimiento de geolocalización:", error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      // Callback de éxito (tu código actual es perfecto)
+      if (hasArrivedRef.current) return;
+      const userLocation = [position.coords.latitude, position.coords.longitude];
+      const distanceToDestination = getDistance(userLocation[0], userLocation[1], to[0], to[1]);
+      if (distanceToDestination < 25) {
+        hasArrivedRef.current = true;
+        onRouteFinished();
+        return;
       }
-    );
+      const routeLine = turf.lineString(routeGeoJSON.geometry.coordinates);
+      const userPoint = turf.point([userLocation[1], userLocation[0]]);
+      const distanceFromRoute = turf.pointToLineDistance(userPoint, routeLine, { units: 'meters' });
+      if (distanceFromRoute > 50) {
+        onRecalculateNeeded(userLocation);
+      }
+    },
+    (error) => {
+      // Callback de error
+      console.error("Error en el seguimiento de geolocalización:", error.message);
+      // Aquí podrías notificar al usuario, por ahora solo lo mostramos en consola.
+      // Ejemplo: Swal.fire('Error de Ubicación', 'No se pudo actualizar tu posición. Revisa tu conexión o señal GPS.', 'warning');
+    },
+    {
+      // Configuración de geolocalización optimizada
+      enableHighAccuracy: true,  // Intentamos obtener la mejor precisión
+      timeout: 15000,          // Pero le damos 15 segundos para que lo haga
+      maximumAge: 5000         // Permitimos usar una ubicación en caché si no tiene más de 5 segundos de antigüedad
+    }
+  );
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, [routeGeoJSON, to, onRouteFinished, onRecalculateNeeded]);
+  return () => {
+    console.log("Deteniendo seguimiento de geolocalización.");
+    navigator.geolocation.clearWatch(watchId);
+  };
+}, [routeGeoJSON, to, onRouteFinished, onRecalculateNeeded]);
 
   return null;
 };
