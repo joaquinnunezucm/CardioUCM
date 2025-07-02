@@ -193,6 +193,8 @@ const UbicacionDEA = () => {
     }
   }, [userLocation, desfibriladores]);
 
+  const lastRecalculationTime = useRef(0); // Ref para guardar la marca de tiempo del último recalculo
+
   // --- Lógica de navegación ---
   const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
@@ -206,17 +208,17 @@ const UbicacionDEA = () => {
 
   const detenerNavegacion = () => {
     if (watchIdRef.current) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-      console.log("Seguimiento detenido.");
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+        console.log("Seguimiento detenido.");
     }
     setDestinoRuta(null);
     setRutaFrom(null);
     setSelectedDeaId(null);
     routeGeoJSONRef.current = null;
-  };
+};
 
-  const iniciarNavegacion = (dea) => {
+const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     detenerNavegacion();
@@ -231,28 +233,36 @@ const UbicacionDEA = () => {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(nuevaUbicacion);
+        setUserLocation(nuevaUbicacion); // Mueve el marcador rojo
 
+        // Lógica de llegada (sin cambios)
         if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 25) {
           Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
           detenerNavegacion();
           return;
         }
 
+        // Lógica de desvío y recalculo (CON CONTROL DE TIEMPO)
         if (routeGeoJSONRef.current) {
           const routeLine = turf.lineString(routeGeoJSONRef.current.geometry.coordinates);
           const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
           const distanceFromRoute = turf.pointToLineDistance(userPoint, routeLine, { units: 'meters' });
+          
           if (distanceFromRoute > 50) {
-            console.log("¡Desvío detectado! Recalculando ruta...");
-            setRutaFrom(nuevaUbicacion);
+            const now = Date.now();
+            // ¡EL CAMBIO CLAVE! Solo recalcula si han pasado más de 10 segundos
+            if (now - lastRecalculationTime.current > 10000) { 
+              console.log("¡Desvío detectado! Recalculando ruta...");
+              lastRecalculationTime.current = now; // Actualiza la marca de tiempo
+              setRutaFrom(nuevaUbicacion); // Dispara el recalculo
+            }
           }
         }
       },
       (error) => console.error("Error durante el seguimiento:", error.message),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     );
-  };
+};
 
   // --- Funciones del Modal y Formulario ---
   const handleShowModal = () => {
