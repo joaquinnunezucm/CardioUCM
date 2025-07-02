@@ -80,8 +80,13 @@ const ORSRouting = ({ from, to, onRouteFinished, onRecalculateNeeded }) => {
 
         const data = await response.json();
         if (data.routes && data.routes.length > 0) {
-          // Guardamos la geometría de la ruta en el estado. Esto disparará el siguiente efecto.
-          setRouteGeoJSON(data.routes[0].geometry);
+          // Envolver la geometría en un Feature GeoJSON válido
+          const geojsonFeature = {
+            type: "Feature",
+            geometry: data.routes[0].geometry,
+            properties: {}
+          };
+          setRouteGeoJSON(geojsonFeature);
         } else {
           console.warn("ORS no devolvió ninguna ruta para las coordenadas dadas.");
         }
