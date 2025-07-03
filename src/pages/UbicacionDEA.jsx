@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -68,6 +68,20 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
+const speak = (text) => {
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    utterance.rate = 1.1;
+    window.speechSynthesis.speak(utterance);
+  } else {
+    console.warn("La síntesis de voz no es soportada por este navegador.");
+  }
+};
+
 const UbicacionDEA = () => {
   // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
@@ -97,22 +111,14 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const onRouteFoundCallback = useCallback((data) => {
+    setRouteData(data);
+    setCurrentStepIndex(0);
+    if (data.instructions && data.instructions.length > 0) {
+      speak(data.instructions[0].instruction);
+    }
+  }, []);
 
-  // <-- NUEVA FUNCIÓN para la síntesis de voz
-  const speak = (text) => {
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-ES';
-      utterance.rate = 1.1;
-      window.speechSynthesis.speak(utterance);
-    } else {
-      console.warn("La síntesis de voz no es soportada por este navegador.");
-    }
-  };
-  
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -400,19 +406,12 @@ const UbicacionDEA = () => {
                     </Popup>
                   </Marker>
                 ))}
-              {/* <-- LLAMADA MODIFICADA a ORSRouting, ahora con el callback onRouteFound */}
               {rutaFrom && destinoRuta && (
                 <ORSRouting 
                   from={rutaFrom} 
                   to={destinoRuta} 
                   userPosition={userLocation}
-                  onRouteFound={(data) => {
-                    setRouteData(data);
-                    setCurrentStepIndex(0);
-                    if (data.instructions && data.instructions.length > 0) {
-                      speak(data.instructions[0].instruction);
-                    }
-                  }}
+                  onRouteFound={onRouteFoundCallback} 
                 />
               )}
               </MapContainer>
