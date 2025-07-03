@@ -97,7 +97,8 @@ const UbicacionDEA = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [comunas, setComunas] = useState([]);
   const [comunaNoExiste, setComunaNoExiste] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Empieza en false. Se activará solo al pulsar el botón.
+  const [locationRequested, setLocationRequested] = useState(false); // Nuevo estado para controlar la visibilidad del botón.
   const [selectedDeaId, setSelectedDeaId] = useState(null);
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
@@ -189,25 +190,30 @@ useEffect(() => {
     axios.get(`${API_BASE_URL}/api/defibriladores`).then(res => setDesfibriladores(res.data)).catch(err => Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error'));
   }, []);
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
+const requestUserLocation = () => {
+  if (!navigator.geolocation) {
+    Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
+    return;
+  }
+
+  setIsLoading(true); // Muestra el spinner AHORA
+  setLocationRequested(true); // Oculta el botón para que no se pulse de nuevo
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const coords = [position.coords.latitude, position.coords.longitude];
+      setUserLocation(coords);
+      setCenter(coords); // Centra el mapa en la nueva ubicación
       setIsLoading(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords);
-        if (isLoading) {
-          setCenter(coords);
-          setIsLoading(false);
-        }
-      },
-      handleLocationError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
-  }, [isLoading]);
+    },
+    (error) => {
+      // Usamos la función handleLocationError que ya tienes
+      handleLocationError(error); 
+      setIsLoading(false); // Asegúrate de detener el spinner en caso de error
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
+};
 
 useEffect(() => {
   if (calculatedPosition) {
@@ -464,60 +470,89 @@ const detenerNavegacion = () => {
       </div>
       <section className="content py-5">
         <div className="container-fluid">
-          <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
-            {isLoading ? (
-              <div className="d-flex justify-content-center align-items-center h-100 bg-light">
-                <div className="spinner-border text-primary" role="status"><span className="sr-only">Cargando...</span></div>
-                <p className="ml-3 mb-0">Obteniendo tu ubicación...</p>
+        <div style={{ height: '50vh', position: 'relative', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
+          {/* El spinner ahora es una capa superpuesta */}
+          {isLoading && (
+            <div className="d-flex justify-content-center align-items-center h-100" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255, 255, 255, 0.8)', zIndex: 2000 }}>
+              <div className="spinner-border text-primary" role="status">
+                <span className="sr-only">Cargando...</span>
               </div>
-            ) : (
-              <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
-                <CenterMap position={center} />
-                <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
-                {displayedUserPosition && ( 
-                  <Marker position={displayedUserPosition} icon={userIcon} ref={userMarkerRef}>
-                    <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
-                  </Marker>
-                )}
-                {cercanos.map((d) => (
-                  <Marker key={d.id} position={[parseFloat(d.lat), parseFloat(d.lng)]} icon={customIcon} ref={(ref) => (markersRef.current[d.id] = ref)}>
-                    <Popup>
-                      <b>{d.nombre}</b><br />{d.direccion}
-                      {userLocation && (
-                        <Button size="sm" variant="primary" className="mt-2" onClick={() => iniciarNavegacion(d)}>
-                          Ver Ruta
-                        </Button>
-                      )}
-                    </Popup>
-                  </Marker>
-                ))}
-                  {rutaFrom && destinoRuta && (
-                    <ORSRouting 
-                      from={rutaFrom} 
-                      to={destinoRuta} 
-                      userPosition={userLocation}
-                      onRouteFound={onRouteFoundCallback} 
-                      onPositionUpdate={onPositionUpdateCallback}
-                      onDeviation={onDeviationCallback} 
-                    />
-                  )}
-              </MapContainer>
+              <p className="ml-3 mb-0">Obteniendo tu ubicación...</p>
+            </div>
+          )}
+
+          <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%' }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
+            <CenterMap position={center} />
+            <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
+            {displayedUserPosition && ( 
+              <Marker position={displayedUserPosition} icon={userIcon} ref={userMarkerRef}>
+                <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
+              </Marker>
             )}
-            {!isLoading && <>
-              <button onClick={handleShowModal} className="btn btn-success" style={{ ...mapButtonStyle, top: 10, right: 10 }}>
-                <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
+            {cercanos.map((d) => (
+              <Marker key={d.id} position={[parseFloat(d.lat), parseFloat(d.lng)]} icon={customIcon} ref={(ref) => (markersRef.current[d.id] = ref)}>
+                <Popup>
+                  <b>{d.nombre}</b><br />{d.direccion}
+                  {userLocation && (
+                    <Button size="sm" variant="primary" className="mt-2" onClick={() => iniciarNavegacion(d)}>
+                      Ver Ruta
+                    </Button>
+                  )}
+                </Popup>
+              </Marker>
+            ))}
+            {rutaFrom && destinoRuta && (
+              <ORSRouting 
+                from={rutaFrom} 
+                to={destinoRuta} 
+                userPosition={userLocation}
+                onRouteFound={onRouteFoundCallback} 
+                onPositionUpdate={onPositionUpdateCallback}
+                onDeviation={onDeviationCallback} 
+              />
+            )}
+          </MapContainer>
+
+          {/* --- LÓGICA DE BOTONES --- */}
+          {/* Botón para solicitar ubicación (NUEVO) */}
+          {!userLocation && !locationRequested && (
+            <button 
+              onClick={requestUserLocation} 
+              className="btn btn-primary" 
+              style={{ ...mapButtonStyle, top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1001 }}
+            >
+              <i className="fas fa-map-marker-alt mr-2"></i> Encontrar DEAs Cerca de Mí
+            </button>
+          )}
+
+          {/* Botones existentes */}
+          <>
+            <button onClick={handleShowModal} className="btn btn-success" style={{ ...mapButtonStyle, top: 10, right: 10 }}>
+              <i className="fas fa-plus mr-1"></i> Sugerir Nuevo DEA
+            </button>
+            {/* Hacemos que el botón "Mi Ubicación" llame a la nueva función si aún no se ha obtenido la ubicación */}
+            <button 
+              onClick={() => { 
+                if (userLocation) { 
+                  setCenter([...userLocation]); 
+                  userMarkerRef.current?.openPopup(); 
+                } else { 
+                  requestUserLocation(); // Ahora este botón también puede iniciar la detección
+                } 
+              }} 
+              className="btn btn-info" 
+              style={{ ...mapButtonStyle, top: 60, right: 10 }}
+            >
+              Mi Ubicación
+            </button>
+            {destinoRuta && (
+              <button onClick={detenerNavegacion} className="btn btn-danger" style={{ ...mapButtonStyle, top: 110, right: 10 }}>
+                Detener Ruta
               </button>
-              <button onClick={() => { if (userLocation) { setCenter([...userLocation]); userMarkerRef.current?.openPopup(); } else { handleLocationError({ code: -1, message: 'Intento de centrar sin ubicación disponible.' }); } }} className="btn btn-info" style={{ ...mapButtonStyle, top: 60, right: 10 }}>
-                Mi Ubicación
-              </button>
-              {destinoRuta && (
-                <button onClick={detenerNavegacion} className="btn btn-danger" style={{ ...mapButtonStyle, top: 110, right: 10 }}>
-                  Detener Ruta
-                </button>
-              )}
-            </>}
-          </div>
+            )}
+          </>
+        </div>
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8 mb-4">
               <h4 className="mb-3 text-center">DEAs más cercanos</h4>
