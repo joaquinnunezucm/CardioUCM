@@ -216,6 +216,7 @@ const UbicacionDEA = () => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     
+    // Detener y limpiar cualquier navegación anterior es el primer paso.
     detenerNavegacion();
 
     Swal.fire({
@@ -226,39 +227,60 @@ const UbicacionDEA = () => {
       confirmButtonText: 'Sí, iniciar',
     }).then((result) => {
       if (result.isConfirmed) {
+        // Establecer los nuevos estados de la ruta
         setRutaFrom(userLocation);
         setDestinoRuta(destino);
         setSelectedDeaId(dea.id);
 
+        // Iniciar el nuevo seguimiento
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
             setUserLocation(nuevaUbicacion);
+            
+            // Si la navegación fue detenida manualmente, no hacer nada más.
+            if (!watchIdRef.current) return;
 
-            // Lógica de guía por voz
-            if (routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length - 1) {
-              const nextStep = routeData.instructions[currentStepIndex + 1];
-              const nextTurnPointIndex = nextStep.way_points[0];
+            // --- Lógica de guía por voz robusta ---
+            if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
+              const currentInstruction = routeData.instructions[currentStepIndex];
+
+              // No procesar más si la instrucción ya fue de llegada
+              if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
+                return;
+              }
               
-              if (routeData.coords[nextTurnPointIndex]) {
-                  const nextTurnCoords = routeData.coords[nextTurnPointIndex]; // [lng, lat]
-                  const nextTurnLatLng = [nextTurnCoords[1], nextTurnCoords[0]]; // [lat, lng]
-                  
-                  const distanceToTurn = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], nextTurnLatLng[0], nextTurnLatLng[1]);
+              const isLastStep = currentStepIndex === routeData.instructions.length - 1;
+              let targetCoords = isLastStep ? destino : null;
+              
+              if (!isLastStep) {
+                const nextStep = routeData.instructions[currentStepIndex + 1];
+                const nextTurnPointIndex = nextStep.way_points[0];
+                
+                // Programación defensiva: Asegurarse que los datos existan antes de usarlos
+                if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+                  const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+                  targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+                }
+              }
 
-                  // Umbral para dar la instrucción (ej. a 25 metros del giro)
-                  if (distanceToTurn < 45) { 
-                    speak(nextStep.instruction);
-                    setCurrentStepIndex(prev => prev + 1);
-                  }
+              if (targetCoords) {
+                const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+                const triggerDistance = isLastStep ? 25 : 45;
+
+                if (distanceToTarget < triggerDistance) {
+                  speak(currentInstruction.instruction);
+                  setCurrentStepIndex(prev => prev + 1);
+                }
               }
             }
 
-            // Lógica de llegada a destino
+            // --- Lógica de llegada a destino (como respaldo final) ---
             if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
               speak('Ha llegado a su destino.');
-              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-              detenerNavegacion();
+              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+                detenerNavegacion();
+              });
             }
           },
           (error) => console.error("Error durante el seguimiento:", error.message),
