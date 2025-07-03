@@ -215,6 +215,13 @@ useEffect(() => {
   }
 }, [calculatedPosition]);
 
+useEffect(() => {
+  // Si no hay una ruta de destino activa, la posición visual es la real.
+  if (!destinoRuta) {
+    setDisplayedUserPosition(userLocation);
+  }
+}, [userLocation, destinoRuta]); // Se ejecuta si cambia la ubicación o si se inicia/detiene una ruta.
+
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
       const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -266,6 +273,7 @@ const detenerNavegacion = () => {
   const onPositionUpdateCallback = useCallback((position) => {
   setCalculatedPosition(position); 
 }, []);
+
   // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
@@ -292,10 +300,7 @@ const detenerNavegacion = () => {
           (position) => {
             const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
             setUserLocation(nuevaUbicacion);
-            // Si no hay una ruta activa, la posición visual es la real.
-            if (!destinoRuta) {
-              setDisplayedUserPosition(nuevaUbicacion); // <-- ACTUALIZAR POSICIÓN VISUAL
-            }
+
             // Si la navegación fue detenida manualmente, no hacer nada más.
             if (!watchIdRef.current) return;
 
