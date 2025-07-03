@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/api';
 
 export default function Dashboard() {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const nombreUsuario = user ? user.nombre : "Usuario";
   const rolUsuario = user ? user.rol : "";
@@ -13,58 +13,31 @@ export default function Dashboard() {
   const [estadisticasSistema, setEstadisticasSistema] = useState({
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
-useEffect(() => {
-    const handlePageShow = (event) => {
-      // `event.persisted` es true si la página se restaura desde el caché (bfcache).
-      if (event.persisted) {
-        console.log('Página restaurada desde caché. Verificando si la sesión sigue activa...');
-        
-        // Comprobamos directamente en sessionStorage, que es la fuente de verdad.
-        if (!sessionStorage.getItem('token')) {
-          console.log('Sesión no encontrada en sessionStorage. Redirigiendo a /login.');
-          // Si no hay token, la sesión es inválida. Forzamos la salida.
-          navigate('/login', { replace: true });
-        }
-      }
-    };
-
-    // Añadimos el listener cuando el componente Dashboard se monta.
-    window.addEventListener('pageshow', handlePageShow);
-
-    // Limpiamos el listener cuando el componente Dashboard se desmonte.
-    return () => {
-      window.removeEventListener('pageshow', handlePageShow);
-    };
-  }, [navigate]); // La dependencia `navigate` asegura que siempre usemos la función de navegación más reciente.
+// EFECTO 1: DEFENSA CONTRA EL BOTÓN "ADELANTE" (BFCACHE)
   useEffect(() => {
     const handlePageShow = (event) => {
-      // event.persisted es true si la página se restaura desde el caché de avance/retroceso.
       if (event.persisted) {
-        console.log('Página restaurada desde bfcache. Verificando sesión.');
-        // La sesión ya debería haber sido cerrada por el `useEffect` de desmontaje.
-        // Verificamos directamente la fuente de verdad (sessionStorage).
-        // Si no hay token, la sesión es inválida, así que forzamos la salida.
+        console.log('Dashboard restaurado desde bfcache. Verificando la fuente de verdad...');
         if (!sessionStorage.getItem('token')) {
-          console.log('Sesión no encontrada en bfcache. Redirigiendo a login.');
+          console.log('Token no encontrado en sessionStorage. Redirigiendo a /login.');
           navigate('/login', { replace: true });
         }
       }
     };
 
     window.addEventListener('pageshow', handlePageShow);
-
-    // Limpiamos el listener cuando el componente se desmonte
     return () => {
       window.removeEventListener('pageshow', handlePageShow);
     };
-  }, [navigate]); // La dependencia es navigate para asegurar que siempre use la última versión.
+  }, [navigate]);
 
-  // Efecto de seguridad: si por alguna razón se llega aquí sin sesión, redirigir.
+  // EFECTO 2: PROTECCIÓN DE RUTA EN CARGA INICIAL (CORREGIDO)
   useEffect(() => {
-    if (!user || !token) {
+    if (!authLoading && (!user || !token)) {
+      console.log("Dashboard: Sesión inválida tras la carga inicial. Redirigiendo a /login.");
       navigate("/login", { replace: true });
     }
-  }, [user, token, navigate]);
+  }, [user, token, authLoading, navigate]);
 
   const modulosParaInfoBoxes = useMemo(() => [
     { nombre: "RCP", icono: "fas fa-heartbeat", color: "bg-success", ruta: "/admin/capacitacion", seccionApi: "RCP" },
@@ -159,7 +132,13 @@ useEffect(() => {
   const handleLogoutClick = () => {
     logout();
   };
-
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <i className="fas fa-spinner fa-spin fa-3x"></i>
+      </div>
+    );
+  }
   return (
     <div className="wrapper">
       <nav className="main-header navbar navbar-expand navbar-white navbar-light">
