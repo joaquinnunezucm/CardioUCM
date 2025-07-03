@@ -174,37 +174,76 @@ const onPositionUpdateCallback = useCallback((position) => {
     Swal.fire({ icon: 'error', title: title, text: text });
   };
 
-// Este useEffect se activa cuando se recibe la señal de desvío
-useEffect(() => {
-  // Solo actúa si la señal está activa y tenemos la ubicación del usuario
-  if (deviationSignal && userLocation) {
-    
-    // La lógica del cooldown se mueve aquí, donde realmente se ejecuta la acción
-    const now = Date.now();
-    if (now - lastRerouteTimestampRef.current < 10000) {
-      console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
-    } else {
-      lastRerouteTimestampRef.current = now;
+// 1. La nueva función de callback para el seguimiento de posición
+const handlePositionWatch = useCallback((position) => {
+    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+    setUserLocation(nuevaUbicacion);
 
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'info',
-        title: 'Te has desviado, recalculando ruta...',
-        showConfirmButton: false,
-        timer: 2500,
-        timerProgressBar: true,
-      });
+    // Si la navegación fue detenida manualmente, no hacer nada más.
+    if (!watchIdRef.current) return;
 
-      // Aquí es donde finalmente actualizamos el estado para recalcular
-      setRutaFrom(userLocation);
+    // --- Lógica de guía por voz ---
+    if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
+        const currentInstruction = routeData.instructions[currentStepIndex];
+        if (currentInstruction.instruction.toLowerCase().includes("llegado")) return;
+
+        const isLastStep = currentStepIndex === routeData.instructions.length - 1;
+        let targetCoords = isLastStep ? destinoRuta : null;
+
+        if (!isLastStep) {
+            const nextStep = routeData.instructions[currentStepIndex + 1];
+            const nextTurnPointIndex = nextStep.way_points[0];
+            if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+                const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+                targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+            }
+        }
+
+        if (targetCoords) {
+            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+            const triggerDistance = isLastStep ? 25 : 45;
+            if (distanceToTarget < triggerDistance) {
+                speak(currentInstruction.instruction);
+                setCurrentStepIndex(prev => prev + 1);
+            }
+        }
     }
 
-    // MUY IMPORTANTE: Reseteamos la señal para que este efecto no se ejecute de nuevo
-    // hasta que el hijo la vuelva a enviar.
-    setDeviationSignal(false);
+    // --- Lógica de llegada a destino ---
+    if (destinoRuta && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+        speak('Ha llegado a su destino.');
+        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
+        detenerNavegacion();
+    }
+}, [routeData, currentStepIndex, destinoRuta, detenerNavegacion]); // Dependencias correctas para el callback
+
+// 2. El useEffect simplificado que se suscribe y desuscribe
+useEffect(() => {
+  // Si no hay un destino, no hacemos nada.
+  if (!destinoRuta) {
+    return;
   }
-}, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
+
+  console.log("useEffect de navegación activado. Iniciando watchPosition.");
+
+  // Nos suscribimos usando la función de callback estable
+  const id = navigator.geolocation.watchPosition(
+    handlePositionWatch,
+    (error) => console.error("Error durante el seguimiento:", error.message),
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+  );
+  watchIdRef.current = id;
+
+  // La función de limpieza no cambia, es perfecta.
+  return () => {
+    if (watchIdRef.current) {
+      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  };
+
+}, [destinoRuta, handlePositionWatch]); // Dependencias mucho más simples y estables
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
@@ -296,8 +335,8 @@ const detenerNavegacion = useCallback(() => {
     return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
   }
 
-  // Primero, limpia cualquier navegación anterior de forma síncrona.
-  detenerNavegacion(); 
+  // Primero, limpia cualquier navegación anterior.
+  detenerNavegacion();
 
   Swal.fire({
     title: '¿Iniciar navegación?',
@@ -313,81 +352,13 @@ const detenerNavegacion = useCallback(() => {
       // ¡CLAVE! Ahora solo actualizamos el estado. El useEffect se encargará del resto.
       setRutaFrom(userLocation);
       setSelectedDeaId(dea.id);
-      setDestinoRuta(destino); // Poner este al final es una buena práctica
+      // Establecer el destino al final es una buena práctica para activar el useEffect
+      setDestinoRuta(destino); 
     }
   });
 };
 
-useEffect(() => {
-  // Si no hay un destino, no hacemos nada.
-  if (!destinoRuta) {
-    return;
-  }
 
-  console.log("useEffect de navegación activado. Iniciando watchPosition.");
-
-  // Iniciar el nuevo seguimiento
-  watchIdRef.current = navigator.geolocation.watchPosition(
-    (position) => {
-      const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-      // Solo actualizamos el estado que cambia. No es necesario setear el mismo estado
-      // que ya tenemos. Esto es más eficiente.
-      setUserLocation(nuevaUbicacion); 
-
-      // --- Lógica de guía por voz ---
-      // Esta lógica se puede quedar aquí, pero debe ser robusta.
-      // Asegúrate de que `routeData.instructions` se limpie cuando se detiene la ruta.
-      if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
-        const currentInstruction = routeData.instructions[currentStepIndex];
-        if (currentInstruction.instruction.toLowerCase().includes("llegado")) return;
-        
-        const isLastStep = currentStepIndex === routeData.instructions.length - 1;
-        let targetCoords = isLastStep ? destinoRuta : null;
-        
-        if (!isLastStep) {
-          const nextStep = routeData.instructions[currentStepIndex + 1];
-          const nextTurnPointIndex = nextStep.way_points[0];
-          if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
-            const nextTurnCoords = routeData.coords[nextTurnPointIndex];
-            targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-          }
-        }
-
-        if (targetCoords) {
-          const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-          const triggerDistance = isLastStep ? 25 : 45;
-          if (distanceToTarget < triggerDistance) {
-            speak(currentInstruction.instruction);
-            setCurrentStepIndex(prev => prev + 1);
-          }
-        }
-      }
-
-      // --- Lógica de llegada a destino ---
-      if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) { // Un umbral un poco más grande
-        speak('Ha llegado a su destino.');
-        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-        // La limpieza ahora es manejada por la función de retorno del useEffect.
-        detenerNavegacion(); 
-      }
-    },
-    (error) => console.error("Error durante el seguimiento:", error.message),
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-  );
-
-  // --- FUNCIÓN DE LIMPIEZA ---
-  // Esto es crucial. Se ejecuta CADA VEZ que el componente se desmonta O
-  // CADA VEZ que las dependencias (`destinoRuta`) cambian, justo ANTES de
-  // ejecutar el efecto de nuevo.
-  return () => {
-    if (watchIdRef.current) {
-      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-  };
-
-}, [destinoRuta, routeData, currentStepIndex, detenerNavegacion]); 
   
   const handleShowModal = () => {
     setShowModal(true);
