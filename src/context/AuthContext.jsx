@@ -1,4 +1,6 @@
-// src/context/AuthContext.jsx
+// Archivo: src/context/AuthContext.jsx
+// REEMPLAZA TU ARCHIVO CON ESTE CÓDIGO O COMPÁRALO CUIDADOSAMENTE
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -6,6 +8,7 @@ import { API_BASE_URL } from '../utils/api';
 
 const AuthContext = createContext(null);
 
+// El interceptor de Axios está bien, lo mantenemos.
 axios.interceptors.request.use(
   config => {
     const token = sessionStorage.getItem('token');
@@ -20,59 +23,35 @@ axios.interceptors.request.use(
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // PIEZA CLAVE 1: El estado 'loading' empieza en 'true'.
+  const [loading, setLoading] = useState(true); 
   const navigate = useNavigate();
 
-  // --- useEffect COMBINADO para el ciclo de vida de la página ---
+  // useEffect para cargar la sesión UNA SOLA VEZ al inicio de la aplicación.
   useEffect(() => {
-    // Función para la ALERTA antes de salir
-    const handleBeforeUnload = (event) => {
-      if (user) {
-        event.preventDefault();
-        event.returnValue = '';
-      }
-    };
-
-    // Función para DESTRUIR la sesión al salir
-    const handlePageHide = (event) => {
-      // event.persisted es true si la página puede ser restaurada desde caché (ej. back/forward cache).
-      // Solo queremos limpiar si el usuario realmente se va.
-      if (event.persisted) return;
-
-      // Si hay un usuario, limpiamos sessionStorage. Esta es la garantía.
-      if (user) {
-        console.log('Evento pagehide detectado: Limpiando sesión.');
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('token');
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handlePageHide); // El listener crucial
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handlePageHide); // Limpieza
-    };
-  }, [user]);
-
-  // useEffect para cargar la sesión al inicio
-  useEffect(() => {
+    console.log("AuthContext: Verificando sesión al cargar la app...");
     const storedUser = sessionStorage.getItem('user');
     const storedToken = sessionStorage.getItem('token');
+
     if (storedUser && storedToken) {
       try {
         const parsedUser = JSON.parse(storedUser);
+        // Validamos que el usuario y el rol existan.
         if (parsedUser && (parsedUser.rol === 'administrador' || parsedUser.rol === 'superadministrador')) {
           setUser(parsedUser);
           setToken(storedToken);
         } else {
+          // Si los datos son inválidos, limpiamos todo.
           sessionStorage.clear();
         }
       } catch (error) {
+        console.error("AuthContext: Error al parsear datos de sesión.", error);
         sessionStorage.clear();
       }
     }
+    
+    // PIEZA CLAVE 2: setLoading(false) se llama AL FINAL, después de toda la lógica.
+    // Esto le dice a la aplicación: "Ok, ya terminé de verificar. Pueden continuar".
     setLoading(false);
   }, []);
 
@@ -86,10 +65,10 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       if (response.ok && data.usuario && data.token) {
         if (data.usuario.rol === 'administrador' || data.usuario.rol === 'superadministrador') {
-          setUser(data.usuario);
-          setToken(data.token);
           sessionStorage.setItem('user', JSON.stringify(data.usuario));
           sessionStorage.setItem('token', data.token);
+          setUser(data.usuario);
+          setToken(data.token);
           navigate('/admin', { replace: true });
           return { success: true };
         } else {
@@ -104,15 +83,24 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('token');
+    setUser(null);
+    setToken(null);
     navigate('/login');
   };
 
+  // PIEZA CLAVE 3: El valor que proveemos ahora incluye 'loading'.
+  const value = { user, token, login, logout, isAuthenticated: !!user && !!token, loading };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!user && !!token, loading }}>
+    <AuthContext.Provider value={value}>
+      {/* 
+        PIEZA CLAVE 4: LA SOLUCIÓN DEFINITIVA.
+        No renderizamos NADA de la aplicación (los 'children') hasta que 'loading' sea 'false'.
+        Esto detiene físicamente al Dashboard y a cualquier otra ruta protegida, impidiendo
+        que se rendericen antes de tiempo y tomen decisiones incorrectas.
+      */}
       {!loading && children}
     </AuthContext.Provider>
   );
