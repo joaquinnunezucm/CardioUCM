@@ -247,7 +247,7 @@ const UbicacionDEA = () => {
                   const distanceToTurn = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], nextTurnLatLng[0], nextTurnLatLng[1]);
 
                   // Umbral para dar la instrucción (ej. a 25 metros del giro)
-                  if (distanceToTurn < 25) { 
+                  if (distanceToTurn < 45) { 
                     speak(nextStep.instruction);
                     setCurrentStepIndex(prev => prev + 1);
                   }
@@ -255,7 +255,7 @@ const UbicacionDEA = () => {
             }
 
             // Lógica de llegada a destino
-            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 20) {
+            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
               speak('Ha llegado a su destino.');
               Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
               detenerNavegacion();
