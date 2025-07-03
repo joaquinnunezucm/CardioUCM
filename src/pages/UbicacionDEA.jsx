@@ -132,6 +132,7 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+
     const onRouteFoundCallback = useCallback((data) => {
     setRouteData(data);
     setCurrentStepIndex(0);
@@ -144,6 +145,10 @@ const onDeviationCallback = useCallback(() => {
   console.log("Señal de desvío recibida desde el componente hijo.");
   setDeviationSignal(true);
 }, []); // No necesita dependencias, ya que no usa variables de estado.
+
+const onPositionUpdateCallback = useCallback((position) => {
+  setCalculatedPosition(position); 
+}, []);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
