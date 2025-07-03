@@ -22,14 +22,23 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound }) => {
 
     const fetchRoute = async () => {
       try {
-        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson?instructions=true&language=es', {
+        // --- INICIO DE LA CORRECCIÓN ---
+        // La URL ahora está limpia.
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson', {
           method: 'POST',
           headers: {
             'Authorization': ORS_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ coordinates: [[from[1], from[0]], [to[1], to[0]]] }),
+          // Todos los parámetros se envían en el cuerpo de la petición.
+          body: JSON.stringify({
+            coordinates: [[from[1], from[0]], [to[1], to[0]]],
+            instructions: true,
+            instructions_format: 'text',
+            language: 'es'
+          }),
         });
+        // --- FIN DE LA CORRECCIÓN ---
 
         if (!response.ok) {
           const errorBody = await response.json();
