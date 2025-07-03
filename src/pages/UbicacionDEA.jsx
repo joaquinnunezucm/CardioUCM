@@ -7,7 +7,7 @@ import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
-import ORSRouting from '../pages/ORSRouting';
+import ORSRouting from './ORSRouting'; // <-- Asegúrate que la ruta al archivo sea correcta
 import {
   isRUT, isCoordinate, minLength, maxLength, isRequired, isInteger,
   isSimpleAlphaWithSpaces, isSimpleAlphaNumericWithSpaces, isEmail
@@ -69,6 +69,7 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
 };
 
 const UbicacionDEA = () => {
+  // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -89,10 +90,29 @@ const UbicacionDEA = () => {
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
-  const [destinoRuta, setDestinoRuta] = useState(null);
-  const [rutaFrom, setRutaFrom] = useState(null);
   const watchIdRef = useRef(null);
 
+  // <-- NUEVOS ESTADOS para la navegación y guía por voz
+  const [destinoRuta, setDestinoRuta] = useState(null);
+  const [rutaFrom, setRutaFrom] = useState(null);
+  const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+
+  // <-- NUEVA FUNCIÓN para la síntesis de voz
+  const speak = (text) => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      utterance.rate = 1.1;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.warn("La síntesis de voz no es soportada por este navegador.");
+    }
+  };
+  
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -168,20 +188,28 @@ const UbicacionDEA = () => {
     return R * c;
   };
 
+  // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
   const detenerNavegacion = () => {
     if (watchIdRef.current) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
       console.log("Seguimiento detenido.");
     }
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
     setDestinoRuta(null);
     setRutaFrom(null);
     setSelectedDeaId(null);
+    setRouteData({ coords: [], instructions: [] });
+    setCurrentStepIndex(0);
   };
 
+  // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+    
     detenerNavegacion();
 
     Swal.fire({
@@ -201,7 +229,28 @@ const UbicacionDEA = () => {
             const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
             setUserLocation(nuevaUbicacion);
 
+            // Lógica de guía por voz
+            if (routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length - 1) {
+              const nextStep = routeData.instructions[currentStepIndex + 1];
+              const nextTurnPointIndex = nextStep.way_points[0];
+              
+              if (routeData.coords[nextTurnPointIndex]) {
+                  const nextTurnCoords = routeData.coords[nextTurnPointIndex]; // [lng, lat]
+                  const nextTurnLatLng = [nextTurnCoords[1], nextTurnCoords[0]]; // [lat, lng]
+                  
+                  const distanceToTurn = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], nextTurnLatLng[0], nextTurnLatLng[1]);
+
+                  // Umbral para dar la instrucción (ej. a 25 metros del giro)
+                  if (distanceToTurn < 25) { 
+                    speak(nextStep.instruction);
+                    setCurrentStepIndex(prev => prev + 1);
+                  }
+              }
+            }
+
+            // Lógica de llegada a destino
             if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 20) {
+              speak('Ha llegado a su destino.');
               Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
               detenerNavegacion();
             }
@@ -351,13 +400,21 @@ const UbicacionDEA = () => {
                     </Popup>
                   </Marker>
                 ))}
-{rutaFrom && destinoRuta && (
-  <ORSRouting 
-    from={rutaFrom} 
-    to={destinoRuta} 
-    userPosition={userLocation} // <-- ¡AQUÍ ESTÁ EL CAMBIO!
-  />
-)}
+              {/* <-- LLAMADA MODIFICADA a ORSRouting, ahora con el callback onRouteFound */}
+              {rutaFrom && destinoRuta && (
+                <ORSRouting 
+                  from={rutaFrom} 
+                  to={destinoRuta} 
+                  userPosition={userLocation}
+                  onRouteFound={(data) => {
+                    setRouteData(data);
+                    setCurrentStepIndex(0);
+                    if (data.instructions && data.instructions.length > 0) {
+                      speak(data.instructions[0].instruction);
+                    }
+                  }}
+                />
+              )}
               </MapContainer>
             )}
             {!isLoading && <>
