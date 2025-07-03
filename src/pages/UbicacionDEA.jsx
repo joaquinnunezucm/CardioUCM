@@ -242,24 +242,26 @@ useEffect(() => {
   };
 
   // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
-  const detenerNavegacion = () => {
-    if (watchIdRef.current) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-      console.log("Seguimiento detenido.");
-    }
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
-    setDestinoRuta(null);
-    setRutaFrom(null);
-    setSelectedDeaId(null);
-    setRouteData({ coords: [], instructions: [] });
-    setCurrentStepIndex(0);
-  };
-    if (userLocation) {
+const detenerNavegacion = () => {
+  if (watchIdRef.current) {
+    navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
+    console.log("Seguimiento detenido.");
+  }
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  setDestinoRuta(null);
+  setRutaFrom(null);
+  setSelectedDeaId(null);
+  setRouteData({ coords: [], instructions: [] });
+  setCurrentStepIndex(0);
+
+  // Al detener, la posición visual debe volver a ser la real del GPS.
+  if (userLocation) {
     setDisplayedUserPosition(userLocation);
   }
+};
 
   const onPositionUpdateCallback = useCallback((position) => {
   setCalculatedPosition(position); 
