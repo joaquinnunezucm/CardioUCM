@@ -89,6 +89,16 @@ const unlockSpeechSynthesis = () => {
   window.speechSynthesis.speak(utterance);
 };
 
+  const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
 const UbicacionDEA = () => {
   // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
@@ -142,7 +152,7 @@ const onDeviationCallback = useCallback(() => {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
-        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
+        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página. No olvides comprobar que el navegador tenga permiso para acceder a la ubicación.';
         break;
       case error.POSITION_UNAVAILABLE:
         title = 'Ubicación no Disponible';
@@ -245,20 +255,12 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-  const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
-    const toRad = (value) => (value * Math.PI) / 180;
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+
 
   // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
-const detenerNavegacion = () => {
+const detenerNavegacion = useCallback(() => {
   if (watchIdRef.current) {
-    console.log(`Limpiando watchId existente: ${watchIdRef.current}`); // Log más detallado
+    console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
     navigator.geolocation.clearWatch(watchIdRef.current);
     watchIdRef.current = null;
   } else {
@@ -276,14 +278,11 @@ const detenerNavegacion = () => {
   setRouteData({ coords: [], instructions: [] });
   setCurrentStepIndex(0);
 
+  // La única dependencia externa es userLocation, la añadimos al array.
   if (userLocation) {
     setDisplayedUserPosition(userLocation);
   }
-};
-
-  const onPositionUpdateCallback = useCallback((position) => {
-  setCalculatedPosition(position); 
-}, []);
+}, [userLocation]); // <-- El array de dependencias de useCallback
 
   // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
@@ -383,7 +382,7 @@ useEffect(() => {
     }
   };
 
-}, [destinoRuta]); // La dependencia clave es el destino.
+}, [destinoRuta, routeData, currentStepIndex, detenerNavegacion]); 
   
   const handleShowModal = () => {
     setShowModal(true);
