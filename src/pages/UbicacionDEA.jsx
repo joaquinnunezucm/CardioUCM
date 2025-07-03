@@ -296,7 +296,6 @@ useEffect(() => {
 
 
 
-  // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
         console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
@@ -317,12 +316,12 @@ const detenerNavegacion = useCallback(() => {
     setRouteData({ coords: [], instructions: [] });
     setCurrentStepIndex(0);
 
-    // Usamos la forma funcional para no depender de `userLocation`
-    setUserLocation(currentLocation => {
-        setDisplayedUserPosition(currentLocation);
-        return currentLocation;
+    // Usamos la forma funcional para que no dependa de `userLocation`
+    setUserLocation(currentUserLocation => {
+        setDisplayedUserPosition(currentUserLocation);
+        return currentUserLocation;
     });
-}, []); 
+}, []);
 
   // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
