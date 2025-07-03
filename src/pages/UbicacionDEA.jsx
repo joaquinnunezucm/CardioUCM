@@ -267,40 +267,39 @@ useEffect(() => {
     const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
     setUserLocation(nuevaUbicacion);
 
-    setRouteData(currentRouteData => {
-      setCurrentStepIndex(currentStep => {
-        if (currentRouteData.instructions?.length > 0 && currentStep < currentRouteData.instructions.length) {
-          const currentInstruction = currentRouteData.instructions[currentStep];
-          if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
+setRouteData(currentRouteData => {
+  setCurrentStepIndex(currentStep => {
+    if (currentRouteData.instructions?.length > 0 && currentStep < currentRouteData.instructions.length) {
+      const currentInstruction = currentRouteData.instructions[currentStep];
+      if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
 
-          const isLastStep = currentStep === currentRouteData.instructions.length - 1;
-          let targetCoords = isLastStep ? destinoRuta : null;
+      const isLastStep = currentStep === currentRouteData.instructions.length - 1;
+      let targetCoords = isLastStep ? destinoRuta : null;
 
-          if (!isLastStep) {
-            const nextStep = currentRouteData.instructions[currentStep + 1];
-            const nextTurnPointIndex = nextStep.way_points[0];
-            if (currentRouteData.coords?.length > nextTurnPointIndex) {
-              const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
-              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-            }
-          }
-
-          if (targetCoords) {
-            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-            const triggerDistance = isLastStep ? 25 : 45;
-            // Solo hablar si no es el mismo paso que ya se habló
-            if (distanceToTarget < triggerDistance && !currentInstruction._spoken) {
-              speak(currentInstruction.instruction);
-              // Marca como hablado para este ciclo
-              currentInstruction._spoken = true;
-              return currentStep + 1;
-            }
-          }
+      if (!isLastStep) {
+        const nextStep = currentRouteData.instructions[currentStep + 1];
+        const nextTurnPointIndex = nextStep.way_points[0];
+        if (currentRouteData.coords?.length > nextTurnPointIndex) {
+          const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
+          targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
         }
-        return currentStep;
-      });
-      return currentRouteData;
-    });
+      }
+
+      if (targetCoords) {
+        const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+        const triggerDistance = isLastStep ? 25 : 45;
+        // Solo hablar si estamos suficientemente cerca y no hemos avanzado el paso
+        if (distanceToTarget < triggerDistance) {
+          speak(currentInstruction.instruction);
+          // Avanza el paso inmediatamente para evitar repeticiones
+          return currentStep + 1;
+        }
+      }
+    }
+    return currentStep;
+  });
+  return currentRouteData;
+});
 
     if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
         speak('Ha llegado a su destino.');
