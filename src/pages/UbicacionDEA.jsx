@@ -133,9 +133,10 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-    const onRouteFoundCallback = useCallback((data) => {
+  const onRouteFoundCallback = useCallback((data) => {
     setRouteData(data);
     setCurrentStepIndex(0);
+    // Solo hablar la primera instrucción si hay instrucciones nuevas
     if (data.instructions && data.instructions.length > 0) {
       speak(data.instructions[0].instruction);
     }
@@ -287,8 +288,11 @@ useEffect(() => {
           if (targetCoords) {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
-            if (distanceToTarget < triggerDistance) {
+            // Solo hablar si no es el mismo paso que ya se habló
+            if (distanceToTarget < triggerDistance && !currentInstruction._spoken) {
               speak(currentInstruction.instruction);
+              // Marca como hablado para este ciclo
+              currentInstruction._spoken = true;
               return currentStep + 1;
             }
           }
