@@ -126,6 +126,7 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
+  const positionWatchCallbackRef = useRef(null); // <-- AÑADE ESTE REF
 
   // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
@@ -215,26 +216,23 @@ const handlePositionWatch = useCallback((position) => {
         Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
         detenerNavegacion();
     }
-}, [routeData, currentStepIndex, destinoRuta, detenerNavegacion]); // Dependencias correctas para el callback
+}, [routeData, currentStepIndex, destinoRuta]); // Dependencias correctas para el callback
 
 // 2. El useEffect simplificado que se suscribe y desuscribe
 useEffect(() => {
-  // Si no hay un destino, no hacemos nada.
   if (!destinoRuta) {
     return;
   }
-
   console.log("useEffect de navegación activado. Iniciando watchPosition.");
 
-  // Nos suscribimos usando la función de callback estable
   const id = navigator.geolocation.watchPosition(
-    handlePositionWatch,
+    // ¡CLAVE! Llama a la función a través del ref.
+    (position) => positionWatchCallbackRef.current && positionWatchCallbackRef.current(position),
     (error) => console.error("Error durante el seguimiento:", error.message),
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
   );
   watchIdRef.current = id;
 
-  // La función de limpieza no cambia, es perfecta.
   return () => {
     if (watchIdRef.current) {
       console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
@@ -243,7 +241,11 @@ useEffect(() => {
     }
   };
 
-}, [destinoRuta, handlePositionWatch]); // Dependencias mucho más simples y estables
+}, [destinoRuta]); // <-- AHORA SOLO DEPENDE DE `destinoRuta`
+
+useEffect(() => {
+  positionWatchCallbackRef.current = handlePositionWatch;
+}, [handlePositionWatch]);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
