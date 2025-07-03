@@ -13,20 +13,29 @@ export default function Dashboard() {
   const [estadisticasSistema, setEstadisticasSistema] = useState({
     visitasPagina: 0, deasRegistrados: 0, emergenciasEsteMes: 0,
   });
-
-  // --- useEffect de Cierre de Sesión Automático al SALIR del layout ---
-  // Este es el mecanismo que "blinda" la sesión. Se ejecuta cuando el componente se desmonta.
-  // Es decir, cuando el usuario navega a una ruta que NO usa este layout.
- /*  useEffect(() => {
-    return () => {
-      console.log('Saliendo del layout de administración. La sesión será cerrada.');
-      // Al salir del área de admin, forzamos el cierre de sesión.
-      logout();
+useEffect(() => {
+    const handlePageShow = (event) => {
+      // `event.persisted` es true si la página se restaura desde el caché (bfcache).
+      if (event.persisted) {
+        console.log('Página restaurada desde caché. Verificando si la sesión sigue activa...');
+        
+        // Comprobamos directamente en sessionStorage, que es la fuente de verdad.
+        if (!sessionStorage.getItem('token')) {
+          console.log('Sesión no encontrada en sessionStorage. Redirigiendo a /login.');
+          // Si no hay token, la sesión es inválida. Forzamos la salida.
+          navigate('/login', { replace: true });
+        }
+      }
     };
-  }, [logout]); // La dependencia es `logout` para que el efecto se mantenga actualizado.
- */
-  // --- NUEVO y CRUCIAL: useEffect para manejar la restauración desde bfcache ---
-  // Este efecto soluciona el problema de poder volver con el botón "adelante" del navegador.
+
+    // Añadimos el listener cuando el componente Dashboard se monta.
+    window.addEventListener('pageshow', handlePageShow);
+
+    // Limpiamos el listener cuando el componente Dashboard se desmonte.
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [navigate]); // La dependencia `navigate` asegura que siempre usemos la función de navegación más reciente.
   useEffect(() => {
     const handlePageShow = (event) => {
       // event.persisted es true si la página se restaura desde el caché de avance/retroceso.
