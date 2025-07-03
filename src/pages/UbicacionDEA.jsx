@@ -48,7 +48,7 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
       const { lat, lng } = e.latlng;
       Swal.fire({
         title: '¿Desea sugerir un DEA en esta ubicación?',
-        text: 'Seleccione el lugar para obtener las coordenadas automáticamente.',
+        text: 'Has seleccionado una nueva ubicación en el mapa. ¿Quieres abrir el formulario para sugerir un nuevo DEA con estas coordenadas ya completadas?',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, sugerir',
@@ -550,18 +550,21 @@ const UbicacionDEA = () => {
               <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              <h5>1. Generalidades</h5>
-              <p>Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM.</p>
-              <h5>2. Recopilación y Uso de Datos Personales</h5>
-              <p>Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad.</p>
-              <h5>3. Conservación de datos personales</h5>
-              <p>Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos.</p>
-              <h5>4. Consentimiento</h5>
-              <p>Al marcar la casilla de aceptación, autorizas expresamente el uso de tus datos.</p>
-              <h5>5. Limitaciones de Responsabilidad</h5>
-              <p>CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario.</p>
-              <h5>6. Modificaciones a los Términos</h5>
-              <p>Nos reservamos el derecho a modificar estos términos y condiciones.</p>
+              <h5>1. Aceptación de los Términos</h5>
+              <p>Al utilizar el formulario para sugerir Desfibriladores Externos Automáticos (DEA) en la aplicación CardioUCM, usted ("el Usuario") acepta y se compromete a cumplir los siguientes términos y condiciones. Este servicio es proporcionado por la Universidad Católica del Maule ("UCM") en el marco de su proyecto de vinculación con el medio.</p>
+              <h5>2. Objetivo del Servicio</h5>
+              <p>El propósito de este formulario es permitir a la comunidad sugerir la ubicación de DEAs para enriquecer la base de datos pública y gratuita de CardioUCM, con el fin de facilitar el acceso rápido a estos dispositivos en caso de emergencia cardíaca.</p>
+              <h5>3. Política de Privacidad y Tratamiento de Datos Personales (Ley N° 19.628)</h5>
+              <p>Datos Recopilados: Para validar la veracidad de las sugerencias, solicitamos los siguientes datos personales: Nombre completo, RUT y dirección de correo electrónico.
+              Finalidad: Estos datos serán utilizados exclusivamente para: (a) Verificar la identidad del solicitante; (b) Comunicarnos con el Usuario para solicitar aclaraciones sobre la sugerencia; y (c) Notificar al Usuario sobre el estado de aprobación de su sugerencia.
+              Confidencialidad y Seguridad: UCM se compromete a tratar sus datos personales con estricta confidencialidad. Sus datos no serán compartidos con terceros para fines comerciales ni serán públicos. Se almacenarán en servidores seguros, aplicando las medidas técnicas y organizativas necesarias para protegerlos contra el acceso no autorizado.
+              Derechos ARCO: Como titular de los datos, usted tiene derecho a solicitar el Acceso, Rectificación, Cancelación u Oposición (ARCO) al tratamiento de sus datos. Para ejercer estos derechos, por favor contáctenos a través del correo electrónico cardioucm1@gmail.com.</p>
+              <h5>4. Responsabilidad del Usuario</h5>
+              <p>El Usuario es el único responsable de la veracidad y exactitud de la información proporcionada. La entrega de información falsa o inexacta puede llevar al rechazo de la sugerencia. El Usuario declara que tiene la autorización necesaria para compartir la información de la ubicación del DEA.</p>
+              <h5>5. Proceso de Validación y Limitación de Responsabilidad</h5>
+              <p>Todas las sugerencias recibidas serán sometidas a un proceso de validación por parte del equipo de CardioUCM. La UCM no garantiza la aprobación de todas las sugerencias enviadas. La decisión final de incluir un DEA en el mapa es discrecional. CardioUCM es una herramienta informativa y de ayuda; la UCM no se hace responsable del estado, funcionamiento o disponibilidad real de los DEAs mostrados en el mapa.</p>
+              <h5>6. Propiedad Intelectual</h5>
+              <p>La aplicación CardioUCM, su logo, diseño y contenido son propiedad de la Universidad Católica del Maule.</p>
               <h5>7. Ley Aplicable y Resolución de Conflictos</h5>
               <p>Este acuerdo se rige por las leyes de la República de Chile.</p>
               <h5>8. Contacto</h5>
