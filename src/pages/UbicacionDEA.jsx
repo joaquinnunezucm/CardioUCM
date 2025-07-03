@@ -89,16 +89,6 @@ const unlockSpeechSynthesis = () => {
   window.speechSynthesis.speak(utterance);
 };
 
-  const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
-    const toRad = (value) => (value * Math.PI) / 180;
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
 const UbicacionDEA = () => {
   // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
@@ -126,14 +116,12 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
-  const positionWatchCallbackRef = useRef(null); // <-- AÑADE ESTE REF
 
   // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-
     const onRouteFoundCallback = useCallback((data) => {
     setRouteData(data);
     setCurrentStepIndex(0);
@@ -147,10 +135,6 @@ const onDeviationCallback = useCallback(() => {
   setDeviationSignal(true);
 }, []); // No necesita dependencias, ya que no usa variables de estado.
 
-const onPositionUpdateCallback = useCallback((position) => {
-  setCalculatedPosition(position); 
-}, []);
-
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -158,7 +142,7 @@ const onPositionUpdateCallback = useCallback((position) => {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
-        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página. No olvides comprobar que el navegador tenga permiso para acceder a la ubicación.';
+        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
         break;
       case error.POSITION_UNAVAILABLE:
         title = 'Ubicación no Disponible';
@@ -175,70 +159,37 @@ const onPositionUpdateCallback = useCallback((position) => {
     Swal.fire({ icon: 'error', title: title, text: text });
   };
 
+// Este useEffect se activa cuando se recibe la señal de desvío
 useEffect(() => {
-  // Si no hay un destino de ruta, no hacemos nada.
-  if (!destinoRuta) {
-    return;
-  }
+  // Solo actúa si la señal está activa y tenemos la ubicación del usuario
+  if (deviationSignal && userLocation) {
 
-  const handlePositionChange = (position) => {
-    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-    setUserLocation(nuevaUbicacion);
+    // La lógica del cooldown se mueve aquí, donde realmente se ejecuta la acción
+    const now = Date.now();
+    if (now - lastRerouteTimestampRef.current < 10000) {
+      console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
+    } else {
+      lastRerouteTimestampRef.current = now;
 
-    // --- LÓGICA DE VOZ Y LLEGADA ---
-    setRouteData(currentRouteData => {
-      setCurrentStepIndex(currentStep => {
-        if (currentRouteData.instructions && currentStep < currentRouteData.instructions.length) {
-          const currentInstruction = currentRouteData.instructions[currentStep];
-          if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
-
-          const isLastStep = currentStep === currentRouteData.instructions.length - 1;
-          let targetCoords = isLastStep ? destinoRuta : null;
-
-          if (!isLastStep) {
-            const nextStep = currentRouteData.instructions[currentStep + 1];
-            const nextTurnPointIndex = nextStep.way_points[0];
-            if (currentRouteData.coords && currentRouteData.coords.length > nextTurnPointIndex) {
-              const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
-              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-            }
-          }
-
-          if (targetCoords) {
-            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-            const triggerDistance = isLastStep ? 25 : 45;
-            if (distanceToTarget < triggerDistance) {
-              speak(currentInstruction.instruction);
-              return currentStep + 1;
-            }
-          }
-        }
-        return currentStep;
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Te has desviado, recalculando ruta...',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
       });
-      return currentRouteData;
-    });
 
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
-        speak('Ha llegado a su destino.');
-        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-          detenerNavegacion();
-        });
+      // Aquí es donde finalmente actualizamos el estado para recalcular
+      setRutaFrom(userLocation);
     }
-  };
 
-  console.log("useEffect de navegación activado. Iniciando watchPosition.");
-  const id = navigator.geolocation.watchPosition(handlePositionChange, (err) => console.error(err), { enableHighAccuracy: true });
-  watchIdRef.current = id;
-
-  return () => {
-    if (watchIdRef.current) {
-      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-  };
-}, [destinoRuta, detenerNavegacion]); 
-
+    // MUY IMPORTANTE: Reseteamos la señal para que este efecto no se ejecute de nuevo
+    // hasta que el hijo la vuelva a enviar.
+    setDeviationSignal(false);
+  }
+}, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
@@ -294,194 +245,125 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
+  const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
+  // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
+const detenerNavegacion = () => {
+  if (watchIdRef.current) {
+    navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
+    console.log("Seguimiento detenido.");
+  }
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  setDestinoRuta(null);
+  setRutaFrom(null);
+  setSelectedDeaId(null);
+  setRouteData({ coords: [], instructions: [] });
+  setCurrentStepIndex(0);
 
-const detenerNavegacion = useCallback(() => {
-    if (watchIdRef.current) {
-        console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-    }
-    
-    if (window.speechSynthesis.speaking) {
-        console.log("Cancelando síntesis de voz en curso.");
-        window.speechSynthesis.cancel();
-    }
+  // Al detener, la posición visual debe volver a ser la real del GPS.
+  if (userLocation) {
+    setDisplayedUserPosition(userLocation);
+  }
+};
 
-    setDestinoRuta(null);
-    setRutaFrom(null);
-    setSelectedDeaId(null);
-    setRouteData({ coords: [], instructions: [] });
-    setCurrentStepIndex(0);
-    setCalculatedPosition(null); // Limpia la posición calculada para volver a la real
+  const onPositionUpdateCallback = useCallback((position) => {
+  setCalculatedPosition(position); 
+}, []);
 
-    // Usamos la forma funcional para asegurar que obtenemos el estado más reciente
-    setUserLocation(currentUserLocation => {
-        setDisplayedUserPosition(currentUserLocation);
-        return currentUserLocation;
-    });
-  }, []); // Dependencias vacías porque los setters de estado son estables.
+  // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
+  const iniciarNavegacion = (dea) => {
+    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+    if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
 
-  // Efecto que maneja el inicio y fin de la navegación.
-  // Se activa SOLO cuando `destinoRuta` cambia.
-  useEffect(() => {
-    // Si no hay un destino, nos aseguramos de que el seguimiento esté desactivado.
-    if (!destinoRuta) {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      return; // Salimos del efecto
-    }
+    // Detener y limpiar cualquier navegación anterior es el primer paso.
+    detenerNavegacion();
 
-    // Función que se ejecuta cada vez que el GPS detecta un cambio de posición.
-    const handlePositionChange = (position) => {
-      const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-      setUserLocation(nuevaUbicacion); // Actualizamos la ubicación GPS real
+Swal.fire({
+  title: '¿Iniciar navegación?',
+  text: `Se trazará la ruta hacia ${dea.nombre}.`,
+  icon: 'question',
+  showCancelButton: true,
+  confirmButtonText: 'Sí, iniciar',
+  cancelButtonText: 'Cancelar',
+}).then((result) => {
+  if (result.isConfirmed) {
 
-      // Lógica de guía por voz
-      setRouteData(currentRouteData => {
-        setCurrentStepIndex(currentStep => {
-          if (currentRouteData.instructions && currentStep < currentRouteData.instructions.length) {
-            const currentInstruction = currentRouteData.instructions[currentStep];
-            if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
+    // 1. Desbloquea la síntesis de voz INMEDIATAMENTE después del clic del usuario.
+    unlockSpeechSynthesis();
 
-            const isLastStep = currentStep === currentRouteData.instructions.length - 1;
-            let targetCoords = isLastStep ? destinoRuta : null;
+    // 2. Se establece el estado para la ruta.
+    setRutaFrom(userLocation);
+    setDestinoRuta(destino);
+    setSelectedDeaId(dea.id);
 
-            if (!isLastStep) {
-              const nextStep = currentRouteData.instructions[currentStep + 1];
-              const nextTurnPointIndex = nextStep.way_points[0];
-              if (currentRouteData.coords && currentRouteData.coords.length > nextTurnPointIndex) {
-                const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
-                targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-              }
-            }
+    // 3. Se inicia el seguimiento de la posición.
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(nuevaUbicacion);
 
-            if (targetCoords) {
-              const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-              const triggerDistance = isLastStep ? 25 : 45;
-              if (distanceToTarget < triggerDistance) {
-                speak(currentInstruction.instruction);
-                return currentStep + 1;
-              }
+        // Si la navegación fue detenida manualmente, no hacer nada más.
+        if (!watchIdRef.current) return;
+
+        // --- Lógica de guía por voz robusta ---
+        if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
+          const currentInstruction = routeData.instructions[currentStepIndex];
+
+          // No procesar más si la instrucción ya fue de llegada
+          if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
+            return;
+          }
+
+          const isLastStep = currentStepIndex === routeData.instructions.length - 1;
+          let targetCoords = isLastStep ? destino : null;
+
+          if (!isLastStep) {
+            const nextStep = routeData.instructions[currentStepIndex + 1];
+            const nextTurnPointIndex = nextStep.way_points[0];
+
+            if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+              const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
             }
           }
-          return currentStep;
-        });
-        return currentRouteData;
-      });
 
-      // Lógica de llegada al destino final
-      if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 20) {
+          if (targetCoords) {
+            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+            const triggerDistance = isLastStep ? 25 : 45;
+
+            if (distanceToTarget < triggerDistance) {
+              speak(currentInstruction.instruction);
+              setCurrentStepIndex(prev => prev + 1);
+            }
+          }
+        }
+
+        // --- Lógica de llegada a destino (como respaldo final) ---
+        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
           speak('Ha llegado a su destino.');
           Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
             detenerNavegacion();
           });
-      }
-    };
-
-    console.log("useEffect de navegación activado. Iniciando watchPosition.");
-    const id = navigator.geolocation.watchPosition(handlePositionChange, (err) => console.error(err), { enableHighAccuracy: true });
-    watchIdRef.current = id;
-
-    // Función de limpieza: se ejecuta cuando el componente se desmonta o `destinoRuta` cambia.
-    return () => {
-      if (watchIdRef.current) {
-        console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    };
-  }, [destinoRuta, detenerNavegacion]); // Dependencias correctas. `detenerNavegacion` es estable gracias a useCallback.
-
-  // Carga de datos iniciales
-  useEffect(() => {
-    axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
-    axios.get(`${API_BASE_URL}/api/defibriladores`).then(res => setDesfibriladores(res.data)).catch(err => Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error'));
-  }, []);
-
-  // Obtener ubicación inicial del usuario
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      Swal.fire('Error', 'La geolocalización no es soportada por este navegador.', 'error');
-      setIsLoading(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords);
-        if (isLoading) {
-          setCenter(coords);
-          setIsLoading(false);
         }
       },
-      handleLocationError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      (error) => console.error("Error durante el seguimiento:", error.message),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
-  }, [isLoading]); // El hook handleLocationError no necesita estar en las dependencias
-
-  // Actualiza la posición visual del usuario cuando la calculada cambia
-  useEffect(() => {
-    if (calculatedPosition) {
-      setDisplayedUserPosition(calculatedPosition);
-    }
-  }, [calculatedPosition]);
-
-  // Asegura que la posición visual se resetee a la real cuando no hay ruta
-  useEffect(() => {
-    if (!destinoRuta) {
-      setDisplayedUserPosition(userLocation);
-    }
-  }, [userLocation, destinoRuta]);
-
-  // Calcula los DEAs más cercanos
-  useEffect(() => {
-    if (userLocation && desfibriladores.length > 0) {
-      const getDistance = (lat1, lon1, lat2, lon2) => {
-        const toRad = (value) => (value * Math.PI) / 180;
-        const R = 6371;
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-      };
-      const cercanosCalculados = desfibriladores.map(dea => ({...dea, distancia: getDistance(userLocation[0], userLocation[1], parseFloat(dea.lat), parseFloat(dea.lng))})).sort((a, b) => a.distancia - b.distancia).slice(0, 10);
-      setCercanos(cercanosCalculados);
-    }
-  }, [userLocation, desfibriladores]);
-
-  // FUNCIÓN PARA INICIAR LA NAVEGACIÓN
-  const iniciarNavegacion = (dea) => {
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    if (!userLocation) {
-      return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-    }
-
-    // Primero, limpia cualquier navegación anterior.
-    detenerNavegacion();
-
-    Swal.fire({
-      title: '¿Iniciar navegación?',
-      text: `Se trazará la ruta hacia ${dea.nombre}.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, iniciar',
-      cancelButtonText: 'Cancelar',
-    }).then((result) => {
-      if (result.isConfirmed) {
-        unlockSpeechSynthesis();
-        
-        // Actualizamos el estado para iniciar la navegación.
-        // El `useEffect` que depende de `destinoRuta` se encargará del resto.
-        setRutaFrom(userLocation);
-        setSelectedDeaId(dea.id);
-        setDestinoRuta(destino); 
-      }
-    });
+  }
+});
   };
+
 
   const handleShowModal = () => {
     setShowModal(true);
@@ -509,7 +391,7 @@ const detenerNavegacion = useCallback(() => {
       setErrors(prev => ({ ...prev, terms: null }));
     }
   };
-  
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let finalValue = value;
