@@ -263,6 +263,11 @@ useEffect(() => {
     const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
     setUserLocation(nuevaUbicacion);
 
+        if (!routeData.instructions || routeData.instructions.length === 0) {
+      console.log("Recibida ubicación, pero esperando datos de la ruta...");
+      return; // Salir temprano si la ruta aún no ha llegado.
+    }
+
 setRouteData(currentRouteData => {
   setCurrentStepIndex(currentStep => {
     if (currentRouteData.instructions?.length > 0 && currentStep < currentRouteData.instructions.length) {
@@ -284,18 +289,18 @@ setRouteData(currentRouteData => {
       if (targetCoords) {
         const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
         const triggerDistance = isLastStep ? 25 : 45;
-        // Solo hablar si estamos suficientemente cerca y no hemos avanzado el paso
-        if (distanceToTarget < triggerDistance) {
-          speak(currentInstruction.instruction);
-          // Avanza el paso inmediatamente para evitar repeticiones
-          return currentStep + 1;
+            const shouldSpeak = currentStep === 0 || distanceToTarget < triggerDistance;
+
+            if (shouldSpeak) {
+              speak(currentInstruction.instruction);
+              return currentStep + 1;
+            }
+          }
         }
-      }
-    }
-    return currentStep;
-  });
-  return currentRouteData;
-});
+        return currentStep;
+      });
+      return currentRouteData;
+    });
 
     if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
         speak('Ha llegado a su destino.');
@@ -321,7 +326,7 @@ setRouteData(currentRouteData => {
     }
   };
 
-}, [destinoRuta]);
+}, [destinoRuta, routeData, detenerNavegacion]); // Asegúrate de incluir `routeData` y `detenerNavegacion`
 
   // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
