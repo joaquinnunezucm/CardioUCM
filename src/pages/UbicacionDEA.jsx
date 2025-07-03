@@ -105,6 +105,7 @@ const UbicacionDEA = () => {
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
+  const lastRerouteTimestampRef = useRef(0);
 
   // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
@@ -118,6 +119,36 @@ const UbicacionDEA = () => {
       speak(data.instructions[0].instruction);
     }
   }, []);
+
+  const handleReroute = useCallback(() => {
+  // Si no hay una navegación activa, no hacer nada.
+  if (!userLocation || !destinoRuta) return;
+
+  const now = Date.now();
+  // Cooldown de 10 segundos para evitar peticiones en ráfaga
+  if (now - lastRerouteTimestampRef.current < 10000) {
+    console.log("Re-cálculo solicitado demasiado pronto. Ignorando.");
+    return;
+  }
+  lastRerouteTimestampRef.current = now;
+
+  console.log("Recibida solicitud de re-cálculo desde el componente hijo.");
+  
+  // Muestra una notificación no bloqueante al usuario
+  Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon: 'info',
+    title: 'Te has desviado, recalculando ruta...',
+    showConfirmButton: false,
+    timer: 2500,
+    timerProgressBar: true,
+  });
+
+  // Actualiza el punto de partida para disparar el re-cálculo
+  setRutaFrom(userLocation);
+
+}, [userLocation, destinoRuta]); // Dependencias para que useCallback use los valores más recientes
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -428,14 +459,15 @@ const UbicacionDEA = () => {
                     </Popup>
                   </Marker>
                 ))}
-              {rutaFrom && destinoRuta && (
-                <ORSRouting 
-                  from={rutaFrom} 
-                  to={destinoRuta} 
-                  userPosition={userLocation}
-                  onRouteFound={onRouteFoundCallback} 
-                />
-              )}
+                {rutaFrom && destinoRuta && (
+                  <ORSRouting 
+                    from={rutaFrom} 
+                    to={destinoRuta} 
+                    userPosition={userLocation}
+                    onRouteFound={onRouteFoundCallback} 
+                    onDeviation={handleReroute}
+                  />
+                )}
               </MapContainer>
             )}
             {!isLoading && <>

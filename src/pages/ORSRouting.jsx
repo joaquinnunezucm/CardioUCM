@@ -4,6 +4,7 @@ import L from 'leaflet';
 import * as turf from '@turf/turf';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
+const DEVIATION_THRESHOLD_METERS = 50; // <-- Umbral de desvío en metros
 
 const styleRemaining = {
   color: '#007bff',
@@ -11,7 +12,7 @@ const styleRemaining = {
   opacity: 0.85,
 };
 
-const ORSRouting = ({ from, to, userPosition, onRouteFound }) => {
+const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation }) => {
   const map = useMap();
   const remainingPathRef = useRef(null);
   const [fullRoute, setFullRoute] = useState(null);
@@ -77,23 +78,39 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound }) => {
     };
   }, [from, to, map, onRouteFound]);
 
-  useEffect(() => {
-    if (!fullRoute || !userPosition) return;
-    const userPoint = turf.point(userPosition.slice().reverse());
-    const nearestPoint = turf.nearestPointOnLine(fullRoute, userPoint, { units: 'meters' });
-    const sliceIndex = nearestPoint.properties.index;
-    const routeCoords = turf.getCoords(fullRoute);
-    const remainingCoords = [
-      turf.getCoord(nearestPoint),
-      ...routeCoords.slice(sliceIndex + 1),
-    ];
-    const remainingLine = turf.lineString(remainingCoords);
+useEffect(() => {
+  if (!fullRoute || !userPosition) return;
 
-    if (remainingPathRef.current) {
-      map.removeLayer(remainingPathRef.current);
+  const userPoint = turf.point(userPosition.slice().reverse());
+  const nearestPoint = turf.nearestPointOnLine(fullRoute, userPoint, { units: 'meters' });
+
+  // Lógica de detección de desvío
+  const deviationDistance = turf.distance(userPoint, nearestPoint, { units: 'meters' });
+
+  if (deviationDistance > DEVIATION_THRESHOLD_METERS) {
+    console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
+    // Llama al callback y detiene el procesamiento actual
+    if (onDeviation) {
+      onDeviation();
     }
-    remainingPathRef.current = L.geoJSON(remainingLine, { style: styleRemaining }).addTo(map);
-  }, [userPosition, fullRoute, map]);
+    return; 
+  }
+
+  // El resto de la lógica para dibujar la ruta restante se mantiene igual
+  const sliceIndex = nearestPoint.properties.index;
+  const routeCoords = turf.getCoords(fullRoute);
+  const remainingCoords = [
+    turf.getCoord(nearestPoint),
+    ...routeCoords.slice(sliceIndex + 1),
+  ];
+  const remainingLine = turf.lineString(remainingCoords);
+
+  if (remainingPathRef.current) {
+    map.removeLayer(remainingPathRef.current);
+  }
+  remainingPathRef.current = L.geoJSON(remainingLine, { style: styleRemaining }).addTo(map);
+
+}, [userPosition, fullRoute, map, onDeviation]);
 
   return null;
 };

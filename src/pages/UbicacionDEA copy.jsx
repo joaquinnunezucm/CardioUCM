@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -7,7 +7,7 @@ import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
-import ORSRouting from '../pages/ORSRouting';
+import ORSRouting from './ORSRouting'; // <-- Asegúrate que la ruta al archivo sea correcta
 import {
   isRUT, isCoordinate, minLength, maxLength, isRequired, isInteger,
   isSimpleAlphaWithSpaces, isSimpleAlphaNumericWithSpaces, isEmail
@@ -48,7 +48,7 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
       const { lat, lng } = e.latlng;
       Swal.fire({
         title: '¿Desea sugerir un DEA en esta ubicación?',
-        text: 'Seleccione el lugar para obtener las coordenadas automáticamente.',
+        text: 'Has seleccionado una nueva ubicación en el mapa. ¿Quieres abrir el formulario para sugerir un nuevo DEA con estas coordenadas ya completadas?',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sí, sugerir',
@@ -68,7 +68,22 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
+const speak = (text) => {
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    utterance.rate = 1.1;
+    window.speechSynthesis.speak(utterance);
+  } else {
+    console.warn("La síntesis de voz no es soportada por este navegador.");
+  }
+};
+
 const UbicacionDEA = () => {
+  // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -89,9 +104,20 @@ const UbicacionDEA = () => {
   const [userLocation, setUserLocation] = useState(null);
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
+  const watchIdRef = useRef(null);
+
+  // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
-  const watchIdRef = useRef(null);
+  const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const onRouteFoundCallback = useCallback((data) => {
+    setRouteData(data);
+    setCurrentStepIndex(0);
+    if (data.instructions && data.instructions.length > 0) {
+      speak(data.instructions[0].instruction);
+    }
+  }, []);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -168,20 +194,29 @@ const UbicacionDEA = () => {
     return R * c;
   };
 
+  // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
   const detenerNavegacion = () => {
     if (watchIdRef.current) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
       console.log("Seguimiento detenido.");
     }
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
     setDestinoRuta(null);
     setRutaFrom(null);
     setSelectedDeaId(null);
+    setRouteData({ coords: [], instructions: [] });
+    setCurrentStepIndex(0);
   };
 
+  // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+    
+    // Detener y limpiar cualquier navegación anterior es el primer paso.
     detenerNavegacion();
 
     Swal.fire({
@@ -192,18 +227,60 @@ const UbicacionDEA = () => {
       confirmButtonText: 'Sí, iniciar',
     }).then((result) => {
       if (result.isConfirmed) {
+        // Establecer los nuevos estados de la ruta
         setRutaFrom(userLocation);
         setDestinoRuta(destino);
         setSelectedDeaId(dea.id);
 
+        // Iniciar el nuevo seguimiento
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
             setUserLocation(nuevaUbicacion);
+            
+            // Si la navegación fue detenida manualmente, no hacer nada más.
+            if (!watchIdRef.current) return;
 
-            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 20) {
-              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success');
-              detenerNavegacion();
+            // --- Lógica de guía por voz robusta ---
+            if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
+              const currentInstruction = routeData.instructions[currentStepIndex];
+
+              // No procesar más si la instrucción ya fue de llegada
+              if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
+                return;
+              }
+              
+              const isLastStep = currentStepIndex === routeData.instructions.length - 1;
+              let targetCoords = isLastStep ? destino : null;
+              
+              if (!isLastStep) {
+                const nextStep = routeData.instructions[currentStepIndex + 1];
+                const nextTurnPointIndex = nextStep.way_points[0];
+                
+                // Programación defensiva: Asegurarse que los datos existan antes de usarlos
+                if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+                  const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+                  targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+                }
+              }
+
+              if (targetCoords) {
+                const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+                const triggerDistance = isLastStep ? 25 : 45;
+
+                if (distanceToTarget < triggerDistance) {
+                  speak(currentInstruction.instruction);
+                  setCurrentStepIndex(prev => prev + 1);
+                }
+              }
+            }
+
+            // --- Lógica de llegada a destino (como respaldo final) ---
+            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
+              speak('Ha llegado a su destino.');
+              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+                detenerNavegacion();
+              });
             }
           },
           (error) => console.error("Error durante el seguimiento:", error.message),
@@ -351,9 +428,14 @@ const UbicacionDEA = () => {
                     </Popup>
                   </Marker>
                 ))}
-                {rutaFrom && destinoRuta && (
-                  <ORSRouting from={rutaFrom} to={destinoRuta} />
-                )}
+              {rutaFrom && destinoRuta && (
+                <ORSRouting 
+                  from={rutaFrom} 
+                  to={destinoRuta} 
+                  userPosition={userLocation}
+                  onRouteFound={onRouteFoundCallback} 
+                />
+              )}
               </MapContainer>
             )}
             {!isLoading && <>
@@ -468,18 +550,21 @@ const UbicacionDEA = () => {
               <Modal.Title>Términos y Condiciones - CardioUCM</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              <h5>1. Generalidades</h5>
-              <p>Este documento regula el uso del formulario para sugerir desfibriladores externos automáticos (DEA) en la aplicación CardioUCM.</p>
-              <h5>2. Recopilación y Uso de Datos Personales</h5>
-              <p>Recopilamos tu nombre completo y RUT únicamente para contactarte en relación con la sugerencia de un DEA y para verificar tu identidad.</p>
-              <h5>3. Conservación de datos personales</h5>
-              <p>Tienes derecho a solicitar el acceso, rectificación o eliminación de tus datos.</p>
-              <h5>4. Consentimiento</h5>
-              <p>Al marcar la casilla de aceptación, autorizas expresamente el uso de tus datos.</p>
-              <h5>5. Limitaciones de Responsabilidad</h5>
-              <p>CardioUCM no se hace responsable por errores en los datos proporcionados por el usuario.</p>
-              <h5>6. Modificaciones a los Términos</h5>
-              <p>Nos reservamos el derecho a modificar estos términos y condiciones.</p>
+              <h5>1. Aceptación de los Términos</h5>
+              <p>Al utilizar el formulario para sugerir Desfibriladores Externos Automáticos (DEA) en la aplicación CardioUCM, usted ("el Usuario") acepta y se compromete a cumplir los siguientes términos y condiciones. Este servicio es proporcionado por la Universidad Católica del Maule ("UCM") en el marco de su proyecto de vinculación con el medio.</p>
+              <h5>2. Objetivo del Servicio</h5>
+              <p>El propósito de este formulario es permitir a la comunidad sugerir la ubicación de DEAs para enriquecer la base de datos pública y gratuita de CardioUCM, con el fin de facilitar el acceso rápido a estos dispositivos en caso de emergencia cardíaca.</p>
+              <h5>3. Política de Privacidad y Tratamiento de Datos Personales (Ley N° 19.628)</h5>
+              <p>Datos Recopilados: Para validar la veracidad de las sugerencias, solicitamos los siguientes datos personales: Nombre completo, RUT y dirección de correo electrónico.
+              Finalidad: Estos datos serán utilizados exclusivamente para: (a) Verificar la identidad del solicitante; (b) Comunicarnos con el Usuario para solicitar aclaraciones sobre la sugerencia; y (c) Notificar al Usuario sobre el estado de aprobación de su sugerencia.
+              Confidencialidad y Seguridad: UCM se compromete a tratar sus datos personales con estricta confidencialidad. Sus datos no serán compartidos con terceros para fines comerciales ni serán públicos. Se almacenarán en servidores seguros, aplicando las medidas técnicas y organizativas necesarias para protegerlos contra el acceso no autorizado.
+              Derechos ARCO: Como titular de los datos, usted tiene derecho a solicitar el Acceso, Rectificación, Cancelación u Oposición (ARCO) al tratamiento de sus datos. Para ejercer estos derechos, por favor contáctenos a través del correo electrónico cardioucm1@gmail.com.</p>
+              <h5>4. Responsabilidad del Usuario</h5>
+              <p>El Usuario es el único responsable de la veracidad y exactitud de la información proporcionada. La entrega de información falsa o inexacta puede llevar al rechazo de la sugerencia. El Usuario declara que tiene la autorización necesaria para compartir la información de la ubicación del DEA.</p>
+              <h5>5. Proceso de Validación y Limitación de Responsabilidad</h5>
+              <p>Todas las sugerencias recibidas serán sometidas a un proceso de validación por parte del equipo de CardioUCM. La UCM no garantiza la aprobación de todas las sugerencias enviadas. La decisión final de incluir un DEA en el mapa es discrecional. CardioUCM es una herramienta informativa y de ayuda; la UCM no se hace responsable del estado, funcionamiento o disponibilidad real de los DEAs mostrados en el mapa.</p>
+              <h5>6. Propiedad Intelectual</h5>
+              <p>La aplicación CardioUCM, su logo, diseño y contenido son propiedad de la Universidad Católica del Maule.</p>
               <h5>7. Ley Aplicable y Resolución de Conflictos</h5>
               <p>Este acuerdo se rige por las leyes de la República de Chile.</p>
               <h5>8. Contacto</h5>
