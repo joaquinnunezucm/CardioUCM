@@ -5,6 +5,7 @@ import * as turf from '@turf/turf';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 const DEVIATION_THRESHOLD_METERS = 50; // <-- Umbral de desvío en metros
+const SNAP_THRESHOLD_METERS = 20; // <-- Umbral para pegar el marcador a la ruta (en metros)
 
 const styleRemaining = {
   color: '#007bff',
@@ -12,7 +13,7 @@ const styleRemaining = {
   opacity: 0.85,
 };
 
-const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation }) => {
+const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPositionUpdate }) => {
   const map = useMap();
   const remainingPathRef = useRef(null);
   const [fullRoute, setFullRoute] = useState(null);
@@ -79,17 +80,27 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation }) => {
   }, [from, to, map, onRouteFound]);
 
 useEffect(() => {
-  if (!fullRoute || !userPosition) return;
+  if (!fullRoute || !userPosition || !onPositionUpdate) return;
 
   const userPoint = turf.point(userPosition.slice().reverse());
   const nearestPoint = turf.nearestPointOnLine(fullRoute, userPoint, { units: 'meters' });
 
-  // Lógica de detección de desvío
   const deviationDistance = turf.distance(userPoint, nearestPoint, { units: 'meters' });
 
+  // --- Lógica de Snapping ---
+  if (deviationDistance < SNAP_THRESHOLD_METERS) {
+    // Si está cerca, envía la posición "pegada" a la ruta.
+    const snappedCoords = turf.getCoord(nearestPoint);
+    onPositionUpdate([snappedCoords[1], snappedCoords[0]]); // Ojo: Leaflet usa [lat, lon]
+  } else {
+    // Si está lejos, envía la posición GPS real.
+    onPositionUpdate(userPosition);
+  }
+  // --- Fin de Lógica de Snapping ---
+  
+  // --- Lógica de Re-cálculo (sin cambios) ---
   if (deviationDistance > DEVIATION_THRESHOLD_METERS) {
     console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
-    // Llama al callback y detiene el procesamiento actual
     if (onDeviation) {
       onDeviation();
     }
@@ -110,7 +121,7 @@ useEffect(() => {
   }
   remainingPathRef.current = L.geoJSON(remainingLine, { style: styleRemaining }).addTo(map);
 
-}, [userPosition, fullRoute, map, onDeviation]);
+}, [userPosition, fullRoute, map, onDeviation, onPositionUpdate]);
 
   return null;
 };

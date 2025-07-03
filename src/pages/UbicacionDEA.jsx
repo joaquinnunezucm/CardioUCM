@@ -102,6 +102,7 @@ const UbicacionDEA = () => {
   const initialCenter = useRef([-35.428542, -71.672308]);
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
+  const [displayedUserPosition, setDisplayedUserPosition] = useState(null); 
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
@@ -241,7 +242,13 @@ const UbicacionDEA = () => {
     setRouteData({ coords: [], instructions: [] });
     setCurrentStepIndex(0);
   };
+    if (userLocation) {
+    setDisplayedUserPosition(userLocation);
+  }
 
+  const onPositionUpdateCallback = useCallback((position) => {
+  setDisplayedUserPosition(position);
+}, []);
   // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
@@ -268,7 +275,10 @@ const UbicacionDEA = () => {
           (position) => {
             const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
             setUserLocation(nuevaUbicacion);
-            
+            // Si no hay una ruta activa, la posición visual es la real.
+            if (!destinoRuta) {
+              setDisplayedUserPosition(nuevaUbicacion); // <-- ACTUALIZAR POSICIÓN VISUAL
+            }
             // Si la navegación fue detenida manualmente, no hacer nada más.
             if (!watchIdRef.current) return;
 
@@ -321,6 +331,7 @@ const UbicacionDEA = () => {
     });
   };
 
+  
   const handleShowModal = () => {
     setShowModal(true);
     setErrors({});
@@ -442,8 +453,8 @@ const UbicacionDEA = () => {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
                 <CenterMap position={center} />
                 <ClickHandler setFormData={setFormData} setShowModal={setShowModal} />
-                {userLocation && (
-                  <Marker position={userLocation} icon={userIcon} ref={userMarkerRef}>
+                {displayedUserPosition && ( 
+                  <Marker position={displayedUserPosition} icon={userIcon} ref={userMarkerRef}>
                     <Popup><h1 style={{ fontSize: '1.5rem', margin: 0 }}>Estás aquí</h1></Popup>
                   </Marker>
                 )}
@@ -466,6 +477,7 @@ const UbicacionDEA = () => {
                     userPosition={userLocation}
                     onRouteFound={onRouteFoundCallback} 
                     onDeviation={handleReroute}
+                    onPositionUpdate={onPositionUpdateCallback}
                   />
                 )}
               </MapContainer>
