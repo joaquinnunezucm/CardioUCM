@@ -104,6 +104,7 @@ const UbicacionDEA = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [displayedUserPosition, setDisplayedUserPosition] = useState(null); 
   const [calculatedPosition, setCalculatedPosition] = useState(null); 
+  const [deviationSignal, setDeviationSignal] = useState(false);
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
@@ -122,35 +123,10 @@ const UbicacionDEA = () => {
     }
   }, []);
 
-  const handleReroute = useCallback(() => {
-  // Si no hay una navegación activa, no hacer nada.
-  if (!userLocation || !destinoRuta) return;
-
-  const now = Date.now();
-  // Cooldown de 10 segundos para evitar peticiones en ráfaga
-  if (now - lastRerouteTimestampRef.current < 10000) {
-    console.log("Re-cálculo solicitado demasiado pronto. Ignorando.");
-    return;
-  }
-  lastRerouteTimestampRef.current = now;
-
-  console.log("Recibida solicitud de re-cálculo desde el componente hijo.");
-  
-  // Muestra una notificación no bloqueante al usuario
-  Swal.fire({
-    toast: true,
-    position: 'top-end',
-    icon: 'info',
-    title: 'Te has desviado, recalculando ruta...',
-    showConfirmButton: false,
-    timer: 2500,
-    timerProgressBar: true,
-  });
-
-  // Actualiza el punto de partida para disparar el re-cálculo
-  setRutaFrom(userLocation);
-
-}, [userLocation, destinoRuta]); // Dependencias para que useCallback use los valores más recientes
+const onDeviationCallback = useCallback(() => {
+  console.log("Señal de desvío recibida desde el componente hijo.");
+  setDeviationSignal(true);
+}, []); // No necesita dependencias, ya que no usa variables de estado.
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -176,6 +152,38 @@ const UbicacionDEA = () => {
     Swal.fire({ icon: 'error', title: title, text: text });
   };
 
+// Este useEffect se activa cuando se recibe la señal de desvío
+useEffect(() => {
+  // Solo actúa si la señal está activa y tenemos la ubicación del usuario
+  if (deviationSignal && userLocation) {
+    
+    // La lógica del cooldown se mueve aquí, donde realmente se ejecuta la acción
+    const now = Date.now();
+    if (now - lastRerouteTimestampRef.current < 10000) {
+      console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
+    } else {
+      lastRerouteTimestampRef.current = now;
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Te has desviado, recalculando ruta...',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+
+      // Aquí es donde finalmente actualizamos el estado para recalcular
+      setRutaFrom(userLocation);
+    }
+
+    // MUY IMPORTANTE: Reseteamos la señal para que este efecto no se ejecute de nuevo
+    // hasta que el hijo la vuelva a enviar.
+    setDeviationSignal(false);
+  }
+}, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
+
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
     axios.get(`${API_BASE_URL}/api/defibriladores`).then(res => setDesfibriladores(res.data)).catch(err => Swal.fire('Error', 'No se pudieron cargar los desfibriladores.', 'error'));
@@ -200,7 +208,7 @@ const UbicacionDEA = () => {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }, [isLoading]);
-  
+
 useEffect(() => {
   if (calculatedPosition) {
     setDisplayedUserPosition(calculatedPosition);
@@ -477,16 +485,16 @@ useEffect(() => {
                     </Popup>
                   </Marker>
                 ))}
-                {rutaFrom && destinoRuta && (
-                  <ORSRouting 
-                    from={rutaFrom} 
-                    to={destinoRuta} 
-                    userPosition={userLocation}
-                    onRouteFound={onRouteFoundCallback} 
-                    onDeviation={handleReroute}
-                    onPositionUpdate={onPositionUpdateCallback}
-                  />
-                )}
+                  {rutaFrom && destinoRuta && (
+                    <ORSRouting 
+                      from={rutaFrom} 
+                      to={destinoRuta} 
+                      userPosition={userLocation}
+                      onRouteFound={onRouteFoundCallback} 
+                      onPositionUpdate={onPositionUpdateCallback}
+                      onDeviation={onDeviationCallback} 
+                    />
+                  )}
               </MapContainer>
             )}
             {!isLoading && <>
