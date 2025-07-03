@@ -362,6 +362,7 @@ Swal.fire({
     );
   }
 });
+  };
 
   
   const handleShowModal = () => {
