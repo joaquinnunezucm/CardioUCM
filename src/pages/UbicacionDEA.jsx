@@ -133,14 +133,10 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const onRouteFoundCallback = useCallback((data) => {
-    setRouteData(data);
-    setCurrentStepIndex(0);
-    // Solo hablar la primera instrucción si hay instrucciones nuevas
-    if (data.instructions && data.instructions.length > 0) {
-      speak(data.instructions[0].instruction);
-    }
-  }, []);
+const onRouteFoundCallback = useCallback((data) => {
+  setRouteData(data);
+  setCurrentStepIndex(0);
+}, []);
 
 const onDeviationCallback = useCallback(() => {
   console.log("Señal de desvío recibida desde el componente hijo.");
