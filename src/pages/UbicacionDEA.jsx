@@ -322,7 +322,7 @@ useEffect(() => {
     }
   };
 
-}, [destinoRuta, detenerNavegacion]); // Dependencias estables
+}, [destinoRuta]);
 
   // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
