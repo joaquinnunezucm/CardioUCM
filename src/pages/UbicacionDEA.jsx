@@ -437,6 +437,10 @@ const iniciarNavegacion = (dea) => {
     return newErrors;
   };
 
+const onPositionUpdateCallback = useCallback((pos) => {
+  setCalculatedPosition(pos);
+}, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
