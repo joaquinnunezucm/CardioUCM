@@ -82,6 +82,13 @@ const speak = (text) => {
   }
 };
 
+const unlockSpeechSynthesis = () => {
+  // Truco para iOS: reproducir un silencio para desbloquear el contexto de audio.
+  const utterance = new SpeechSynthesisUtterance('');
+  utterance.volume = 0; // No queremos que se escuche
+  window.speechSynthesis.speak(utterance);
+};
+
 const UbicacionDEA = () => {
   // Estados existentes
   const [desfibriladores, setDesfibriladores] = useState([]);
@@ -282,76 +289,79 @@ const detenerNavegacion = () => {
     // Detener y limpiar cualquier navegación anterior es el primer paso.
     detenerNavegacion();
 
-    Swal.fire({
-      title: '¿Iniciar navegación?',
-      text: `Se trazará la ruta hacia ${dea.nombre}.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, iniciar',
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // Establecer los nuevos estados de la ruta
-        setRutaFrom(userLocation);
-        setDestinoRuta(destino);
-        setSelectedDeaId(dea.id);
+Swal.fire({
+  title: '¿Iniciar navegación?',
+  text: `Se trazará la ruta hacia ${dea.nombre}.`,
+  icon: 'question',
+  showCancelButton: true,
+  confirmButtonText: 'Sí, iniciar',
+  cancelButtonText: 'Cancelar',
+}).then((result) => {
+  if (result.isConfirmed) {
+    
+    // 1. Desbloquea la síntesis de voz INMEDIATAMENTE después del clic del usuario.
+    unlockSpeechSynthesis();
 
-        // Iniciar el nuevo seguimiento
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          (position) => {
-            const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-            setUserLocation(nuevaUbicacion);
+    // 2. Se establece el estado para la ruta.
+    setRutaFrom(userLocation);
+    setDestinoRuta(destino);
+    setSelectedDeaId(dea.id);
 
-            // Si la navegación fue detenida manualmente, no hacer nada más.
-            if (!watchIdRef.current) return;
+    // 3. Se inicia el seguimiento de la posición.
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(nuevaUbicacion);
 
-            // --- Lógica de guía por voz robusta ---
-            if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
-              const currentInstruction = routeData.instructions[currentStepIndex];
+        // Si la navegación fue detenida manualmente, no hacer nada más.
+        if (!watchIdRef.current) return;
 
-              // No procesar más si la instrucción ya fue de llegada
-              if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
-                return;
-              }
-              
-              const isLastStep = currentStepIndex === routeData.instructions.length - 1;
-              let targetCoords = isLastStep ? destino : null;
-              
-              if (!isLastStep) {
-                const nextStep = routeData.instructions[currentStepIndex + 1];
-                const nextTurnPointIndex = nextStep.way_points[0];
-                
-                // Programación defensiva: Asegurarse que los datos existan antes de usarlos
-                if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
-                  const nextTurnCoords = routeData.coords[nextTurnPointIndex];
-                  targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-                }
-              }
+        // --- Lógica de guía por voz robusta ---
+        if (routeData.instructions && routeData.instructions.length > 0 && currentStepIndex < routeData.instructions.length) {
+          const currentInstruction = routeData.instructions[currentStepIndex];
 
-              if (targetCoords) {
-                const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-                const triggerDistance = isLastStep ? 25 : 45;
-
-                if (distanceToTarget < triggerDistance) {
-                  speak(currentInstruction.instruction);
-                  setCurrentStepIndex(prev => prev + 1);
-                }
-              }
+          // No procesar más si la instrucción ya fue de llegada
+          if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
+            return;
+          }
+          
+          const isLastStep = currentStepIndex === routeData.instructions.length - 1;
+          let targetCoords = isLastStep ? destino : null;
+          
+          if (!isLastStep) {
+            const nextStep = routeData.instructions[currentStepIndex + 1];
+            const nextTurnPointIndex = nextStep.way_points[0];
+            
+            if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+              const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
             }
+          }
 
-            // --- Lógica de llegada a destino (como respaldo final) ---
-            if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
-              speak('Ha llegado a su destino.');
-              Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-                detenerNavegacion();
-              });
+          if (targetCoords) {
+            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+            const triggerDistance = isLastStep ? 25 : 45;
+
+            if (distanceToTarget < triggerDistance) {
+              speak(currentInstruction.instruction);
+              setCurrentStepIndex(prev => prev + 1);
             }
-          },
-          (error) => console.error("Error durante el seguimiento:", error.message),
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-        );
-      }
-    });
-  };
+          }
+        }
+
+        // --- Lógica de llegada a destino (como respaldo final) ---
+        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destino[0], destino[1]) < 5) {
+          speak('Ha llegado a su destino.');
+          Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+            detenerNavegacion();
+          });
+        }
+      },
+      (error) => console.error("Error durante el seguimiento:", error.message),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+    );
+  }
+});
 
   
   const handleShowModal = () => {
