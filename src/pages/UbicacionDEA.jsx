@@ -103,6 +103,7 @@ const UbicacionDEA = () => {
   const [center, setCenter] = useState(initialCenter.current);
   const [userLocation, setUserLocation] = useState(null);
   const [displayedUserPosition, setDisplayedUserPosition] = useState(null); 
+  const [calculatedPosition, setCalculatedPosition] = useState(null); 
   const markersRef = useRef({});
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
@@ -199,6 +200,12 @@ const UbicacionDEA = () => {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }, [isLoading]);
+  
+useEffect(() => {
+  if (calculatedPosition) {
+    setDisplayedUserPosition(calculatedPosition);
+  }
+}, [calculatedPosition]);
 
   useEffect(() => {
     if (userLocation && desfibriladores.length > 0) {
@@ -247,7 +254,7 @@ const UbicacionDEA = () => {
   }
 
   const onPositionUpdateCallback = useCallback((position) => {
-  setDisplayedUserPosition(position);
+  setCalculatedPosition(position); 
 }, []);
   // <-- FUNCIÓN MODIFICADA para iniciar la navegación y el seguimiento por voz
   const iniciarNavegacion = (dea) => {
