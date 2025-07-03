@@ -394,7 +394,7 @@ export default function Reportes() {
             <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
               <span className="visually-hidden">Cargando reportes...</span>
             </div>
-            <p className="ms-3 mb-0">Cargando reportes...</p>
+            
           </div>
         )}
         {error && <div className="alert alert-danger text-center">{error}</div>}
