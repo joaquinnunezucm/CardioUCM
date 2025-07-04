@@ -127,16 +127,19 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
-  const navigationLogicRef = useRef();
+
+  // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const positionLogicRef = useRef();
-const onRouteFoundCallback = useCallback((data) => {
-  setRouteData(data);
-  setCurrentStepIndex(0);
-}, []);
+    const onRouteFoundCallback = useCallback((data) => {
+    setRouteData(data);
+    setCurrentStepIndex(0);
+    if (data.instructions && data.instructions.length > 0) {
+      speak(data.instructions[0].instruction);
+    }
+  }, []);
 
 const onDeviationCallback = useCallback(() => {
   console.log("Señal de desvío recibida desde el componente hijo.");
@@ -253,105 +256,97 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-useEffect(() => {
-  navigationLogicRef.current = (position) => {
-    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-    setUserLocation(nuevaUbicacion);
-
-    if (!routeData.instructions || routeData.instructions.length === 0) {
-      return;
-    }
-
-    const currentStep = currentStepIndex;
-
-    if (currentStep >= routeData.instructions.length) return;
-    
-    const currentInstruction = routeData.instructions[currentStep];
-    if (currentInstruction.instruction.toLowerCase().includes("llegado")) return;
-
-    const isLastStep = currentStep === routeData.instructions.length - 1;
-    let targetCoords = isLastStep ? destinoRuta : null;
-
-    if (!isLastStep) {
-      const nextStep = routeData.instructions[currentStep + 1];
-      const nextTurnPointIndex = nextStep.way_points[0];
-      if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
-        const nextTurnCoords = routeData.coords[nextTurnPointIndex];
-        targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
-      }
-    }
-
-    if (targetCoords) {
-      const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-      const triggerDistance = isLastStep ? 25 : 45;
-      const shouldSpeak = currentStep === 0 || distanceToTarget < triggerDistance;
-
-      if (shouldSpeak) {
-        speak(currentInstruction.instruction);
-        setCurrentStepIndex(prev => prev + 1);
-      }
-    }
-
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
-      speak('Ha llegado a su destino.');
-      Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-        detenerNavegacion();
-      });
-    }
-  };
-});
-
-useEffect(() => {
+  useEffect(() => {
+  // Si no hay un destino de ruta, no hacemos nada.
   if (!destinoRuta) {
     return;
   }
 
   const handlePositionChange = (position) => {
-    if (navigationLogicRef.current) {
-      navigationLogicRef.current(position);
+    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+    setUserLocation(nuevaUbicacion);
+
+    setRouteData(currentRouteData => {
+      setCurrentStepIndex(currentStep => {
+        if (currentRouteData.instructions?.length > 0 && currentStep < currentRouteData.instructions.length) {
+          const currentInstruction = currentRouteData.instructions[currentStep];
+          if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
+
+          const isLastStep = currentStep === currentRouteData.instructions.length - 1;
+          let targetCoords = isLastStep ? destinoRuta : null;
+
+          if (!isLastStep) {
+            const nextStep = currentRouteData.instructions[currentStep + 1];
+            const nextTurnPointIndex = nextStep.way_points[0];
+            if (currentRouteData.coords?.length > nextTurnPointIndex) {
+              const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
+              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+            }
+          }
+
+          if (targetCoords) {
+            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+            const triggerDistance = isLastStep ? 25 : 45;
+            if (distanceToTarget < triggerDistance) {
+              speak(currentInstruction.instruction);
+              return currentStep + 1;
+            }
+          }
+        }
+        return currentStep;
+      });
+      return currentRouteData;
+    });
+
+    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+        speak('Ha llegado a su destino.');
+        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+          detenerNavegacion();
+        });
     }
   };
 
-  console.log("useEffect de navegación ESTABLE activado. Iniciando watchPosition.");
+  console.log("useEffect de navegación activado. Iniciando watchPosition.");
   const id = navigator.geolocation.watchPosition(
-    handlePositionChange,
-    (err) => console.error("Error en watchPosition:", err),
+    handlePositionChange, 
+    (err) => console.error("Error en watchPosition:", err), 
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
   );
   watchIdRef.current = id;
 
   return () => {
     if (watchIdRef.current) {
-      console.log(`useEffect cleanup estable. Limpiando watchId: ${watchIdRef.current}`);
+      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
   };
-}, [destinoRuta, detenerNavegacion]);
 
-  const detenerNavegacion = useCallback(() => {
+}, [destinoRuta]);
+
+  // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
+const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
-      console.log(`Limpiando watchId: ${watchIdRef.current}`);
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+        console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
     }
-    
+
     if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
+        window.speechSynthesis.cancel();
     }
 
     setDestinoRuta(null);
     setRutaFrom(null);
-    setSelectedDeaId(null); // Asegúrate de tener este estado si lo usas
+    setSelectedDeaId(null);
     setRouteData({ coords: [], instructions: [] });
     setCurrentStepIndex(0);
 
-    // Vuelve a mostrar la ubicación real del usuario
     setUserLocation(currentUserLocation => {
         setDisplayedUserPosition(currentUserLocation);
         return currentUserLocation;
     });
-  }, []);
+}, []);
 
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
@@ -371,7 +366,7 @@ const iniciarNavegacion = (dea) => {
     }).then((result) => {
         if (result.isConfirmed) {
             unlockSpeechSynthesis();
-            
+
             setRutaFrom(userLocation);
             setSelectedDeaId(dea.id);
             setDestinoRuta(destino); 
