@@ -153,7 +153,7 @@ const onDeviationCallback = useCallback(() => {
     switch (error.code) {
       case error.PERMISSION_DENIED:
         title = 'Permiso de Ubicación Denegado';
-        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página.';
+        text = 'Para usar esta función, por favor, habilita la ubicación en tu dispositivo y recarga la página. No olvides comprobar que tu navegador tiene permiso para acceder a la ubicación.';
         break;
       case error.POSITION_UNAVAILABLE:
         title = 'Ubicación no Disponible';
@@ -457,7 +457,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
     const dataParaEnviar = { nombre, gl_instalacion_calle: calle, nr_instalacion_numero: numero, gl_instalacion_comuna: comuna, lat, lng, solicitante, rut, email, terms_accepted: termsAccepted };
     try {
       await axios.post(`${API_BASE_URL}/api/solicitudes-dea`, dataParaEnviar);
-      Swal.fire({ title: 'Sugerencia Enviada', text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión.', icon: 'success' });
+      Swal.fire({ title: 'Sugerencia Enviada', text: '¡Gracias por colaborar! Tu sugerencia ha sido enviada para revisión. Te notificaremos por correo el estado de tu solicitud.', icon: 'success' });
       handleCloseModal();
     } catch (err) {
       const errorMsg = err.response?.data?.mensaje || 'Error al enviar la solicitud. Intente más tarde.';
