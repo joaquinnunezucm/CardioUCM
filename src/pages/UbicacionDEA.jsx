@@ -127,7 +127,6 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
-  const [isArriving, setIsArriving] = useState(false);
 
   // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
@@ -258,8 +257,8 @@ useEffect(() => {
   }, [userLocation, desfibriladores]);
 
   useEffect(() => {
-  // Si no hay destino o si ya estamos en proceso de mostrar el popup de llegada, no hacemos nada.
-  if (!destinoRuta || isArriving) {
+  // Si no hay un destino de ruta, no hacemos nada.
+  if (!destinoRuta) {
     return;
   }
 
@@ -267,81 +266,44 @@ useEffect(() => {
     const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
     setUserLocation(nuevaUbicacion);
 
-    // --- INICIO LÓGICA DE LLEGADA (MÁS ROBUSTA) ---
-    // Comprobamos la distancia al destino final primero.
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
-        // Usamos el estado `isArriving` para asegurar que esto solo se ejecute UNA VEZ.
-        setIsArriving(true); 
-        
-        // speak('Ha llegado a su destino.');
-        Swal.fire({
-            title: '¡Has llegado!',
-            text: 'Has llegado a tu destino.',
-            icon: 'success',
-            allowOutsideClick: false, // Evita que se cierre accidentalmente
-        }).then(() => {
-            detenerNavegacion();
-            // Reseteamos el estado de llegada por si se inicia una nueva ruta después.
-            setIsArriving(false); 
-        });
-        return; // Detenemos la ejecución de esta función para no procesar más pasos.
-    }
-    // --- FIN LÓGICA DE LLEGADA ---
-
-
-    // --- INICIO LÓGICA DE AVANCE DE PASOS (MÁS SEGURA) ---
     setRouteData(currentRouteData => {
-      // Si no hay instrucciones, no hacemos nada.
-      if (!currentRouteData.instructions || currentRouteData.instructions.length === 0) {
-        return currentRouteData;
-      }
-
       setCurrentStepIndex(currentStep => {
-        // GUARDA ANTI-CRASH: Si ya hemos superado el último paso, no hacemos nada más.
-        if (currentStep >= currentRouteData.instructions.length) {
-          return currentStep;
-        }
+        if (currentRouteData.instructions?.length > 0 && currentStep < currentRouteData.instructions.length) {
+          const currentInstruction = currentRouteData.instructions[currentStep];
+          if (currentInstruction.instruction.toLowerCase().includes("llegado")) return currentStep;
 
-        const currentInstruction = currentRouteData.instructions[currentStep];
-        if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
-            return currentStep;
-        }
+          const isLastStep = currentStep === currentRouteData.instructions.length - 1;
+          let targetCoords = isLastStep ? destinoRuta : null;
 
-        // Si estamos en el último paso, el objetivo es el destino final.
-        const isLastStep = currentStep === currentRouteData.instructions.length - 1;
-        let targetCoords;
+          if (!isLastStep) {
+            const nextStep = currentRouteData.instructions[currentStep + 1];
+            const nextTurnPointIndex = nextStep.way_points[0];
+            if (currentRouteData.coords?.length > nextTurnPointIndex) {
+              const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
+              targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+            }
+          }
 
-        if (isLastStep) {
-          targetCoords = destinoRuta;
-        } else {
-          // GUARDA ANTI-CRASH: Nos aseguramos que la siguiente instrucción exista.
-          const nextStep = currentRouteData.instructions[currentStep + 1];
-          if (!nextStep) return currentStep; // Salida segura
-
-          const nextTurnPointIndex = nextStep.way_points[0];
-          if (currentRouteData.coords && currentRouteData.coords.length > nextTurnPointIndex) {
-            const nextTurnCoords = currentRouteData.coords[nextTurnPointIndex];
-            targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+          if (targetCoords) {
+            const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+            const triggerDistance = isLastStep ? 25 : 45;
+            if (distanceToTarget < triggerDistance) {
+              /* speak(currentInstruction.instruction); */
+              return currentStep + 1;
+            }
           }
         }
-
-        if (targetCoords) {
-          const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-          // La distancia de disparo es menor para el último paso (llegada)
-          const triggerDistance = isLastStep ? 25 : 45; 
-          
-          if (distanceToTarget < triggerDistance) {
-            // speak(currentInstruction.instruction);
-            return currentStep + 1; // Avanzamos al siguiente paso
-          }
-        }
-        
-        return currentStep; // Mantenemos el paso actual
+        return currentStep;
       });
-
       return currentRouteData;
     });
-    // --- FIN LÓGICA DE AVANCE DE PASOS ---
+
+    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+        /* speak('Ha llegado a su destino.'); */
+        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+          detenerNavegacion();
+        });
+    }
   };
 
   console.log("useEffect de navegación activado. Iniciando watchPosition.");
@@ -352,7 +314,6 @@ useEffect(() => {
   );
   watchIdRef.current = id;
 
-  // Función de limpieza
   return () => {
     if (watchIdRef.current) {
       console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
@@ -361,7 +322,7 @@ useEffect(() => {
     }
   };
 
-}, [destinoRuta, isArriving, detenerNavegacion]);
+}, [destinoRuta]);
 
   // <-- FUNCIÓN MODIFICADA para limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
@@ -380,7 +341,6 @@ const detenerNavegacion = useCallback(() => {
     setSelectedDeaId(null);
     setRouteData({ coords: [], instructions: [] });
     setCurrentStepIndex(0);
-    setIsArriving(false);
 
     setUserLocation(currentUserLocation => {
         setDisplayedUserPosition(currentUserLocation);
