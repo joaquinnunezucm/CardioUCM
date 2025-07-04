@@ -127,6 +127,7 @@ const UbicacionDEA = () => {
   const userMarkerRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
+  const navigationLogicRef = useRef();
 
   // <-- NUEVOS ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
@@ -254,117 +255,112 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-  useEffect(() => {
-  // Actualizamos la referencia con una función que encapsula toda la lógica.
-  positionLogicRef.current = (position) => {
-    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-    setUserLocation(nuevaUbicacion);
+useEffect(() => {
+    navigationLogicRef.current = (position) => {
+      const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+      setUserLocation(nuevaUbicacion);
 
-    if (!routeData.instructions || routeData.instructions.length === 0) {
-      return;
-    }
-
-    const currentStep = currentStepIndex;
-
-    if (currentStep >= routeData.instructions.length) {
-      return;
-    }
-
-    const currentInstruction = routeData.instructions[currentStep];
-    if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
-      return;
-    }
-
-    const isLastStep = currentStep === routeData.instructions.length - 1;
-    let targetCoords = isLastStep ? destinoRuta : null;
-
-    if (!isLastStep) {
-      const nextStep = routeData.instructions[currentStep + 1];
-      const nextTurnPointIndex = nextStep.way_points[0];
-      if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
-        const nextTurnCoords = routeData.coords[nextTurnPointIndex];
-        targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+      // No procedemos hasta que tengamos las instrucciones de la ruta.
+      if (!routeData || !routeData.instructions || routeData.instructions.length === 0) {
+        console.log("Recibida ubicación, pero esperando datos de la ruta...");
+        return;
       }
-    }
 
-    if (targetCoords) {
-      const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
-      const triggerDistance = isLastStep ? 25 : 45;
-      
-      // La primera instrucción se da en cuanto se tiene ubicación (currentStep === 0)
-      const shouldSpeak = currentStep === 0 || distanceToTarget < triggerDistance;
+      // La lógica de navegación permanece igual, pero dentro de esta función en la ref.
+      const currentStep = currentStepIndex;
 
-      if (shouldSpeak) {
-        speak(currentInstruction.instruction);
-        setCurrentStepIndex(currentStep + 1);
+      if (currentStep >= routeData.instructions.length) return;
+
+      const currentInstruction = routeData.instructions[currentStep];
+      if (currentInstruction.instruction.toLowerCase().includes("llegado")) return;
+
+      const isLastStep = currentStep === routeData.instructions.length - 1;
+      let targetCoords = isLastStep ? destinoRuta : null;
+
+      if (!isLastStep) {
+        const nextStep = routeData.instructions[currentStep + 1];
+        if (nextStep && nextStep.way_points) {
+          const nextTurnPointIndex = nextStep.way_points[0];
+          if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
+            const nextTurnCoords = routeData.coords[nextTurnPointIndex];
+            targetCoords = [nextTurnCoords[1], nextTurnCoords[0]];
+          }
+        }
       }
-    }
 
-    // Comprobar si hemos llegado al destino final
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
-      speak('Ha llegado a su destino.');
-      Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-        detenerNavegacion();
-      });
-    }
-  };
-});
+      if (targetCoords) {
+        const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
+        const triggerDistance = isLastStep ? 25 : 45;
+        const shouldSpeak = currentStep === 0 || distanceToTarget < triggerDistance;
+
+        if (shouldSpeak) {
+          speak(currentInstruction.instruction);
+          setCurrentStepIndex(prev => prev + 1);
+        }
+      }
+
+      if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
+        speak('Ha llegado a su destino.');
+        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+          detenerNavegacion();
+        });
+      }
+    };
+  });
 
 useEffect(() => {
-  // Si no hay destino, no hacemos nada.
-  if (!destinoRuta) {
-    return;
-  }
-
-  // Este callback es ligero y estable. Solo llama a la lógica en la ref.
-  const handlePositionChange = (position) => {
-    if (positionLogicRef.current) {
-      positionLogicRef.current(position);
+    if (!destinoRuta) {
+      return; // Si no hay destino, no hagas nada.
     }
-  };
 
-  console.log("useEffect de navegación activado. Iniciando watchPosition. (Estable)");
-  const id = navigator.geolocation.watchPosition(
-    handlePositionChange,
-    (err) => console.error("Error en watchPosition:", err),
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-  );
-  watchIdRef.current = id;
+    // Este es un callback ligero y estable.
+    const handlePositionChange = (position) => {
+      if (navigationLogicRef.current) {
+        navigationLogicRef.current(position);
+      }
+    };
 
-  // La función de limpieza se mantiene igual.
-  return () => {
+    console.log("useEffect de navegación ESTABLE activado. Iniciando watchPosition.");
+    const id = navigator.geolocation.watchPosition(
+      handlePositionChange,
+      (err) => console.error("Error en watchPosition:", err),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+    );
+    watchIdRef.current = id;
+
+    // La función de limpieza se mantiene igual.
+    return () => {
+      if (watchIdRef.current) {
+        console.log(`useEffect cleanup estable. Limpiando watchId: ${watchIdRef.current}`);
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [destinoRuta, detenerNavegacion]);
+
+  const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
-      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
+      console.log(`Limpiando watchId: ${watchIdRef.current}`);
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
-  };
-  
-// El array de dependencias ahora es simple y estable.
-}, [destinoRuta, detenerNavegacion]);
-
-const detenerNavegacion = useCallback(() => {
-    if (watchIdRef.current) {
-        console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-    }
     
     if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
+      window.speechSynthesis.cancel();
     }
 
     setDestinoRuta(null);
     setRutaFrom(null);
-    setSelectedDeaId(null);
+    setSelectedDeaId(null); // Asegúrate de tener este estado si lo usas
     setRouteData({ coords: [], instructions: [] });
     setCurrentStepIndex(0);
 
+    // Vuelve a mostrar la ubicación real del usuario
     setUserLocation(currentUserLocation => {
         setDisplayedUserPosition(currentUserLocation);
         return currentUserLocation;
     });
-}, []);
+  }, []);
 
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
