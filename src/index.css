@@ -96,12 +96,6 @@ input[type="password"]::-ms-clear {
   display: none;
 }
 
-/* Opcional: Oculta los spinners en campos de número que a veces aparecen */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
