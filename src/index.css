@@ -79,7 +79,29 @@
   animation: pulse 2s infinite;
   z-index: -1;
 }
+/* Para navegadores basados en WebKit (Chrome, Safari, Opera, Edge) */
+input[type="password"]::-webkit-revelation-indicator {
+  display: none;
+  width: 0;
+  height: 0;
+}
 
+/* Para versiones antiguas de Microsoft Edge */
+input[type="password"]::-ms-reveal {
+  display: none;
+}
+
+/* Opcional: Oculta el botón 'x' para limpiar el campo en Edge */
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Opcional: Oculta los spinners en campos de número que a veces aparecen */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
