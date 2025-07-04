@@ -133,6 +133,7 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const positionLogicRef = useRef();
 const onRouteFoundCallback = useCallback((data) => {
   setRouteData(data);
   setCurrentStepIndex(0);
@@ -254,42 +255,30 @@ useEffect(() => {
   }, [userLocation, desfibriladores]);
 
   useEffect(() => {
-  if (!destinoRuta) {
-    return;
-  }
-
-  const handlePositionChange = (position) => {
+  // Actualizamos la referencia con una función que encapsula toda la lógica.
+  positionLogicRef.current = (position) => {
     const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
     setUserLocation(nuevaUbicacion);
 
-    // Condición de guarda: No hacer nada si la ruta aún no está cargada.
     if (!routeData.instructions || routeData.instructions.length === 0) {
-      console.log("Recibida ubicación, pero esperando datos de la ruta...");
       return;
     }
-    
-    // --- LÓGICA DE NAVEGACIÓN SIMPLIFICADA ---
 
-    // No anides los setters. Lee el estado actual directamente.
     const currentStep = currentStepIndex;
 
-    // Asegúrate de no salirte del rango de las instrucciones
     if (currentStep >= routeData.instructions.length) {
       return;
     }
-    
-    // Comprobar si ya llegamos (lo gestiona el siguiente bloque) o si la instrucción es de llegada.
+
     const currentInstruction = routeData.instructions[currentStep];
     if (currentInstruction.instruction.toLowerCase().includes("llegado")) {
       return;
     }
 
     const isLastStep = currentStep === routeData.instructions.length - 1;
-    let targetCoords = null;
+    let targetCoords = isLastStep ? destinoRuta : null;
 
-    if (isLastStep) {
-      targetCoords = destinoRuta;
-    } else {
+    if (!isLastStep) {
       const nextStep = routeData.instructions[currentStep + 1];
       const nextTurnPointIndex = nextStep.way_points[0];
       if (routeData.coords && routeData.coords.length > nextTurnPointIndex) {
@@ -302,16 +291,15 @@ useEffect(() => {
       const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
       const triggerDistance = isLastStep ? 25 : 45;
       
-      // La lógica para decidir si hablar sigue igual
+      // La primera instrucción se da en cuanto se tiene ubicación (currentStep === 0)
       const shouldSpeak = currentStep === 0 || distanceToTarget < triggerDistance;
 
       if (shouldSpeak) {
         speak(currentInstruction.instruction);
-        // Actualiza el índice del paso DE FORMA DIRECTA.
         setCurrentStepIndex(currentStep + 1);
       }
     }
-    
+
     // Comprobar si hemos llegado al destino final
     if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
       speak('Ha llegado a su destino.');
@@ -320,8 +308,22 @@ useEffect(() => {
       });
     }
   };
+});
 
-  console.log("useEffect de navegación activado. Iniciando watchPosition.");
+useEffect(() => {
+  // Si no hay destino, no hacemos nada.
+  if (!destinoRuta) {
+    return;
+  }
+
+  // Este callback es ligero y estable. Solo llama a la lógica en la ref.
+  const handlePositionChange = (position) => {
+    if (positionLogicRef.current) {
+      positionLogicRef.current(position);
+    }
+  };
+
+  console.log("useEffect de navegación activado. Iniciando watchPosition. (Estable)");
   const id = navigator.geolocation.watchPosition(
     handlePositionChange,
     (err) => console.error("Error en watchPosition:", err),
@@ -329,6 +331,7 @@ useEffect(() => {
   );
   watchIdRef.current = id;
 
+  // La función de limpieza se mantiene igual.
   return () => {
     if (watchIdRef.current) {
       console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
@@ -336,9 +339,10 @@ useEffect(() => {
       watchIdRef.current = null;
     }
   };
-}, [destinoRuta, routeData, currentStepIndex, detenerNavegacion]);
-
   
+// El array de dependencias ahora es simple y estable.
+}, [destinoRuta, detenerNavegacion]);
+
 const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
         console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
