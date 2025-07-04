@@ -68,7 +68,7 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
-const speak = (text) => {
+/* const speak = (text) => {
   if (window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
   }
@@ -80,14 +80,14 @@ const speak = (text) => {
   } else {
     console.warn("La síntesis de voz no es soportada por este navegador.");
   }
-};
+}; */
 
-const unlockSpeechSynthesis = () => {
+/* const unlockSpeechSynthesis = () => {
   // Truco para iOS: reproducir un silencio para desbloquear el contexto de audio.
   const utterance = new SpeechSynthesisUtterance('');
   utterance.volume = 0; // No queremos que se escuche
   window.speechSynthesis.speak(utterance);
-};
+}; */
 
   const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
@@ -136,9 +136,9 @@ const UbicacionDEA = () => {
     const onRouteFoundCallback = useCallback((data) => {
     setRouteData(data);
     setCurrentStepIndex(0);
-    if (data.instructions && data.instructions.length > 0) {
+/*     if (data.instructions && data.instructions.length > 0) {
       speak(data.instructions[0].instruction);
-    }
+    } */
   }, []);
 
 const onDeviationCallback = useCallback(() => {
@@ -288,7 +288,7 @@ useEffect(() => {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
             if (distanceToTarget < triggerDistance) {
-              speak(currentInstruction.instruction);
+              /* speak(currentInstruction.instruction); */
               return currentStep + 1;
             }
           }
@@ -299,7 +299,7 @@ useEffect(() => {
     });
 
     if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
-        speak('Ha llegado a su destino.');
+        /* speak('Ha llegado a su destino.'); */
         Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
           detenerNavegacion();
         });
@@ -332,9 +332,9 @@ const detenerNavegacion = useCallback(() => {
         watchIdRef.current = null;
     }
 
-    if (window.speechSynthesis.speaking) {
+/*     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
-    }
+    } */
 
     setDestinoRuta(null);
     setRutaFrom(null);
@@ -365,7 +365,7 @@ const iniciarNavegacion = (dea) => {
         cancelButtonText: 'Cancelar',
     }).then((result) => {
         if (result.isConfirmed) {
-            unlockSpeechSynthesis();
+            /* unlockSpeechSynthesis(); */
 
             setRutaFrom(userLocation);
             setSelectedDeaId(dea.id);
