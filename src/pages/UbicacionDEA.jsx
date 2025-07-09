@@ -367,10 +367,19 @@ const iniciarNavegacion = useCallback((dea) => {
 }, [userLocation, detenerNavegacion]);
 
 const handleRouteResult = useCallback(({ status, route }) => {
-    if (routeLayer && mapRef.current) {
+    // --- GUARDA DE SEGURIDAD ---
+    // Si la instancia del mapa aún no está lista, no hacemos nada.
+    // React se encargará de volver a intentarlo en el siguiente ciclo.
+    if (!mapRef.current) {
+        console.warn("handleRouteResult fue llamado antes de que el mapa estuviera listo. Intentando de nuevo...");
+        return;
+    }
+
+    // Limpia cualquier capa anterior (esto ahora es seguro)
+    if (routeLayer) {
         try {
             mapRef.current.removeLayer(routeLayer);
-        } catch(e) { /* Ignorar error si la capa ya no está */ }
+        } catch (e) { /* Ignorar error si la capa ya no está */ }
     }
 
     if (status === 'SUCCESS') {
@@ -378,8 +387,11 @@ const handleRouteResult = useCallback(({ status, route }) => {
         console.log("Plan A: Ruta a pie encontrada.");
         setNavMode('ROUTE');
         const routeCoords = turf.getCoords(route);
+        // La siguiente línea es una corrección importante de mi código anterior:
+        const startPointOfRoute = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]]; // [lat, lon]
+        initialDeviationRef.current = getDistanceInMeters(userLocation[0], userLocation[1], startPointOfRoute[0], startPointOfRoute[1]);
+        
         setRouteData({ coords: routeCoords, instructions: route.properties.segments[0].steps });
-        initialDeviationRef.current = turf.distance(userLocation, routeCoords[0].slice().reverse(), { units: 'meters' });
         
         const newLayer = L.geoJSON(route, { style: { color: '#007bff', weight: 6, opacity: 0.85 } }).addTo(mapRef.current);
         setRouteLayer(newLayer);
