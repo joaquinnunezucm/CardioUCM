@@ -31,6 +31,7 @@ useEffect(() => {
 
     const fetchRoute = async () => {
       // Construye el cuerpo de la petición
+      console.log(`[ORSRouting] fetchRoute INICIADO. Usando 'from': [${from[0]}, ${from[1]}]`); // <-- AÑADIR
       const requestBody = {
         coordinates: [[from[1], from[0]], [to[1], to[0]]],
         instructions: true,
@@ -103,6 +104,7 @@ useEffect(() => {
   }, [from, to, map, onRouteFound]); // Las dependencias se mantienen igual
 
 useEffect(() => {
+  console.log(`[ORSRouting] useEffect de SEGUIMIENTO. Usando 'userPosition': [${userPosition ? userPosition[0] : 'null'}, ${userPosition ? userPosition[1] : 'null'}]`); // <-- AÑADIR
   if (!fullRoute || !userPosition || !onPositionUpdate) return;
 
   const userPoint = turf.point(userPosition.slice().reverse());
