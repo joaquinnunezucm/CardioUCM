@@ -18,9 +18,14 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
   const remainingPathRef = useRef(null);
   const [fullRoute, setFullRoute] = useState(null);
 
-  useEffect(() => {
+useEffect(() => {
     if (!from || !to) return;
     let isMounted = true;
+    setFullRoute(null); 
+    if (remainingPathRef.current) {
+        map.removeLayer(remainingPathRef.current);
+        remainingPathRef.current = null;
+    }
 
     const fetchRoute = async () => {
       try {
