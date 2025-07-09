@@ -68,6 +68,27 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
+/* const speak = (text) => {
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    utterance.rate = 1.1;
+    window.speechSynthesis.speak(utterance);
+  } else {
+    console.warn("La síntesis de voz no es soportada por este navegador.");
+  }
+}; */
+
+/* const unlockSpeechSynthesis = () => {
+  // Truco para iOS: reproducir un silencio para desbloquear el contexto de audio.
+  const utterance = new SpeechSynthesisUtterance('');
+  utterance.volume = 0; // No queremos que se escuche
+  window.speechSynthesis.speak(utterance);
+}; */
+
   const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
     const R = 6371000;
@@ -147,10 +168,12 @@ const onDeviationCallback = useCallback(() => {
     Swal.fire({ icon: 'error', title: title, text: text });
   };
 
-//  se activa cuando se recibe la señal de desvío
+// Este useEffect se activa cuando se recibe la señal de desvío
 useEffect(() => {
   // Solo actúa si la señal está activa y tenemos la ubicación del usuario
   if (deviationSignal && userLocation) {
+
+    // La lógica del cooldown se mueve aquí, donde realmente se ejecuta la acción
     const now = Date.now();
     if (now - lastRerouteTimestampRef.current < 10000) {
       console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
@@ -166,11 +189,13 @@ useEffect(() => {
         timer: 2500,
         timerProgressBar: true,
       });
+
+      // Aquí es donde finalmente actualizamos el estado para recalcular
       setRutaFrom(userLocation);
     }
 
-    // Resetea la señal para que este efecto no se ejecute de nuevo
-    // hasta que se vuelva a enviar.
+    // MUY IMPORTANTE: Reseteamos la señal para que este efecto no se ejecute de nuevo
+    // hasta que el hijo la vuelva a enviar.
     setDeviationSignal(false);
   }
 }, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
@@ -261,6 +286,7 @@ useEffect(() => {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
             if (distanceToTarget < triggerDistance) {
+              /* speak(currentInstruction.instruction); */
               return currentStep + 1;
             }
           }
@@ -270,7 +296,8 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 15) {
+    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+        /* speak('Ha llegado a su destino.'); */
         Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
           detenerNavegacion();
         });
@@ -295,14 +322,13 @@ useEffect(() => {
 
 }, [destinoRuta]);
 
-  // FUNCIÓN  para limpiar todos los estados de navegación
+  // limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
         console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
     }
-
 
 
     setDestinoRuta(null);
@@ -334,6 +360,7 @@ const iniciarNavegacion = (dea) => {
         cancelButtonText: 'Cancelar',
     }).then((result) => {
         if (result.isConfirmed) {
+            /* unlockSpeechSynthesis(); */
 
             setRutaFrom(userLocation);
             setSelectedDeaId(dea.id);

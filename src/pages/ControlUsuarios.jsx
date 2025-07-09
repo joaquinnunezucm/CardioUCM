@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import $ from 'jquery';
 import 'datatables.net-bs4';
 import 'datatables.net-bs4/css/dataTables.bootstrap4.min.css';
-import { Modal, Button, Form, InputGroup } from 'react-bootstrap'; // <-- Importar InputGroup
+import { Modal, Button, Form, InputGroup } from 'react-bootstrap'; 
 import Swal from 'sweetalert2';
 import { API_BASE_URL } from '../utils/api';
 import {

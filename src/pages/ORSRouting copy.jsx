@@ -5,7 +5,7 @@ import * as turf from '@turf/turf';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 const DEVIATION_THRESHOLD_METERS = 50; // Umbral de desvío en metros
-const SNAP_THRESHOLD_METERS = 20; //  Umbral para pegar el marcador a la ruta (en metros)
+const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (en metros)
 
 const styleRemaining = {
   color: '#007bff',
