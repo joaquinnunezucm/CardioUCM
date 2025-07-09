@@ -114,6 +114,7 @@ const UbicacionDEA = () => {
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
+  const setRutaFromRef = useRef(null);
 
 
 
@@ -196,10 +197,6 @@ useEffect(() => {
       setCercanos(cercanosCalculados);
     }
   }, [userLocation, desfibriladores]);
-
-  // --- Referencias para funciones, para evitar ciclos de dependencia ---
-  const detenerNavegacionRef = useRef(null);
-  const setRutaFromRef = useRef(null);
 
   // 1. Función para DETENER la navegación.
   const detenerNavegacion = useCallback(() => {
