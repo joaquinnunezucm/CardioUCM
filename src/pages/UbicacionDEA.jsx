@@ -112,6 +112,7 @@ const UbicacionDEA = () => {
   const initialDeviationRef = useRef(null); // Para la lógica de desvío relativo
   const mapRef = useRef(null); // Referencia al objeto del mapa de Leaflet
   const detenerNavegacionRef = useRef(null);
+  const [pendingRouteResult, setPendingRouteResult] = useState(null);
 
   // ESTADOS para la navegación y guía por voz
   const [destinoRuta, setDestinoRuta] = useState(null);
@@ -367,37 +368,48 @@ const iniciarNavegacion = useCallback((dea) => {
 }, [userLocation, detenerNavegacion]);
 
 const handleRouteResult = useCallback(({ status, route }) => {
-    // --- GUARDA DE SEGURIDAD ---
-    // Si la instancia del mapa aún no está lista, no hacemos nada.
-    // React se encargará de volver a intentarlo en el siguiente ciclo.
+    // --- Comprobación de disponibilidad del mapa ---
+    // Si la instancia del mapa aún no está lista, guardamos el resultado y salimos.
     if (!mapRef.current) {
-        console.warn("handleRouteResult fue llamado antes de que el mapa estuviera listo. Intentando de nuevo...");
+        console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado para procesar más tarde.");
+        setPendingRouteResult({ status, route }); 
         return;
     }
 
-    // Limpia cualquier capa anterior (esto ahora es seguro)
+    // Si llegamos aquí, es porque el mapa está listo.
+    // Limpiamos el estado pendiente para evitar reprocesamientos.
+    setPendingRouteResult(null);
+    
+    // Limpiamos cualquier capa de ruta anterior que pudiera existir en el mapa.
     if (routeLayer) {
         try {
             mapRef.current.removeLayer(routeLayer);
-        } catch (e) { /* Ignorar error si la capa ya no está */ }
+        } catch (e) {
+            console.warn("No se pudo remover la capa de ruta anterior (puede que ya no exista).");
+        }
     }
 
+    // --- Decisión del Plan de Navegación ---
     if (status === 'SUCCESS') {
         // --- PLAN A: RUTA A PIE ENCONTRADA ---
         console.log("Plan A: Ruta a pie encontrada.");
         setNavMode('ROUTE');
+
         const routeCoords = turf.getCoords(route);
-        // La siguiente línea es una corrección importante de mi código anterior:
-        const startPointOfRoute = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]]; // [lat, lon]
+        // El primer punto de la ruta en formato [lat, lon]
+        const startPointOfRoute = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]];
+        // Calculamos y guardamos la desviación inicial para la lógica de seguimiento.
         initialDeviationRef.current = getDistanceInMeters(userLocation[0], userLocation[1], startPointOfRoute[0], startPointOfRoute[1]);
         
         setRouteData({ coords: routeCoords, instructions: route.properties.segments[0].steps });
         
+        // Creamos y añadimos la nueva capa de ruta (línea azul) al mapa.
         const newLayer = L.geoJSON(route, { style: { color: '#007bff', weight: 6, opacity: 0.85 } }).addTo(mapRef.current);
         setRouteLayer(newLayer);
         mapRef.current.fitBounds(newLayer.getBounds(), { padding: [50, 50] });
 
         Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Ruta encontrada. Sigue la línea azul.', showConfirmButton: false, timer: 3000 });
+
     } else {
         // --- PLAN B: RUTA DE EMERGENCIA (LÍNEA RECTA) ---
         console.log("Plan B: Falló la ruta a pie. Mostrando línea recta de emergencia.");
@@ -405,6 +417,7 @@ const handleRouteResult = useCallback(({ status, route }) => {
         setRouteData(null);
         
         if (userLocation && destinoRuta) {
+            // Creamos y añadimos la nueva capa de emergencia (línea roja) al mapa.
             const line = L.polyline([userLocation, destinoRuta], { color: 'red', weight: 4, opacity: 0.7, dashArray: '10, 10' }).addTo(mapRef.current);
             setRouteLayer(line);
             mapRef.current.fitBounds(L.latLngBounds(userLocation, destinoRuta), { padding: [50, 50] });
@@ -417,7 +430,16 @@ const handleRouteResult = useCallback(({ status, route }) => {
             });
         }
     }
-}, [routeLayer, userLocation, destinoRuta]);
+}, [routeLayer, userLocation, destinoRuta]); // Dependencias de la función
+
+useEffect(() => {
+    // Si tenemos una ruta pendiente en el estado Y el mapa ya está disponible...
+    if (pendingRouteResult && mapRef.current) {
+        console.log("Procesando ruta pendiente ahora que el mapa está listo.");
+        // Volvemos a llamar a handleRouteResult, pero esta vez el mapa sí existirá.
+        handleRouteResult(pendingRouteResult);
+    }
+}, [pendingRouteResult, handleRouteResult]); // Se activa cuando el estado pendiente cambia.
 
   const handleShowModal = () => {
     setShowModal(true);
