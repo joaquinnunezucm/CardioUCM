@@ -285,12 +285,14 @@ const detenerNavegacion = useCallback(() => {
     setPendingRouteResult(null); // Asegúrate de limpiar el resultado pendiente también
 }, [routeLayer]);
 
-// REEMPLAZA tu función iniciarNavegacion por esta:
 const iniciarNavegacion = useCallback((dea) => {
     if (!userLocation) {
       return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     }
-    detenerNavegacion(); // Limpia cualquier navegación anterior
+
+    if (detenerNavegacionRef.current) {
+        detenerNavegacionRef.current(); 
+    }
     
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     Swal.fire({
@@ -304,10 +306,10 @@ const iniciarNavegacion = useCallback((dea) => {
       if (result.isConfirmed) {
         setSelectedDeaId(dea.id);
         setDestinoRuta(destino);
-        setRutaFrom(userLocation); // Esto disparará la petición en ORSRouting
+        setRutaFrom(userLocation); 
       }
     });
-}, [userLocation, detenerNavegacion]);
+}, [userLocation]);
 
 // REEMPLAZA tu función handleRouteResult por esta:
 const handleRouteResult = useCallback(({ status, route }) => {
