@@ -68,27 +68,6 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
   return null;
 };
 
-/* const speak = (text) => {
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-  }
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-ES';
-    utterance.rate = 1.1;
-    window.speechSynthesis.speak(utterance);
-  } else {
-    console.warn("La síntesis de voz no es soportada por este navegador.");
-  }
-}; */
-
-/* const unlockSpeechSynthesis = () => {
-  // Truco para iOS: reproducir un silencio para desbloquear el contexto de audio.
-  const utterance = new SpeechSynthesisUtterance('');
-  utterance.volume = 0; // No queremos que se escuche
-  window.speechSynthesis.speak(utterance);
-}; */
-
   const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (value) => (value * Math.PI) / 180;
     const R = 6371000;
@@ -286,7 +265,6 @@ useEffect(() => {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
             if (distanceToTarget < triggerDistance) {
-              /* speak(currentInstruction.instruction); */
               return currentStep + 1;
             }
           }
@@ -297,7 +275,6 @@ useEffect(() => {
     });
 
     if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
-        /* speak('Ha llegado a su destino.'); */
         Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
           detenerNavegacion();
         });
@@ -360,7 +337,6 @@ const iniciarNavegacion = (dea) => {
         cancelButtonText: 'Cancelar',
     }).then((result) => {
         if (result.isConfirmed) {
-            /* unlockSpeechSynthesis(); */
 
             setRutaFrom(userLocation);
             setSelectedDeaId(dea.id);
