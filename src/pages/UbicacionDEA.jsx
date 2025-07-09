@@ -114,11 +114,12 @@ const UbicacionDEA = () => {
   const detenerNavegacionRef = useRef(null);
   const [pendingRouteResult, setPendingRouteResult] = useState(null);
 
-  // ESTADOS para la navegación y guía por voz
+
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const handleRouteResultRef = useRef(null);
 
 
 
@@ -311,7 +312,7 @@ const iniciarNavegacion = useCallback((dea) => {
     });
 }, [userLocation]);
 
-// REEMPLAZA tu función handleRouteResult por esta:
+
 const handleRouteResult = useCallback(({ status, route }) => {
     if (!mapRef.current) {
         console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado para procesar más tarde.");
@@ -364,13 +365,20 @@ const handleRouteResult = useCallback(({ status, route }) => {
 }, [routeLayer, userLocation, destinoRuta]);
 
 useEffect(() => {
+    handleRouteResultRef.current = handleRouteResult;
+}, [handleRouteResult]);
+
+useEffect(() => {
     // Si tenemos una ruta pendiente en el estado Y el mapa ya está disponible...
     if (pendingRouteResult && mapRef.current) {
         console.log("Procesando ruta pendiente ahora que el mapa está listo.");
-        // Volvemos a llamar a handleRouteResult, pero esta vez el mapa sí existirá.
-        handleRouteResult(pendingRouteResult);
+        // Usamos el ref para llamar a la función, rompiendo el ciclo de dependencias.
+        if (handleRouteResultRef.current) {
+            handleRouteResultRef.current(pendingRouteResult);
+        }
     }
-}, [pendingRouteResult, handleRouteResult]); // Se activa cuando el estado pendiente cambia.
+// El array de dependencias ahora es más simple y seguro.
+}, [pendingRouteResult]);
 
   const handleShowModal = () => {
     setShowModal(true);
