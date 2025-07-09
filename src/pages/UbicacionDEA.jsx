@@ -119,16 +119,8 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-    const onRouteFoundCallback = useCallback((data) => {
-    setRouteData(data);
-    setCurrentStepIndex(0);
 
-  }, []);
 
-const onDeviationCallback = useCallback(() => {
-  console.log("Señal de desvío recibida desde el componente hijo.");
-  setDeviationSignal(true);
-}, []); // No necesita dependencias, ya que no usa variables de estado.
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -154,33 +146,6 @@ const onDeviationCallback = useCallback(() => {
     Swal.fire({ icon: 'error', title: title, text: text });
   };
 
-//  se activa cuando se recibe la señal de desvío
-useEffect(() => {
-  // Solo actúa si la señal está activa y tenemos la ubicación del usuario
-  if (deviationSignal && userLocation) {
-    const now = Date.now();
-    if (now - lastRerouteTimestampRef.current < 10000) {
-      console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
-    } else {
-      lastRerouteTimestampRef.current = now;
-
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'info',
-        title: 'Te has desviado, recalculando ruta...',
-        showConfirmButton: false,
-        timer: 2500,
-        timerProgressBar: true,
-      });
-      setRutaFrom(userLocation);
-    }
-
-    // Resetea la señal para que este efecto no se ejecute de nuevo
-    // hasta que se vuelva a enviar.
-    setDeviationSignal(false);
-  }
-}, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
@@ -237,39 +202,25 @@ useEffect(() => {
   }, [userLocation, desfibriladores]);
 
   useEffect(() => {
-    // Si no hay destino, la navegación no está activa, así que no hacemos nada.
     if (!destinoRuta) return;
 
-    // Esta función se ejecutará cada vez que el GPS reporte una nueva ubicación.
     const handlePositionChange = (position) => {
         const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(nuevaUbicacion); // Actualizamos la ubicación del usuario en el estado.
+        setUserLocation(nuevaUbicacion);
 
-        // --- Lógica para el modo de RUTA GUIADA (línea azul) ---
         if (navMode === 'ROUTE' && routeData && routeLayer) {
             const routeLine = turf.lineString(routeData.coords);
-            const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]); // Turf usa [lon, lat]
+            const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
             const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
             const currentDeviation = turf.distance(userPoint, nearestPoint, { units: 'meters' });
 
-            // Lógica de desvío relativo progresivo:
-            // Solo se considera un desvío si el usuario se aleja MÁS de lo que ya estaba, con un margen de 75m.
             const realDeviationThreshold = (initialDeviationRef.current || 0) + 75;
-
             if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
-                Swal.fire({ 
-                    toast: true, 
-                    position: 'top-end', 
-                    icon: 'info', 
-                    title: 'Te has desviado, recalculando...', 
-                    showConfirmButton: false, 
-                    timer: 2500 
-                });
-                setRutaFrom(nuevaUbicacion); // Dispara un re-cálculo de la ruta desde la nueva ubicación.
-                return; // Detiene la ejecución para esta actualización y espera la nueva ruta.
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
+                setRutaFrom(nuevaUbicacion);
+                return;
             }
 
-            // Si no hay desvío, se acorta la línea azul para mostrar el progreso.
             try {
                 const sliceIndex = nearestPoint.properties.index;
                 const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
@@ -280,45 +231,38 @@ useEffect(() => {
             }
         }
 
-        // --- Lógica para el modo de EMERGENCIA (línea recta roja) ---
         if (navMode === 'STRAIGHT_LINE' && routeLayer) {
-            // Simplemente actualizamos el inicio de la línea recta a la nueva ubicación del usuario.
             routeLayer.setLatLngs([nuevaUbicacion, destinoRuta]);
         }
 
-        // --- Comprobación de llegada (funciona para AMBOS modos) ---
         if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
             Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-                // Usamos el ref para llamar a la función, rompiendo el ciclo de dependencias.
                 if (detenerNavegacionRef.current) {
                     detenerNavegacionRef.current();
                 }
             });
         }
     };
-
-    // Inicia el seguimiento GPS
-    console.log("useEffect de navegación activado. Iniciando watchPosition.");
-    const id = navigator.geolocation.watchPosition(
+    
+    watchIdRef.current = navigator.geolocation.watchPosition(
         handlePositionChange,
         (err) => console.error("Error en watchPosition:", err),
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
-    watchIdRef.current = id; // Guardamos el ID para poder detenerlo más tarde.
-
-    // Función de limpieza: se ejecuta cuando el componente se desmonta o las dependencias cambian.
+    
     return () => {
         if (watchIdRef.current) {
-            console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
             navigator.geolocation.clearWatch(watchIdRef.current);
-            watchIdRef.current = null;
         }
     };
-
-// El array de dependencias es ahora más simple y seguro, evitando el error de inicialización.
 }, [destinoRuta, navMode, routeData, routeLayer]);
 
-  // FUNCIÓN  para limpiar todos los estados de navegación
+
+// REEMPLAZA tu actual useEffect para detenerNavegacionRef por este (o añádelo si no lo tienes):
+useEffect(() => {
+    detenerNavegacionRef.current = detenerNavegacion;
+}, [detenerNavegacion]);
+
 const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -335,15 +279,13 @@ const detenerNavegacion = useCallback(() => {
     setRutaFrom(null);
     setNavMode(null);
     setRouteLayer(null);
-    setRouteData({ coords: [], instructions: [] }); // O null si prefieres
+    setRouteData(null);
     setSelectedDeaId(null);
     initialDeviationRef.current = null;
-}, [routeLayer]); // La dependencia ahora es 'routeLayer'
+    setPendingRouteResult(null); // Asegúrate de limpiar el resultado pendiente también
+}, [routeLayer]);
 
-useEffect(() => {
-    detenerNavegacionRef.current = detenerNavegacion;
-}, [detenerNavegacion]);
-
+// REEMPLAZA tu función iniciarNavegacion por esta:
 const iniciarNavegacion = useCallback((dea) => {
     if (!userLocation) {
       return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
@@ -367,20 +309,16 @@ const iniciarNavegacion = useCallback((dea) => {
     });
 }, [userLocation, detenerNavegacion]);
 
+// REEMPLAZA tu función handleRouteResult por esta:
 const handleRouteResult = useCallback(({ status, route }) => {
-    // --- Comprobación de disponibilidad del mapa ---
-    // Si la instancia del mapa aún no está lista, guardamos el resultado y salimos.
     if (!mapRef.current) {
         console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado para procesar más tarde.");
         setPendingRouteResult({ status, route }); 
         return;
     }
 
-    // Si llegamos aquí, es porque el mapa está listo.
-    // Limpiamos el estado pendiente para evitar reprocesamientos.
     setPendingRouteResult(null);
     
-    // Limpiamos cualquier capa de ruta anterior que pudiera existir en el mapa.
     if (routeLayer) {
         try {
             mapRef.current.removeLayer(routeLayer);
@@ -389,35 +327,26 @@ const handleRouteResult = useCallback(({ status, route }) => {
         }
     }
 
-    // --- Decisión del Plan de Navegación ---
     if (status === 'SUCCESS') {
-        // --- PLAN A: RUTA A PIE ENCONTRADA ---
         console.log("Plan A: Ruta a pie encontrada.");
         setNavMode('ROUTE');
-
         const routeCoords = turf.getCoords(route);
-        // El primer punto de la ruta en formato [lat, lon]
         const startPointOfRoute = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]];
-        // Calculamos y guardamos la desviación inicial para la lógica de seguimiento.
         initialDeviationRef.current = getDistanceInMeters(userLocation[0], userLocation[1], startPointOfRoute[0], startPointOfRoute[1]);
         
         setRouteData({ coords: routeCoords, instructions: route.properties.segments[0].steps });
         
-        // Creamos y añadimos la nueva capa de ruta (línea azul) al mapa.
         const newLayer = L.geoJSON(route, { style: { color: '#007bff', weight: 6, opacity: 0.85 } }).addTo(mapRef.current);
         setRouteLayer(newLayer);
         mapRef.current.fitBounds(newLayer.getBounds(), { padding: [50, 50] });
 
         Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Ruta encontrada. Sigue la línea azul.', showConfirmButton: false, timer: 3000 });
-
     } else {
-        // --- PLAN B: RUTA DE EMERGENCIA (LÍNEA RECTA) ---
         console.log("Plan B: Falló la ruta a pie. Mostrando línea recta de emergencia.");
         setNavMode('STRAIGHT_LINE');
         setRouteData(null);
         
         if (userLocation && destinoRuta) {
-            // Creamos y añadimos la nueva capa de emergencia (línea roja) al mapa.
             const line = L.polyline([userLocation, destinoRuta], { color: 'red', weight: 4, opacity: 0.7, dashArray: '10, 10' }).addTo(mapRef.current);
             setRouteLayer(line);
             mapRef.current.fitBounds(L.latLngBounds(userLocation, destinoRuta), { padding: [50, 50] });
@@ -430,7 +359,7 @@ const handleRouteResult = useCallback(({ status, route }) => {
             });
         }
     }
-}, [routeLayer, userLocation, destinoRuta]); // Dependencias de la función
+}, [routeLayer, userLocation, destinoRuta]);
 
 useEffect(() => {
     // Si tenemos una ruta pendiente en el estado Y el mapa ya está disponible...
