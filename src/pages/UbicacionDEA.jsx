@@ -202,98 +202,35 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-  useEffect(() => {
-    if (!destinoRuta) return;
-
-    const handlePositionChange = (position) => {
-        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(nuevaUbicacion);
-
-        if (navMode === 'ROUTE' && routeData && routeLayer) {
-            const routeLine = turf.lineString(routeData.coords);
-            const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
-            const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
-            const currentDeviation = turf.distance(userPoint, nearestPoint, { units: 'meters' });
-
-            const realDeviationThreshold = (initialDeviationRef.current || 0) + 75;
-            if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
-                setRutaFrom(nuevaUbicacion);
-                return;
-            }
-
-            try {
-                const sliceIndex = nearestPoint.properties.index;
-                const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
-                const remainingLine = turf.lineString(remainingCoords);
-                routeLayer.clearLayers().addData(remainingLine);
-            } catch (e) {
-                console.error("Error al acortar la ruta visual:", e);
-            }
-        }
-
-        if (navMode === 'STRAIGHT_LINE' && routeLayer) {
-            routeLayer.setLatLngs([nuevaUbicacion, destinoRuta]);
-        }
-
-        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
-            Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-                if (detenerNavegacionRef.current) {
-                    detenerNavegacionRef.current();
-                }
-            });
-        }
-    };
-    
-    watchIdRef.current = navigator.geolocation.watchPosition(
-        handlePositionChange,
-        (err) => console.error("Error en watchPosition:", err),
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-    );
-    
-    return () => {
-        if (watchIdRef.current) {
-            navigator.geolocation.clearWatch(watchIdRef.current);
-        }
-    };
-}, [destinoRuta, navMode, routeData, routeLayer]);
-
-
-// REEMPLAZA tu actual useEffect para detenerNavegacionRef por este (o añádelo si no lo tienes):
-useEffect(() => {
-    detenerNavegacionRef.current = detenerNavegacion;
-}, [detenerNavegacion]);
-
-const detenerNavegacion = useCallback(() => {
+  // 1. Función para DETENER la navegación. Es la más fundamental.
+  const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
     if (routeLayer && mapRef.current) {
-        try {
-            mapRef.current.removeLayer(routeLayer);
-        } catch (e) {
-            console.error("No se pudo remover la capa de ruta, puede que ya no exista.", e);
-        }
+      try {
+        mapRef.current.removeLayer(routeLayer);
+      } catch (e) {
+        console.error("No se pudo remover la capa de ruta.", e);
+      }
     }
     setDestinoRuta(null);
     setRutaFrom(null);
     setNavMode(null);
     setRouteLayer(null);
-    setRouteData(null);
+    setRouteData(null); // Cambiado desde un objeto vacío a null para más consistencia
     setSelectedDeaId(null);
     initialDeviationRef.current = null;
-    setPendingRouteResult(null); // Asegúrate de limpiar el resultado pendiente también
-}, [routeLayer]);
+    setPendingRouteResult(null);
+  }, [routeLayer]); // Solo depende de routeLayer. Simple y seguro.
 
-const iniciarNavegacion = useCallback((dea) => {
+  // 2. Función para INICIAR la navegación.
+  const iniciarNavegacion = useCallback((dea) => {
     if (!userLocation) {
       return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     }
-
-    if (detenerNavegacionRef.current) {
-        detenerNavegacionRef.current(); 
-    }
+    detenerNavegacion(); // Llama a la versión estable de la función.
     
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     Swal.fire({
@@ -307,79 +244,112 @@ const iniciarNavegacion = useCallback((dea) => {
       if (result.isConfirmed) {
         setSelectedDeaId(dea.id);
         setDestinoRuta(destino);
-        setRutaFrom(userLocation); 
+        setRutaFrom(userLocation);
       }
     });
-}, [userLocation]);
+  }, [userLocation, detenerNavegacion]); // Depende de detenerNavegacion, que ahora es estable.
 
-
-const handleRouteResult = useCallback(({ status, route }) => {
+  // 3. Función para MANEJAR el resultado de la API de rutas.
+  const handleRouteResult = useCallback(({ status, route }) => {
     if (!mapRef.current) {
-        console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado para procesar más tarde.");
-        setPendingRouteResult({ status, route }); 
-        return;
+      console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado.");
+      setPendingRouteResult({ status, route });
+      return;
     }
-
     setPendingRouteResult(null);
-    
+
     if (routeLayer) {
-        try {
-            mapRef.current.removeLayer(routeLayer);
-        } catch (e) {
-            console.warn("No se pudo remover la capa de ruta anterior (puede que ya no exista).");
-        }
+      try {
+        mapRef.current.removeLayer(routeLayer);
+      } catch (e) {
+        console.warn("No se pudo remover la capa anterior.");
+      }
     }
 
     if (status === 'SUCCESS') {
-        console.log("Plan A: Ruta a pie encontrada.");
-        setNavMode('ROUTE');
-        const routeCoords = turf.getCoords(route);
-        const startPointOfRoute = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]];
-        initialDeviationRef.current = getDistanceInMeters(userLocation[0], userLocation[1], startPointOfRoute[0], startPointOfRoute[1]);
-        
-        setRouteData({ coords: routeCoords, instructions: route.properties.segments[0].steps });
-        
-        const newLayer = L.geoJSON(route, { style: { color: '#007bff', weight: 6, opacity: 0.85 } }).addTo(mapRef.current);
-        setRouteLayer(newLayer);
-        mapRef.current.fitBounds(newLayer.getBounds(), { padding: [50, 50] });
-
-        Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Ruta encontrada. Sigue la línea azul.', showConfirmButton: false, timer: 3000 });
+      // PLAN A
+      setNavMode('ROUTE');
+      const routeCoords = turf.getCoords(route);
+      const startPoint = [route.geometry.coordinates[0][1], route.geometry.coordinates[0][0]];
+      initialDeviationRef.current = getDistanceInMeters(userLocation[0], userLocation[1], startPoint[0], startPoint[1]);
+      setRouteData({ coords: routeCoords, instructions: route.properties.segments[0].steps });
+      const newLayer = L.geoJSON(route, { style: { color: '#007bff', weight: 6, opacity: 0.85 } }).addTo(mapRef.current);
+      setRouteLayer(newLayer);
+      mapRef.current.fitBounds(newLayer.getBounds(), { padding: [50, 50] });
+      Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Ruta encontrada.', showConfirmButton: false, timer: 3000 });
     } else {
-        console.log("Plan B: Falló la ruta a pie. Mostrando línea recta de emergencia.");
-        setNavMode('STRAIGHT_LINE');
-        setRouteData(null);
-        
-        if (userLocation && destinoRuta) {
-            const line = L.polyline([userLocation, destinoRuta], { color: 'red', weight: 4, opacity: 0.7, dashArray: '10, 10' }).addTo(mapRef.current);
-            setRouteLayer(line);
-            mapRef.current.fitBounds(L.latLngBounds(userLocation, destinoRuta), { padding: [50, 50] });
-
-            Swal.fire({
-                icon: 'warning',
-                title: 'Ruta a Pie no Disponible',
-                text: 'Sigue la línea roja como guía y dirígete al punto marcado.',
-                confirmButtonText: 'Entendido'
-            });
-        }
+      // PLAN B
+      setNavMode('STRAIGHT_LINE');
+      setRouteData(null);
+      if (userLocation && destinoRuta) {
+        const line = L.polyline([userLocation, destinoRuta], { color: 'red', weight: 4, opacity: 0.7, dashArray: '10, 10' }).addTo(mapRef.current);
+        setRouteLayer(line);
+        mapRef.current.fitBounds(L.latLngBounds(userLocation, destinoRuta), { padding: [50, 50] });
+        Swal.fire({ icon: 'warning', title: 'Ruta a Pie no Disponible', text: 'Sigue la línea roja como guía.', confirmButtonText: 'Entendido' });
+      }
     }
-}, [routeLayer, userLocation, destinoRuta]);
+  }, [routeLayer, userLocation, destinoRuta]);
 
-useEffect(() => {
-    handleRouteResultRef.current = handleRouteResult;
-}, [handleRouteResult]);
-
-useEffect(() => {
-    // Si tenemos una ruta pendiente en el estado Y el mapa ya está disponible...
+  // 4. useEffect para procesar una ruta pendiente.
+  useEffect(() => {
     if (pendingRouteResult && mapRef.current) {
-        console.log("Procesando ruta pendiente ahora que el mapa está listo.");
-        // Usamos el ref para llamar a la función, rompiendo el ciclo de dependencias.
-        if (handleRouteResultRef.current) {
-            handleRouteResultRef.current(pendingRouteResult);
-        }
+      handleRouteResult(pendingRouteResult);
     }
-// El array de dependencias ahora es más simple y seguro.
-}, [pendingRouteResult]);
+  }, [pendingRouteResult, handleRouteResult]);
 
+  // 5. useEffect para el seguimiento GPS en vivo.
+  useEffect(() => {
+    if (!destinoRuta) return;
+
+    const handlePositionChange = (position) => {
+      const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+      setUserLocation(nuevaUbicacion);
+
+      if (navMode === 'ROUTE' && routeData && routeLayer) {
+        const routeLine = turf.lineString(routeData.coords);
+        const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
+        const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
+        const currentDeviation = turf.distance(userPoint, nearestPoint, { units: 'meters' });
+        const realDeviationThreshold = (initialDeviationRef.current || 0) + 75;
+
+        if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
+          Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
+          setRutaFrom(nuevaUbicacion);
+          return;
+        }
+
+        try {
+          const sliceIndex = nearestPoint.properties.index;
+          const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
+          routeLayer.clearLayers().addData(turf.lineString(remainingCoords));
+        } catch (e) {
+          console.error("Error al acortar la ruta visual:", e);
+        }
+      }
+
+      if (navMode === 'STRAIGHT_LINE' && routeLayer) {
+        routeLayer.setLatLngs([nuevaUbicacion, destinoRuta]);
+      }
+
+      if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
+        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+          detenerNavegacion();
+        });
+      }
+    };
+    
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      handlePositionChange,
+      (err) => console.error("Error en watchPosition:", err),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+    );
+    
+    return () => {
+      if (watchIdRef.current) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [destinoRuta, navMode, routeData, routeLayer, detenerNavegacion, setRutaFrom]);
   const handleShowModal = () => {
     setShowModal(true);
     setErrors({});
