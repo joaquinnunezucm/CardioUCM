@@ -116,9 +116,6 @@ const UbicacionDEA = () => {
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const setRutaFromRef = useRef(null);
 
-
-
-
   const handleLocationError = (error) => {
     setIsLoading(false); 
     let title = 'Error de Ubicación';
@@ -364,6 +361,12 @@ useEffect(() => {
   // Este array de dependencias es seguro y está optimizado.
   }, [destinoRuta, navMode, routeData, routeLayer, pendingRouteResult, handleRouteResult]);
 
+    const handleShowModal = () => {
+    setShowModal(true);
+    setErrors({});
+    setTermsAccepted(false);
+  };
+  
   const handleCloseModal = () => {
     if (!isSubmitting) {
       setShowModal(false);
