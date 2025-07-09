@@ -195,8 +195,10 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-  // 1. Función para DETENER la navegación.
-  const detenerNavegacion = useCallback(() => {
+  const navigationFunctions = useRef({});
+
+  // 1. Definimos las funciones de navegación.
+  const detenerNavegacion = () => {
     if (watchIdRef.current) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -212,31 +214,17 @@ useEffect(() => {
     setRutaFrom(null);
     setNavMode(null);
     setRouteLayer(null);
-    setRouteData(null);
+    setRouteData(null); 
     setSelectedDeaId(null);
     initialDeviationRef.current = null;
     setPendingRouteResult(null);
-  }, [routeLayer]);
+  };
 
-  // Efecto para mantener el ref actualizado con la última versión de la función.
-  useEffect(() => {
-    detenerNavegacionRef.current = detenerNavegacion;
-  }, [detenerNavegacion]);
-  
-  // Efecto para mantener el ref actualizado para setRutaFrom.
-  useEffect(() => {
-    setRutaFromRef.current = setRutaFrom;
-  }, [setRutaFrom]);
-
-  // 2. Función para INICIAR la navegación.
-  const iniciarNavegacion = useCallback((dea) => {
+  const iniciarNavegacion = (dea) => {
     if (!userLocation) {
       return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     }
-    // Llama a la función a través del ref para máxima seguridad.
-    if (detenerNavegacionRef.current) {
-      detenerNavegacionRef.current();
-    }
+    navigationFunctions.current.detenerNavegacion(); 
     
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     Swal.fire({
@@ -253,12 +241,11 @@ useEffect(() => {
         setRutaFrom(userLocation);
       }
     });
-  }, [userLocation]);
+  };
 
-  // 3. Función para MANEJAR el resultado de la API.
-  const handleRouteResult = useCallback(({ status, route }) => {
+  const handleRouteResult = ({ status, route }) => {
     if (!mapRef.current) {
-      console.warn("handleRouteResult llamado antes de que el mapa esté listo. Guardando resultado.");
+      console.warn("Mapa no listo. Guardando resultado.");
       setPendingRouteResult({ status, route });
       return;
     }
@@ -294,16 +281,18 @@ useEffect(() => {
         Swal.fire({ icon: 'warning', title: 'Ruta a Pie no Disponible', text: 'Sigue la línea roja como guía.', confirmButtonText: 'Entendido' });
       }
     }
-  }, [routeLayer, userLocation, destinoRuta]);
+  };
 
-  // 4. useEffect principal de NAVEGACIÓN y SEGUIMIENTO.
+  // 2. Guardamos las funciones en el ref para que sean accesibles de forma estable.
   useEffect(() => {
-    // Si hay una ruta pendiente y el mapa está listo, la procesamos.
-    if (pendingRouteResult && mapRef.current) {
-        handleRouteResult(pendingRouteResult);
-    }
+    navigationFunctions.current = { detenerNavegacion, iniciarNavegacion, handleRouteResult, setRutaFrom };
+  }); // Sin array de dependencias, se actualiza en cada render.
 
-    // Si no hay destino, la navegación no está activa.
+  // 3. useEffect principal de NAVEGACIÓN y SEGUIMIENTO, ahora con dependencias seguras.
+  useEffect(() => {
+    if (pendingRouteResult && mapRef.current) {
+        navigationFunctions.current.handleRouteResult(pendingRouteResult);
+    }
     if (!destinoRuta) return;
 
     const handlePositionChange = (position) => {
@@ -319,19 +308,14 @@ useEffect(() => {
 
         if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
           Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
-          if (setRutaFromRef.current) {
-            setRutaFromRef.current(nuevaUbicacion);
-          }
+          navigationFunctions.current.setRutaFrom(nuevaUbicacion);
           return;
         }
-
         try {
           const sliceIndex = nearestPoint.properties.index;
           const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
           routeLayer.clearLayers().addData(turf.lineString(remainingCoords));
-        } catch (e) {
-          console.error("Error al acortar la ruta visual:", e);
-        }
+        } catch (e) { console.error("Error al acortar la ruta visual:", e); }
       }
 
       if (navMode === 'STRAIGHT_LINE' && routeLayer) {
@@ -340,9 +324,7 @@ useEffect(() => {
 
       if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
         Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-          if (detenerNavegacionRef.current) {
-            detenerNavegacionRef.current();
-          }
+          navigationFunctions.current.detenerNavegacion();
         });
       }
     };
@@ -358,15 +340,14 @@ useEffect(() => {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
     };
-  // Este array de dependencias es seguro y está optimizado.
-  }, [destinoRuta, navMode, routeData, routeLayer, pendingRouteResult, handleRouteResult]);
+  }, [destinoRuta, navMode, routeData, routeLayer, pendingRouteResult]);
 
     const handleShowModal = () => {
     setShowModal(true);
     setErrors({});
     setTermsAccepted(false);
   };
-  
+
   const handleCloseModal = () => {
     if (!isSubmitting) {
       setShowModal(false);
