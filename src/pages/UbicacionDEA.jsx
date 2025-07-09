@@ -119,7 +119,7 @@ const UbicacionDEA = () => {
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const handleRouteResultRef = useRef(null);
+
 
 
 
@@ -290,71 +290,83 @@ useEffect(() => {
     }
   }, [routeLayer, userLocation, destinoRuta]);
 
-  // 4. useEffect para procesar una ruta pendiente.
-  useEffect(() => {
-    if (pendingRouteResult && mapRef.current) {
-      handleRouteResult(pendingRouteResult);
-    }
-  }, [pendingRouteResult, handleRouteResult]);
 
-  // 5. useEffect para el seguimiento GPS en vivo.
   useEffect(() => {
+    // --- Lógica de Procesamiento de Ruta Pendiente ---
+    // Si tenemos una ruta pendiente (porque llegó antes que el mapa) Y el mapa ya está listo,
+    // la procesamos ahora mismo.
+    if (pendingRouteResult && mapRef.current) {
+        console.log("Procesando ruta pendiente ahora que el mapa está listo.");
+        // Llamamos a la función principal para que dibuje la ruta.
+        handleRouteResult(pendingRouteResult);
+    }
+
+    // --- Lógica de Seguimiento GPS en Vivo ---
+    // Si no hay un destino, la navegación no está activa, así que no hacemos nada más.
     if (!destinoRuta) return;
 
+    // Esta función se ejecutará cada vez que el GPS reporte una nueva ubicación.
     const handlePositionChange = (position) => {
-      const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-      setUserLocation(nuevaUbicacion);
+        const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(nuevaUbicacion); // Actualizamos la ubicación del usuario en el estado.
 
-      if (navMode === 'ROUTE' && routeData && routeLayer) {
-        const routeLine = turf.lineString(routeData.coords);
-        const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]);
-        const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
-        const currentDeviation = turf.distance(userPoint, nearestPoint, { units: 'meters' });
-        const realDeviationThreshold = (initialDeviationRef.current || 0) + 75;
+        // Si estamos en modo de RUTA GUIADA (línea azul)...
+        if (navMode === 'ROUTE' && routeData && routeLayer) {
+            const routeLine = turf.lineString(routeData.coords);
+            const userPoint = turf.point([nuevaUbicacion[1], nuevaUbicacion[0]]); // Turf usa [lon, lat]
+            const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint);
+            const currentDeviation = turf.distance(userPoint, nearestPoint, { units: 'meters' });
 
-        if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
-          Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
-          setRutaFrom(nuevaUbicacion);
-          return;
+            // Lógica de desvío relativo progresivo:
+            const realDeviationThreshold = (initialDeviationRef.current || 0) + 75; // 75m de margen.
+
+            if (currentDeviation > 50 && currentDeviation > realDeviationThreshold) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Te has desviado, recalculando...', showConfirmButton: false, timer: 2500 });
+                setRutaFrom(nuevaUbicacion); // Dispara un re-cálculo.
+                return;
+            }
+
+            // Acortar la línea azul para mostrar el progreso.
+            try {
+                const sliceIndex = nearestPoint.properties.index;
+                const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
+                routeLayer.clearLayers().addData(turf.lineString(remainingCoords));
+            } catch (e) {
+                console.error("Error al acortar la ruta visual:", e);
+            }
         }
 
-        try {
-          const sliceIndex = nearestPoint.properties.index;
-          const remainingCoords = [turf.getCoord(nearestPoint), ...routeData.coords.slice(sliceIndex + 1)];
-          routeLayer.clearLayers().addData(turf.lineString(remainingCoords));
-        } catch (e) {
-          console.error("Error al acortar la ruta visual:", e);
+        // Si estamos en modo de EMERGENCIA (línea recta roja)...
+        if (navMode === 'STRAIGHT_LINE' && routeLayer) {
+            // Actualizamos el inicio de la línea recta a la nueva ubicación del usuario.
+            routeLayer.setLatLngs([nuevaUbicacion, destinoRuta]);
         }
-      }
 
-      if (navMode === 'STRAIGHT_LINE' && routeLayer) {
-        routeLayer.setLatLngs([nuevaUbicacion, destinoRuta]);
-      }
-
-      if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
-        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-          detenerNavegacion();
-        });
-      }
+        // Comprobación de llegada (funciona para ambos modos).
+        if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 25) {
+            Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+                detenerNavegacion(); // Llama a la función estable.
+            });
+        }
     };
     
+    // Inicia el seguimiento GPS y guarda su ID.
     watchIdRef.current = navigator.geolocation.watchPosition(
-      handlePositionChange,
-      (err) => console.error("Error en watchPosition:", err),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+        handlePositionChange,
+        (err) => console.error("Error en watchPosition:", err),
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
     
+    // Función de limpieza: se ejecuta cuando el componente se desmonta o las dependencias cambian.
     return () => {
-      if (watchIdRef.current) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
+        if (watchIdRef.current) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
     };
-  }, [destinoRuta, navMode, routeData, routeLayer, detenerNavegacion, setRutaFrom]);
-  const handleShowModal = () => {
-    setShowModal(true);
-    setErrors({});
-    setTermsAccepted(false);
-  };
+
+// Array de dependencias final. Este efecto se re-evaluará si cambia cualquiera de estos valores.
+}, [destinoRuta, navMode, routeData, routeLayer, detenerNavegacion, setRutaFrom, pendingRouteResult, handleRouteResult]);
 
   const handleCloseModal = () => {
     if (!isSubmitting) {
