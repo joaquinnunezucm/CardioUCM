@@ -8,6 +8,7 @@ const DEVIATION_THRESHOLD_METERS = 100; // Umbral de desvío en metros
 const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (en metros)
 const DIRECT_PATH_THRESHOLD_METERS = 200; // Umbral para usar ruta directa (en metros)
 const FINAL_SEGMENT_THRESHOLD_METERS = 50; // Umbral para añadir segmento final al DEA (en metros)
+const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para añadir segmento inicial desde el usuario (en metros)
 
 const styleRemaining = {
   color: '#007bff',
@@ -22,6 +23,13 @@ const styleDirectPath = {
   dashArray: '10, 10', // Línea discontinua para ruta directa
 };
 
+const styleStartSegment = {
+  color: '#ffc107',
+  weight: 6,
+  opacity: 0.85,
+  dashArray: '5, 5', // Línea discontinua para segmento inicial
+};
+
 const styleFinalSegment = {
   color: '#28a745',
   weight: 6,
@@ -32,9 +40,11 @@ const styleFinalSegment = {
 const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPositionUpdate }) => {
   const map = useMap();
   const remainingPathRef = useRef(null);
+  const startSegmentRef = useRef(null);
   const finalSegmentRef = useRef(null);
   const [fullRoute, setFullRoute] = useState(null);
   const [useDirectPath, setUseDirectPath] = useState(false);
+  const [startSegment, setStartSegment] = useState(null);
   const [finalSegment, setFinalSegment] = useState(null);
 
   // Función para calcular la distancia directa
@@ -54,6 +64,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       setUseDirectPath(true);
       const directLine = turf.lineString([[from[1], from[0]], [to[1], to[0]]]);
       setFullRoute(directLine);
+      setStartSegment(null); // No se necesita segmento inicial en ruta directa
       setFinalSegment(null); // No se necesita segmento final en ruta directa
 
       if (onRouteFound) {
@@ -92,10 +103,20 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
 
           if (isMounted && data.features && data.features.length > 0) {
             const routeData = data.features[0];
-            setFullRoute(routeData);
-
-            // Verificar si la última coordenada de ORS está cerca del destino
             const routeCoords = turf.getCoords(routeData);
+
+            // Verificar si la primera coordenada de ORS coincide con el marcador del usuario
+            const firstCoord = routeCoords[0];
+            const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
+            if (distanceFromStart > 5 && distanceFromStart < START_SEGMENT_THRESHOLD_METERS) {
+              // Añadir segmento inicial si la distancia es significativa pero dentro del umbral
+              const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
+              setStartSegment(startLine);
+            } else {
+              setStartSegment(null);
+            }
+
+            // Verificar si la última coordenada de ORS coincide con el marcador del DEA
             const lastCoord = routeCoords[routeCoords.length - 1];
             const distanceToDest = getDirectDistance([lastCoord[1], lastCoord[0]], to);
             if (distanceToDest > 5 && distanceToDest < FINAL_SEGMENT_THRESHOLD_METERS) {
@@ -106,8 +127,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
               setFinalSegment(null);
             }
 
+            setFullRoute(routeData);
+
             if (onRouteFound) {
               const instructions = routeData.properties.segments[0].steps;
+              if (startSegment) {
+                instructions.unshift({ instruction: 'Comienza dirigiéndote hacia el camino más cercano.' });
+              }
               if (finalSegment) {
                 instructions.push({ instruction: 'Continúa directamente hacia el desfibrilador.' });
               }
@@ -133,10 +159,14 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       if (remainingPathRef.current) {
         map.removeLayer(remainingPathRef.current);
       }
+      if (startSegmentRef.current) {
+        map.removeLayer(startSegmentRef.current);
+      }
       if (finalSegmentRef.current) {
         map.removeLayer(finalSegmentRef.current);
       }
       setFullRoute(null);
+      setStartSegment(null);
       setFinalSegment(null);
     };
   }, [from, to, map, onRouteFound]);
@@ -181,6 +211,14 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       style: useDirectPath ? styleDirectPath : styleRemaining,
     }).addTo(map);
 
+    // Dibujar el segmento inicial si existe
+    if (startSegment && !useDirectPath) {
+      if (startSegmentRef.current) {
+        map.removeLayer(startSegmentRef.current);
+      }
+      startSegmentRef.current = L.geoJSON(startSegment, { style: styleStartSegment }).addTo(map);
+    }
+
     // Dibujar el segmento final si existe
     if (finalSegment && !useDirectPath) {
       if (finalSegmentRef.current) {
@@ -188,7 +226,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       }
       finalSegmentRef.current = L.geoJSON(finalSegment, { style: styleFinalSegment }).addTo(map);
     }
-  }, [userPosition, fullRoute, finalSegment, map, onDeviation, onPositionUpdate, useDirectPath]);
+  }, [userPosition, fullRoute, startSegment, finalSegment, map, onDeviation, onPositionUpdate, useDirectPath]);
 
   return null;
 };
