@@ -100,26 +100,15 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
 const firstCoord = routeCoords[0];
 const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
 
-// 👉 Logs para entender qué devuelve ORS
 console.log("🟢 FIRST COORD:", firstCoord);
 console.log("🟢 FROM:", from);
 console.log("🟢 DISTANCE FROM START:", distanceFromStart);
 
-// 👉 FORZAR que SIEMPRE dispare el error para testear
-// Elimina este bloque `if (true)` cuando termines de probar
-if (true) {
-  if (onError) {
-    onError(`FORZADO: estás a ${distanceFromStart.toFixed(0)} metros del camino más cercano.`);
-  }
-  return; // No deja que siga
-}
-
-// 👉 Tu lógica real normal:
 if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
   if (onError) {
     onError(`Estás a ${distanceFromStart.toFixed(0)} metros de un camino accesible. Acércate a una vía peatonal.`);
   }
-  return;
+  return; // ⛔️ Ruta no se genera
 }
 
 if (distanceFromStart > 5 && distanceFromStart <= START_SEGMENT_THRESHOLD_METERS) {
