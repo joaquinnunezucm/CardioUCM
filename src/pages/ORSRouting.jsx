@@ -6,8 +6,8 @@ import * as turf from '@turf/turf';
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 const DEVIATION_THRESHOLD_METERS = 100; // Umbral para desvíos durante navegación (metros)
 const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (metros)
-const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento inicial (metros)
-const FINAL_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento final (metros)
+const START_SEGMENT_THRESHOLD_METERS = 3000; // Umbral para segmento inicial (metros)
+const FINAL_SEGMENT_THRESHOLD_METERS = 3000; // Umbral para segmento final (metros)
 const CLOSE_TO_DEST_THRESHOLD_METERS = 10; // Umbral para estar cerca del DEA (metros)
 
 const styleRemaining = {
@@ -97,13 +97,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento inicial
           const firstCoord = routeCoords[0];
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
-if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
-  if (onError) {
-    // Simplemente mejoramos el mensaje de error
-    onError(`No se encontró un camino lo suficientemente cerca. Tu ubicación actual está a ${distanceFromStart.toFixed(0)} metros de la vía más próxima. Por favor, acércate a una calle o sendero para calcular la ruta.`);
-  }
-  return;
-}
+          if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
+            if (onError) {
+              // Simplemente mejoramos el mensaje de error
+              onError(`No se encontró un camino lo suficientemente cerca. Tu ubicación actual está a ${distanceFromStart.toFixed(0)} metros de la vía más próxima. Por favor, acércate a una calle o sendero para calcular la ruta.`);
+            }
+            return;
+          }
           if (distanceFromStart > 5 && distanceFromStart <= START_SEGMENT_THRESHOLD_METERS) {
             const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
             setStartSegment(startLine);
@@ -208,12 +208,6 @@ if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
         }
       }
     }
-
-/*     Swal.fire({
-  icon: 'info',
-  title: 'Camino no encontrado cerca',
-  text: 'Parece que estás lejos de un camino accesible. Intenta acercarte a una vereda o sendero dentro del campus.',
-}); */
 
     // Determinar si mostrar segmento inicial
     const showStartSegment = startSegment && deviationDistance > SNAP_THRESHOLD_METERS;
