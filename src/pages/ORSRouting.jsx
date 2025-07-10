@@ -79,7 +79,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
             instructions: true,
             instructions_format: 'text',
             language: 'es',
-            preference: 'recommended', // Preferencia para rutas accesibles
+            preference: 'shortest',
           }),
         });
 
