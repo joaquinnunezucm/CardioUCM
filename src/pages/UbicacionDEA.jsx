@@ -265,6 +265,7 @@ useEffect(() => {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
             if (distanceToTarget < triggerDistance) {
+
               return currentStep + 1;
             }
           }
@@ -496,11 +497,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
                       onRouteFound={onRouteFoundCallback} 
                       onPositionUpdate={onPositionUpdateCallback}
                       onDeviation={onDeviationCallback} 
-  onError={(msg) => {
-    console.log("🟢 onError:", msg);
-    Swal.fire('Desvío Detectado', msg, 'error');
-  }}
-/>
+                    />
                   )}
               </MapContainer>
             )}
@@ -515,25 +512,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
                 <button onClick={detenerNavegacion} className="btn btn-danger" style={{ ...mapButtonStyle, top: 110, right: 10 }}>
                   Detener Ruta
                 </button>
-                
               )}
-              <button
-  onClick={() => {
-    const fakeFrom = [-35.4344000, -71.6019510]; // tu posición actual
-    const fakeTo = [-35.4307383, -71.6082350];   // Lider destino
-
-    setRutaFrom(fakeFrom);
-    setDestinoRuta(fakeTo);
-
-    console.log("🚩 Forzado FROM:", fakeFrom);
-    console.log("🚩 Forzado TO:", fakeTo);
-  }}
-  className="btn btn-warning"
-  style={{ position: 'absolute', top: 160, right: 10, zIndex: 1000 }}
->
-  Probar Desvío Inicial
-</button>
-              
             </>}
           </div>
           <div className="row justify-content-center">
