@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
@@ -256,4 +256,4 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
   return null;
 };
 
-export default ORSRouting;
+export default memo(ORSRouting);
