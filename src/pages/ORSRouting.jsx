@@ -6,7 +6,7 @@ import * as turf from '@turf/turf';
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 const DEVIATION_THRESHOLD_METERS = 100; // Umbral para desvíos durante navegación (metros)
 const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (metros)
-const START_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento inicial (metros)
+const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento inicial (metros)
 const FINAL_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento final (metros)
 const CLOSE_TO_DEST_THRESHOLD_METERS = 10; // Umbral para estar cerca del DEA (metros)
 
@@ -191,14 +191,28 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       onPositionUpdate(userPosition);
     }
 
-    // Lógica de Re-cálculo (solo si no es la ruta inicial)
-    if (!isInitialRoute && deviationDistance > DEVIATION_THRESHOLD_METERS) {
-      console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
-      if (onDeviation) {
-        onDeviation();
+    // Solo se considera desvío si no es la ruta inicial
+    if (!isInitialRoute) {
+      if (deviationDistance > DEVIATION_THRESHOLD_METERS) {
+        console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
+        if (onDeviation) {
+          onDeviation();
+        }
       }
-      return;
+    } else {
+      // Primera vez: si el usuario está lejos de la ruta, pero es esperable
+      if (deviationDistance > START_SEGMENT_THRESHOLD_METERS) {
+        if (onError) {
+          onError(`Estás a ${deviationDistance.toFixed(0)} metros del camino más cercano. Acércate o revisa si estás dentro del campus.`);
+        }
+      }
     }
+
+/*     Swal.fire({
+  icon: 'info',
+  title: 'Camino no encontrado cerca',
+  text: 'Parece que estás lejos de un camino accesible. Intenta acercarte a una vereda o sendero dentro del campus.',
+}); */
 
     // Determinar si mostrar segmento inicial
     const showStartSegment = startSegment && deviationDistance > SNAP_THRESHOLD_METERS;
