@@ -321,6 +321,15 @@ const detenerNavegacion = useCallback(() => {
     });
 }, []);
 
+const handleRouteError = (title, text) => {
+  Swal.fire({
+    icon: 'warning',
+    title: title || 'No se pudo generar la ruta', // Usa el título proporcionado o uno por defecto
+    text: text, // Usa el texto de la explicación
+  });
+  detenerNavegacion(); 
+};
+
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) {
@@ -497,6 +506,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
                       onRouteFound={onRouteFoundCallback} 
                       onPositionUpdate={onPositionUpdateCallback}
                       onDeviation={onDeviationCallback} 
+                      onError={handleRouteError}
                     />
                   )}
               </MapContainer>
