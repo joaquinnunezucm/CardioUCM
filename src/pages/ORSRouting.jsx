@@ -4,11 +4,11 @@ import L from 'leaflet';
 import * as turf from '@turf/turf';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
-const DEVIATION_THRESHOLD_METERS = 100; // Umbral de desvío en metros
-const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (en metros)
-const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento inicial (en metros)
-const FINAL_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento final (en metros)
-const CLOSE_TO_DEST_THRESHOLD_METERS = 5; // Umbral para considerar que el usuario está cerca del DEA (en metros)
+const DEVIATION_THRESHOLD_METERS = 100; // Umbral para desvíos durante navegación (metros)
+const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (metros)
+const START_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento inicial (metros)
+const FINAL_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento final (metros)
+const CLOSE_TO_DEST_THRESHOLD_METERS = 10; // Umbral para estar cerca del DEA (metros)
 
 const styleRemaining = {
   color: '#007bff',
@@ -17,17 +17,17 @@ const styleRemaining = {
 };
 
 const styleStartSegment = {
-  color: '#ffc107',
+  color: '#007bff',
   weight: 6,
   opacity: 0.85,
-  dashArray: '5, 5', // Línea discontinua para segmento inicial
+  dashArray: '5, 5', // Discontinuo para diferenciar
 };
 
 const styleFinalSegment = {
-  color: '#28a745',
+  color: '#007bff',
   weight: 6,
   opacity: 0.85,
-  dashArray: '5, 5', // Línea discontinua para segmento final
+  dashArray: '5, 5', // Discontinuo para diferenciar
 };
 
 const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPositionUpdate, onError }) => {
@@ -38,6 +38,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
   const [fullRoute, setFullRoute] = useState(null);
   const [startSegment, setStartSegment] = useState(null);
   const [finalSegment, setFinalSegment] = useState(null);
+  const [isInitialRoute, setIsInitialRoute] = useState(true); // Bandera para ruta inicial
 
   // Función para calcular la distancia directa
   const getDirectDistance = (from, to) => {
@@ -77,7 +78,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
             instructions: true,
             instructions_format: 'text',
             language: 'es',
-            preference: 'shortest', // Priorizar la ruta más corta
+            preference: 'shortest',
           }),
         });
 
@@ -95,7 +96,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento inicial
           const firstCoord = routeCoords[0];
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
-          if (distanceFromStart > 5 && distanceFromStart < START_SEGMENT_THRESHOLD_METERS) {
+          if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
+            if (onError) {
+              onError(`Estás a ${distanceFromStart.toFixed(0)} metros de un camino accesible. Acércate a una vía peatonal.`);
+            }
+            return;
+          }
+          if (distanceFromStart > 5 && distanceFromStart <= START_SEGMENT_THRESHOLD_METERS) {
             const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
             setStartSegment(startLine);
           } else {
@@ -105,7 +112,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento final
           const lastCoord = routeCoords[routeCoords.length - 1];
           const distanceToDest = getDirectDistance([lastCoord[1], lastCoord[0]], to);
-          if (distanceToDest > 5 && distanceToDest < FINAL_SEGMENT_THRESHOLD_METERS) {
+          if (distanceToDest > FINAL_SEGMENT_THRESHOLD_METERS) {
+            if (onError) {
+              onError(`El desfibrilador está a ${distanceToDest.toFixed(0)} metros de un camino accesible.`);
+            }
+            return;
+          }
+          if (distanceToDest > 5 && distanceToDest <= FINAL_SEGMENT_THRESHOLD_METERS) {
             const finalLine = turf.lineString([lastCoord, [to[1], to[0]]]);
             setFinalSegment(finalLine);
           } else {
@@ -113,9 +126,10 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           }
 
           setFullRoute(routeData);
+          setIsInitialRoute(true); // Marcar como ruta inicial
 
           if (onRouteFound) {
-            const instructions = routeData.properties.segments[0].steps;
+            const instructions = routeData.properties.segments[0].steps || [];
             if (startSegment) {
               instructions.unshift({ instruction: 'Comienza dirigiéndote hacia el camino más cercano.' });
             }
@@ -155,6 +169,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       setFullRoute(null);
       setStartSegment(null);
       setFinalSegment(null);
+      setIsInitialRoute(true);
     };
   }, [from, to, map, onRouteFound, onError]);
 
@@ -170,12 +185,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
     if (deviationDistance < SNAP_THRESHOLD_METERS) {
       const snappedCoords = turf.getCoord(nearestPoint);
       onPositionUpdate([snappedCoords[1], snappedCoords[0]]); // Leaflet usa [lat, lon]
+      setIsInitialRoute(false); // Ya no es la ruta inicial
     } else {
       onPositionUpdate(userPosition);
     }
 
-    // Lógica de Re-cálculo
-    if (deviationDistance > DEVIATION_THRESHOLD_METERS) {
+    // Lógica de Re-cálculo (solo si no es la ruta inicial)
+    if (!isInitialRoute && deviationDistance > DEVIATION_THRESHOLD_METERS) {
       console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
       if (onDeviation) {
         onDeviation();
