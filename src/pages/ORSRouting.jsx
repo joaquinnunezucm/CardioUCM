@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
-import axios from 'axios';
 
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
-const OVERPASS_API_URL = 'https://overpass-api.de/api/interpreter';
 const DEVIATION_THRESHOLD_METERS = 100; // Umbral de desvío en metros
 const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (en metros)
 const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento inicial (en metros)
@@ -48,62 +46,6 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
     return turf.distance(fromPoint, toPoint, { units: 'meters' });
   };
 
-  // Función para consultar caminos peatonales con Overpass
-  const checkPedestrianPaths = async (from, to) => {
-    const radius = Math.max(100, getDirectDistance(from, to) * 1.5); // Radio más amplio para mayor precisión
-    const query = `
-      [out:json];
-      way(around:${radius},${from[0]},${from[1]})["highway"~"footway|path|steps"];
-      way(around:${radius},${to[0]},${to[1]})["highway"~"footway|path|steps"];
-      out geom;
-    `;
-    try {
-      const response = await axios.post(OVERPASS_API_URL, query, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      const elements = response.data.elements;
-      return elements.length > 0;
-    } catch (error) {
-      console.error('Error en consulta Overpass para caminos peatonales:', error.message, error.response?.data);
-      if (onError) {
-        onError('No se pudo verificar caminos peatonales. Intenta de nuevo.');
-      }
-      return false; // Asumir que no hay caminos si falla
-    }
-  };
-
-  // Función para verificar obstáculos en un segmento
-  const checkObstacles = async (start, end) => {
-    const line = turf.lineString([[start[1], start[0]], [end[1], end[0]]]);
-    const bbox = turf.bbox(line);
-    const query = `
-      [out:json];
-      (
-        way["barrier"~"fence|wall|gate"](${bbox[1]},${bbox[0]},${bbox[3]},${bbox[2]});
-        way["building"](${bbox[1]},${bbox[0]},${bbox[3]},${bbox[2]});
-        way["natural"~"water"](${bbox[1]},${bbox[0]},${bbox[3]},${bbox[2]});
-      );
-      out geom;
-    `;
-    try {
-      const response = await axios.post(OVERPASS_API_URL, query, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      const elements = response.data.elements;
-      return elements.length > 0;
-    } catch (error) {
-      console.error('Error en consulta Overpass para obstáculos:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-      if (onError) {
-        onError('No se pudo verificar obstáculos. Intenta de nuevo.');
-      }
-      return true; // Asumir obstáculos si falla (por seguridad)
-    }
-  };
-
   useEffect(() => {
     if (!from || !to) return;
     let isMounted = true;
@@ -119,15 +61,6 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
         console.error('Coordenadas inválidas:', { from, to });
         if (onError) {
           onError('Coordenadas inválidas. Por favor, verifica tu posición y el destino.');
-        }
-        return;
-      }
-
-      const hasPedestrianPaths = await checkPedestrianPaths(from, to);
-
-      if (!hasPedestrianPaths) {
-        if (onError) {
-          onError('No se encontraron caminos peatonales entre tu posición y el desfibrilador.');
         }
         return;
       }
@@ -162,18 +95,9 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento inicial
           const firstCoord = routeCoords[0];
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
-          let startLine = null;
           if (distanceFromStart > 5 && distanceFromStart < START_SEGMENT_THRESHOLD_METERS) {
-            const hasStartObstacles = await checkObstacles(from, [firstCoord[1], firstCoord[0]]);
-            if (!hasStartObstacles) {
-              startLine = turf.lineString([[from[1], from[0]], firstCoord]);
-              setStartSegment(startLine);
-            } else {
-              if (onError) {
-                onError('El segmento inicial cruza obstáculos. Intenta moverte hacia un camino accesible.');
-              }
-              setStartSegment(null);
-            }
+            const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
+            setStartSegment(startLine);
           } else {
             setStartSegment(null);
           }
@@ -181,18 +105,9 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento final
           const lastCoord = routeCoords[routeCoords.length - 1];
           const distanceToDest = getDirectDistance([lastCoord[1], lastCoord[0]], to);
-          let finalLine = null;
           if (distanceToDest > 5 && distanceToDest < FINAL_SEGMENT_THRESHOLD_METERS) {
-            const hasFinalObstacles = await checkObstacles([lastCoord[1], lastCoord[0]], to);
-            if (!hasFinalObstacles) {
-              finalLine = turf.lineString([lastCoord, [to[1], to[0]]]);
-              setFinalSegment(finalLine);
-            } else {
-              if (onError) {
-                onError('El segmento final cruza obstáculos. Intenta seguir la ruta principal hasta el final.');
-              }
-              setFinalSegment(null);
-            }
+            const finalLine = turf.lineString([lastCoord, [to[1], to[0]]]);
+            setFinalSegment(finalLine);
           } else {
             setFinalSegment(null);
           }
@@ -201,10 +116,10 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
 
           if (onRouteFound) {
             const instructions = routeData.properties.segments[0].steps;
-            if (startLine) {
+            if (startSegment) {
               instructions.unshift({ instruction: 'Comienza dirigiéndote hacia el camino más cercano.' });
             }
-            if (finalLine) {
+            if (finalSegment) {
               instructions.push({ instruction: 'Continúa directamente hacia el desfibrilador.' });
             }
             onRouteFound({
