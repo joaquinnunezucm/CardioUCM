@@ -97,12 +97,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento inicial
           const firstCoord = routeCoords[0];
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
-          if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
-            if (onError) {
-              onError(`Estás a ${distanceFromStart.toFixed(0)} metros de un camino accesible. Acércate a una vía peatonal.`);
-            }
-            return;
-          }
+if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
+  if (onError) {
+    // Simplemente mejoramos el mensaje de error
+    onError(`No se encontró un camino lo suficientemente cerca. Tu ubicación actual está a ${distanceFromStart.toFixed(0)} metros de la vía más próxima. Por favor, acércate a una calle o sendero para calcular la ruta.`);
+  }
+  return;
+}
           if (distanceFromStart > 5 && distanceFromStart <= START_SEGMENT_THRESHOLD_METERS) {
             const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
             setStartSegment(startLine);

@@ -320,6 +320,15 @@ const detenerNavegacion = useCallback(() => {
     });
 }, []);
 
+const handleRouteError = (title, text) => {
+  Swal.fire({
+    icon: 'warning',
+    title: title, // Usará el título que le mandemos
+    text: text,   // Usará el texto descriptivo
+  });
+  detenerNavegacion(); 
+};
+
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
     if (!userLocation) {
@@ -496,6 +505,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
                       onRouteFound={onRouteFoundCallback} 
                       onPositionUpdate={onPositionUpdateCallback}
                       onDeviation={onDeviationCallback} 
+                      onError={handleRouteError}
                     />
                   )}
               </MapContainer>
