@@ -31,6 +31,7 @@ const styleFinalSegment = {
 };
 
 const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPositionUpdate, onError }) => {
+  console.log('%cORSRouting RENDERIZADO', 'color: red; font-weight: bold;', { from, to });
   const map = useMap();
   const remainingPathRef = useRef(null);
   const startSegmentRef = useRef(null);

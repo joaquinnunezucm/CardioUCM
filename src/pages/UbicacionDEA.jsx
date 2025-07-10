@@ -149,16 +149,13 @@ const onDeviationCallback = useCallback(() => {
 
 // Este useEffect se activa cuando se recibe la señal de desvío
 useEffect(() => {
-  // Solo actúa si la señal está activa y tenemos la ubicación del usuario
   if (deviationSignal && userLocation) {
-
-    // La lógica del cooldown se mueve aquí, donde realmente se ejecuta la acción
     const now = Date.now();
     if (now - lastRerouteTimestampRef.current < 10000) {
       console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
     } else {
       lastRerouteTimestampRef.current = now;
-
+      console.log('%cRECALCULANDO RUTA por desvío', 'color: orange; font-weight: bold;');
       Swal.fire({
         toast: true,
         position: 'top-end',
@@ -168,13 +165,8 @@ useEffect(() => {
         timer: 2500,
         timerProgressBar: true,
       });
-
-      // Aquí es donde finalmente actualizamos el estado para recalcular
       setRutaFrom(userLocation);
     }
-
-    // MUY IMPORTANTE: Reseteamos la señal para que este efecto no se ejecute de nuevo
-    // hasta que el hijo la vuelva a enviar.
     setDeviationSignal(false);
   }
 }, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
