@@ -84,9 +84,8 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
         });
 
         if (!response.ok) {
-            const errorBody = await response.json();
-            const apiErrorMessage = errorBody?.error?.message || response.statusText;
-            throw new Error(`Error del servicio de rutas: ${apiErrorMessage}. Por favor, inténtalo más tarde.`);
+          const errorBody = await response.json();
+          throw new Error(`Error de ORS: ${errorBody?.error?.message || response.statusText}`);
         }
 
         const data = await response.json();
@@ -98,15 +97,12 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           // Verificar segmento inicial
           const firstCoord = routeCoords[0];
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
-            if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
-                if (onError) {
-                    onError(
-                        'No se encontró un camino cercano.',
-                        `Tu ubicación actual está a más de ${distanceFromStart.toFixed(0)} metros de una calle o sendero accesible. Para calcular la ruta, por favor, acércate a una vía peatonal.`
-                    );
-                }
-                return;
+          if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
+            if (onError) {
+              onError(`Estás a ${distanceFromStart.toFixed(0)} metros de un camino accesible. Acércate a una vía peatonal.`);
             }
+            return;
+          }
           if (distanceFromStart > 5 && distanceFromStart <= START_SEGMENT_THRESHOLD_METERS) {
             const startLine = turf.lineString([[from[1], from[0]], firstCoord]);
             setStartSegment(startLine);
@@ -118,14 +114,11 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           const lastCoord = routeCoords[routeCoords.length - 1];
           const distanceToDest = getDirectDistance([lastCoord[1], lastCoord[0]], to);
           if (distanceToDest > FINAL_SEGMENT_THRESHOLD_METERS) {
-                if (onError) {
-                    onError(
-                        'El desfibrilador parece inaccesible.',
-                        `La ubicación del DEA se encuentra a más de ${distanceToDest.toFixed(0)} metros del camino más cercano en el mapa. Es posible que la ubicación registrada no sea precisa.`
-                    );
-                }
-                return;
+            if (onError) {
+              onError(`El desfibrilador está a ${distanceToDest.toFixed(0)} metros de un camino accesible.`);
             }
+            return;
+          }
           if (distanceToDest > 5 && distanceToDest <= FINAL_SEGMENT_THRESHOLD_METERS) {
             const finalLine = turf.lineString([lastCoord, [to[1], to[0]]]);
             setFinalSegment(finalLine);
@@ -153,16 +146,13 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           const initialLayer = L.geoJSON(routeData);
           map.fitBounds(initialLayer.getBounds(), { padding: [50, 50] });
         }
-    } catch (error) {
+      } catch (error) {
         console.error('Error al obtener la ruta con instrucciones:', error);
         if (onError) {
-            onError(
-                'Error de Conexión', 
-                'No se pudo comunicar con el servicio de rutas. Por favor, revisa tu conexión a internet e inténtalo de nuevo.'
-            );
+          onError('No se pudo generar la ruta. Verifica tu conexión o intenta de nuevo.');
         }
-    }
-};
+      }
+    };
 
     calculateRoute();
 

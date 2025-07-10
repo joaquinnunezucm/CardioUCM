@@ -321,12 +321,13 @@ const detenerNavegacion = useCallback(() => {
     });
 }, []);
 
-const handleRouteError = (title, text) => {
+const handleRouteError = (errorMessage) => {
   Swal.fire({
     icon: 'warning',
-    title: title || 'No se pudo generar la ruta', // Usa el título proporcionado o uno por defecto
-    text: text, // Usa el texto de la explicación
+    title: 'No se pudo generar la ruta',
+    text: errorMessage,
   });
+  // Detenemos la navegación para limpiar el estado y que no quede "colgada"
   detenerNavegacion(); 
 };
 
