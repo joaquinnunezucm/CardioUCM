@@ -240,10 +240,7 @@ useEffect(() => {
   }
 
   const handlePositionChange = (position) => {
-    //const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
-    const nuevaUbicacion = destinoRuta
-  ? [destinoRuta[0] + 0.00003, destinoRuta[1] + 0.00003] // ~3 metros
-  : [position.coords.latitude, position.coords.longitude];
+    const nuevaUbicacion = [position.coords.latitude, position.coords.longitude];
     setUserLocation(nuevaUbicacion);
 
     setRouteData(currentRouteData => {
@@ -516,17 +513,7 @@ const onPositionUpdateCallback = useCallback((pos) => {
                 </button>
                 
               )}
-              {destinoRuta && (
-  <button onClick={() => {
-    const simulada = [
-      destinoRuta[0] + 0.00003, // latitud
-      destinoRuta[1] + 0.00003  // longitud
-    ];
-    setUserLocation(simulada); // fuerza simulación
-  }} className="btn btn-warning" style={{ ...mapButtonStyle, top: 160, right: 10 }}>
-    Simular Llegada
-  </button>
-)}
+              
             </>}
           </div>
           <div className="row justify-content-center">
