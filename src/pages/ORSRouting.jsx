@@ -67,7 +67,8 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
       }
 
       try {
-        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson', {
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-hiking/geojson', {
+
           method: 'POST',
           headers: {
             'Authorization': ORS_API_KEY,
