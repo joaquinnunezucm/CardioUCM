@@ -496,7 +496,11 @@ const onPositionUpdateCallback = useCallback((pos) => {
                       onRouteFound={onRouteFoundCallback} 
                       onPositionUpdate={onPositionUpdateCallback}
                       onDeviation={onDeviationCallback} 
-                    />
+  onError={(msg) => {
+    console.log("🟢 onError:", msg);
+    Swal.fire('Desvío Detectado', msg, 'error');
+  }}
+/>
                   )}
               </MapContainer>
             )}
@@ -513,6 +517,22 @@ const onPositionUpdateCallback = useCallback((pos) => {
                 </button>
                 
               )}
+              <button
+  onClick={() => {
+    const fakeFrom = [-35.4344000, -71.6019510]; // tu posición actual
+    const fakeTo = [-35.4307383, -71.6082350];   // Lider destino
+
+    setRutaFrom(fakeFrom);
+    setDestinoRuta(fakeTo);
+
+    console.log("🚩 Forzado FROM:", fakeFrom);
+    console.log("🚩 Forzado TO:", fakeTo);
+  }}
+  className="btn btn-warning"
+  style={{ position: 'absolute', top: 160, right: 10, zIndex: 1000 }}
+>
+  Probar Desvío Inicial
+</button>
               
             </>}
           </div>
