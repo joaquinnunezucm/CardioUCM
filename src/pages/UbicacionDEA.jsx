@@ -312,14 +312,14 @@ const detenerNavegacion = useCallback(() => {
     });
 }, []);
 
-const handleRouteError = (title, text) => {
+const handleRouteError = useCallback((errorMessage) => {
   Swal.fire({
     icon: 'warning',
-    title: title, // Usará el título que le mandemos
-    text: text,   // Usará el texto descriptivo
+    title: 'No se pudo generar la ruta',
+    text: errorMessage,
   });
   detenerNavegacion(); 
-};
+}, [detenerNavegacion]); // Depende de detenerNavegacion
 
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
@@ -411,7 +411,7 @@ const iniciarNavegacion = (dea) => {
 
 const onPositionUpdateCallback = useCallback((pos) => {
   setCalculatedPosition(pos);
-}, []);
+}, []); // No tiene dependencias, por lo que se crea una sola vez.
 
   const handleSubmit = async (e) => {
     e.preventDefault();
