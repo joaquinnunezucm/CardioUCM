@@ -265,7 +265,6 @@ useEffect(() => {
             const distanceToTarget = getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], targetCoords[0], targetCoords[1]);
             const triggerDistance = isLastStep ? 25 : 45;
             if (distanceToTarget < triggerDistance) {
-
               return currentStep + 1;
             }
           }
@@ -320,16 +319,6 @@ const detenerNavegacion = useCallback(() => {
         return currentUserLocation;
     });
 }, []);
-
-const handleRouteError = (errorMessage) => {
-  Swal.fire({
-    icon: 'warning',
-    title: 'No se pudo generar la ruta',
-    text: errorMessage,
-  });
-  // Detenemos la navegación para limpiar el estado y que no quede "colgada"
-  detenerNavegacion(); 
-};
 
 const iniciarNavegacion = (dea) => {
     const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
@@ -507,7 +496,6 @@ const onPositionUpdateCallback = useCallback((pos) => {
                       onRouteFound={onRouteFoundCallback} 
                       onPositionUpdate={onPositionUpdateCallback}
                       onDeviation={onDeviationCallback} 
-                      onError={handleRouteError}
                     />
                   )}
               </MapContainer>
