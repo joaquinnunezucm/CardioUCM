@@ -6,7 +6,7 @@ import * as turf from '@turf/turf';
 const ORS_API_KEY = '5b3ce3597851110001cf624849960ceb731a42759d662c6119008731';
 const DEVIATION_THRESHOLD_METERS = 100; // Umbral para desvíos durante navegación (metros)
 const SNAP_THRESHOLD_METERS = 20; // Umbral para pegar el marcador a la ruta (metros)
-const START_SEGMENT_THRESHOLD_METERS = 50; // Umbral para segmento inicial (metros)
+const START_SEGMENT_THRESHOLD_METERS = 100; // Umbral para segmento inicial (metros)
 const FINAL_SEGMENT_THRESHOLD_METERS = 5000; // Umbral para segmento final (metros)
 const CLOSE_TO_DEST_THRESHOLD_METERS = 10; // Umbral para estar cerca del DEA (metros)
 
