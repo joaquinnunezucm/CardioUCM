@@ -22,7 +22,7 @@ const RCP = () => {
         const sortedInstrucciones = response.data.sort((a, b) => a.orden - b.orden);
         setInstrucciones(sortedInstrucciones);
       } catch (err) {
-        console.error("Error fetching RCP content:", err.response ? err.response.data : err.message);
+
         setError(err.response?.data?.message || err.message || 'No se pudo cargar el contenido de RCP en este momento. Intenta de nuevo más tarde.');
         setInstrucciones([]);
       } finally {
@@ -80,14 +80,13 @@ const RCP = () => {
 
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
         
-        {/* La clase "container-fluid" ha sido eliminada del div hijo */}
         <div className="content-header p-4 bg-white rounded-lg shadow-xl">
             <div className="row mb-2">
               <div className="col-sm-12 text-center">
                 <h1 className="m-0 text-2xl sm:text-3xl md:text-4xl font-bold text-red-800 border-b-2 border-red-200 pb-2 break-words">
                   Reanimación Cardiopulmonar (RCP)
                 </h1>
-                {/* Se quita px-2 para que el texto se alinee con el borde del h1 */}
+
                 <p className="text-base text-gray-800 leading-relaxed mt-4 break-words">
                   Antes de iniciar cualquier maniobra, debes evaluar:
                   <strong> ¿La persona responde?, ¿Respira?, ¿Tiene pulso?</strong> En base a esa evaluación, sigue las acciones recomendadas.
@@ -97,7 +96,6 @@ const RCP = () => {
         </div>
 
         <section className="content py-5">
-          {/* La clase "container-fluid" también ha sido eliminada aquí */}
           <div>
             {instrucciones.length === 0 && !loading ? (
               <div className="text-center p-10 bg-white rounded-lg shadow max-w-3xl mx-auto">
@@ -106,7 +104,7 @@ const RCP = () => {
                 <p className="text-gray-500 mt-2">Por favor, vuelve a intentarlo más tarde.</p>
               </div>
             ) : (
-              // Este contenedor ya tiene su propio padding (p-4 md:p-8) que es para el espacio INTERNO de la tarjeta, lo cual es correcto.
+
               <div className="bg-white p-4 md:p-8 rounded-xl shadow-xl">
                 <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-red-600 border-b-2 border-red-100 pb-3 text-center break-words">
                   La persona NO RESPIRA y NO tiene PULSO

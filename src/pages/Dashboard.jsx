@@ -17,9 +17,7 @@ export default function Dashboard() {
   useEffect(() => {
     const handlePageShow = (event) => {
       if (event.persisted) {
-        console.log('Dashboard restaurado desde bfcache. Verificando la fuente de verdad...');
         if (!sessionStorage.getItem('token')) {
-          console.log('Token no encontrado en sessionStorage. Redirigiendo a /login.');
           navigate('/login', { replace: true });
         }
       }
@@ -31,10 +29,9 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  // EFECTO 2: PROTECCIÓN DE RUTA EN CARGA INICIAL (CORREGIDO)
+  // EFECTO 2: PROTECCIÓN DE RUTA EN CARGA INICIAL
   useEffect(() => {
     if (!authLoading && (!user || !token)) {
-      console.log("Dashboard: Sesión inválida tras la carga inicial. Redirigiendo a /login.");
       navigate("/login", { replace: true });
     }
   }, [user, token, authLoading, navigate]);
@@ -53,7 +50,6 @@ export default function Dashboard() {
       const response = await axios.get(`${API_BASE_URL}/api/estadisticas`);
       setEstadisticasSistema(response.data);
     } catch (error) {
-      console.error('Dashboard (Layout): Error stats:', error.response?.data?.message || error.message);
       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
         logout();
       }
@@ -71,7 +67,6 @@ export default function Dashboard() {
       });
       setClicksPorSeccion(clicksIniciales);
     } catch (error) {
-      console.error('Dashboard (Layout): Error clics:', error.response?.data?.message || error.message);
       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
         logout();
       }

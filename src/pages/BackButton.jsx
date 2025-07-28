@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 
 const BackButton = () => {
   const handleClick = () => {
-    // Keep handler for future use
   };
 
   return (

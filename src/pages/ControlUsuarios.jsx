@@ -26,7 +26,7 @@ const PasswordRequirement = ({ isValid, text }) => (
 );
 
 
-// Componente para el formulario de usuario (MODIFICADO)
+// Componente para el formulario de usuario 
 const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmitting }) => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -88,7 +88,6 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
     const emailError = isRequired(email) || isEmail(email);
     if(emailError) newErrors.email = emailError;
 
-    // La validación de envío se mantiene igual
     if (!initialData.id) {
         const passwordError = isRequired(password) || isStrongPassword(password);
         if(passwordError) newErrors.password = passwordError;
@@ -184,7 +183,7 @@ const UserForm = ({ onSubmit, onClose, initialData = {}, posiblesRoles, isSubmit
 };
 
 
-// Componente principal ControlUsuarios (sin cambios, solo para contexto)
+// Componente principal ControlUsuarios 
 function ControlUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,7 +207,6 @@ function ControlUsuarios() {
       const response = await axios.get(`${API_BASE_URL}/api/usuarios`);
       setUsuarios(response.data);
     } catch (err) {
-      console.error('Error al obtener usuarios:', err);
       Swal.fire('Error', 'No se pudieron cargar los usuarios.', 'error');
       setUsuarios([]);
     } finally {
@@ -274,7 +272,6 @@ function ControlUsuarios() {
       fetchUsuarios();
       handleCloseModal();
     } catch (err) {
-      console.error('Error al guardar usuario:', err);
       const errorMessage = err.response?.data?.message || 'No se pudo guardar el usuario.';
       Swal.fire('Error', errorMessage, 'error');
     } finally {
@@ -302,7 +299,6 @@ function ControlUsuarios() {
           Swal.fire('Eliminado', 'El usuario fue eliminado correctamente.', 'success');
           fetchUsuarios();
         } catch (error) {
-          console.error('Error al eliminar usuario:', error);
           const errorMessage = error.response?.data?.message || 'No se pudo eliminar el usuario.';
           Swal.fire('Error', errorMessage, 'error');
         }

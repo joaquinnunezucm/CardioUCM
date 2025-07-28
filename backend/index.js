@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const db = require('./db'); // Asegúrate que db.js está configurado para tu base de datos
+const db = require('./db'); 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -181,7 +181,6 @@ app.post('/api/forgot-password', async (req, res) => {
     // IMPORTANTE: Incluso si no se encuentra el usuario, devolvemos un mensaje genérico
     // para no revelar qué correos están registrados en el sistema.
     if (rows.length === 0) {
-      console.log(`Solicitud de reseteo para email no registrado: ${email}`);
       return res.json({ message: 'Si su correo electrónico está registrado, recibirá un enlace para restablecer la contraseña.' });
     }
 
@@ -215,7 +214,7 @@ app.post('/api/forgot-password', async (req, res) => {
   }
 });
 
-// 2. RUTA PARA VALIDAR SI UN TOKEN ES VÁLIDO (usada por ResetPasswordPage.jsx)
+// 2. RUTA PARA VALIDAR SI UN TOKEN ES VÁLIDO 
 app.get('/api/validate-reset-token/:token', async (req, res) => {
   const { token } = req.params;
   try {
@@ -436,7 +435,7 @@ app.get('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, re
   }
 });
 
-// RUTA ADMIN para OBTENER todas las categorías de FAQ (NUEVA - para el dropdown del frontend)
+// RUTA ADMIN para OBTENER todas las categorías de FAQ 
 app.get('/api/admin/faqs/categorias', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   try {
     const [categorias] = await db.query(`
@@ -478,7 +477,7 @@ app.post('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, r
       }
     } catch (dbError) {
       console.error("Error procesando/creando categoría de FAQ (POST):", dbError);
-      // Manejo de error si la inserción de la categoría falla (ej. por constraint UNIQUE si hay race condition)
+      // Manejo de error si la inserción de la categoría falla 
       if (dbError.code === 'ER_DUP_ENTRY') {
          console.warn(`Intento de inserción duplicada para categoría: ${trimmedCategoriaNombre}. Intentando recuperar ID existente.`);
         try {
@@ -486,7 +485,7 @@ app.post('/api/admin/faqs', autenticarYAutorizar(rolesAdminNivel), async (req, r
             if (existingCatRows.length > 0) {
                 categoriaId = existingCatRows[0].id;
             } else {
-                // Esto sería muy inusual si ER_DUP_ENTRY ocurrió y no se encuentra
+                
                 return res.status(500).json({ message: "Error crítico al manejar categoría duplicada.", detalle: dbError.message });
             }
         } catch (retryError) {
@@ -599,7 +598,7 @@ app.put('/api/admin/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req
   }
 });
 
-// RUTA ADMIN para ELIMINAR una FAQ (Sin cambios directos en la consulta, pero es parte del CRUD)
+// RUTA ADMIN para ELIMINAR una FAQ 
 app.delete('/api/admin/faqs/:id', autenticarYAutorizar(rolesAdminNivel), async (req, res) => {
   const { id } = req.params;
   try {
@@ -695,7 +694,7 @@ app.post('/api/admin/educacion', autenticarYAutorizar(rolesAdminNivel), upload.a
     const [catRows] = await connection.query('SELECT id FROM educacion_categorias WHERE slug = ?', [categoriaSlug.trim()]);
     if (catRows.length > 0) {
       idCategoriaFk = catRows[0].id;
-      // Actualizar el nombre si es diferente (solo si el slug ya existía)
+      // Actualizar el nombre si es diferente 
       await connection.query('UPDATE educacion_categorias SET nombre = ? WHERE id = ? AND nombre != ?', [categoria_nombre.trim(), idCategoriaFk, categoria_nombre.trim()]);
     } else {
       const [newCatResult] = await connection.query('INSERT INTO educacion_categorias (slug, nombre) VALUES (?, ?)', [categoriaSlug.trim(), categoria_nombre.trim()]);
@@ -1299,9 +1298,6 @@ app.post('/api/admin/contactos', autenticarYAutorizar(rolesAdminNivel), async (r
         try {
             const [existingCatRows] = await db.query('SELECT id FROM contacto_categorias WHERE nombre = ?', [trimmedCategoriaNombre]); // Usar db.query, no connection que podría estar cerrada
             if (existingCatRows.length > 0) {
-                // Reintentar la inserción principal con el ID de categoría obtenido
-                // Esto es un poco más complejo y podría requerir reintentar la transacción.
-                // Por ahora, un mensaje de error más específico.
                 return res.status(409).json({ message: `La categoría '${trimmedCategoriaNombre}' ya existe o hubo un conflicto. Intente de nuevo.`, detalle: error.message });
             }
         } catch (retryError) {
@@ -1606,7 +1602,6 @@ app.post('/api/solicitudes-dea/:id/aprobar', autenticarYAutorizar(rolesAdminNive
                  <p>¡Gracias por tu valiosa colaboración para hacer de nuestra comunidad un lugar más seguro!</p>
                  <p>Atentamente,<br>El equipo de CardioUCM</p>`
         });
-        console.log(`Correo de aprobación enviado a ${solicitud.email}`);
       } catch (emailError) {
         console.error(`Error al enviar correo de aprobación a ${solicitud.email}:`, emailError);
       }
@@ -1654,7 +1649,6 @@ app.delete('/api/solicitudes-dea/:id/rechazar', autenticarYAutorizar(rolesAdminN
                  <p>Agradecemos tu interés y tu tiempo.</p>
                  <p>Atentamente,<br>El equipo de CardioUCM</p>`
         });
-        console.log(`Correo de rechazo enviado a ${solicitud.email}`);
       } catch (emailError) {
         console.error(`Error al enviar correo de rechazo a ${solicitud.email}:`, emailError);
       }
@@ -2014,19 +2008,10 @@ app.get('/api/reportes', autenticarYAutorizar(rolesAdminNivel), async (req, res)
 // Función de inicio del servidor
 async function startServer() {
   try {
-    console.log('--- Intentando conectar a la base de datos con las siguientes credenciales: ---');
-    console.log('Host (DB_HOST):', process.env.DB_HOST);
-    console.log('User (DB_USER):', process.env.DB_USER);
-    console.log('Database (DB_NAME):', process.env.DB_NAME);
-    console.log('Port (DB_PORT):', process.env.DB_PORT);
-
-    console.log('Realizando prueba de conexión a la base de datos...');
     const connection = await db.getConnection();
-    console.log('✅ ¡Prueba de conexión exitosa! La base de datos está disponible.');
     connection.release();
 
     app.listen(PORT, () => {
-      console.log(`✅ Servidor backend corriendo en http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('❌ ERROR CRÍTICO: No se pudo conectar a la base de datos.');

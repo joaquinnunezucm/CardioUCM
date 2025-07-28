@@ -16,7 +16,6 @@ const FAQ = () => {
         const response = await axios.get(`${API_BASE_URL}/api/faqs`);
         setFaqs(response.data);
       } catch (err) {
-        console.error("Error fetching public FAQs:", err);
         setError(err.response?.data?.message || 'No se pudieron cargar las preguntas frecuentes en este momento.');
         setFaqs([]);
       } finally {
@@ -66,14 +65,9 @@ const FAQ = () => {
   }
 
   return (
-    // 1. Contenedor de página: sin padding
     <div className="min-h-screen bg-gray-100">
       <BackButton />
-      
-      {/* 2. Contenedor de contenido: con ancho máximo y padding horizontal único */}
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
-        
-        {/* 3. Tarjeta de título: se quita 'container-fluid' y se añade padding interno */}
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
@@ -83,8 +77,6 @@ const FAQ = () => {
             </div>
           </div>
         </div>
-
-        {/* 4. Sección de contenido: se quita 'container-fluid' */}
         <section className="content">
           <div>
             {Object.keys(groupedFaqs).length === 0 ? (

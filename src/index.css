@@ -1,6 +1,3 @@
-/* En index.css o un CSS específico para Home */
-
-/* Custom pulse animation for metronome heartbeat */
 @keyframes pulse {
   0% {
     transform: scale(1);
@@ -33,7 +30,6 @@
     -webkit-font-smoothing: antialiased !important;
 }
 
-/* ✅ Clase para igualar tamaño de botones de acción */
 /* Clase para igualar ancho de botones */
 .btn-fixed-width {
   min-width: 110px;

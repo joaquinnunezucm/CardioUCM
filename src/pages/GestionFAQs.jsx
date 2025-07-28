@@ -66,7 +66,7 @@ const GestionFAQs = () => {
       setFAQs(faqsResponse.data);
       setCategorias(categoriasResponse.data);
     } catch (error) {
-      console.error('Error al obtener datos:', error.response?.data || error.message);
+      
       Swal.fire('Error', `No se pudo cargar la información. ${error.response?.data?.message || ''}`, 'error');
     } finally {
       setLoading(false);
@@ -103,7 +103,6 @@ const GestionFAQs = () => {
         searching: true,
       });
 
-      // No repoblamos manualmente, dejamos que React renderice la tabla
     }
   }, [loading, faqs]);
 
@@ -242,7 +241,7 @@ const GestionFAQs = () => {
       fetchFAQsAndCategorias();
       handleCloseModal();
     } catch (error) {
-      console.error('Error al guardar FAQ:', error.response?.data || error.message);
+      
       const errorMessage = error.response?.data?.message || 'No se pudo guardar la FAQ.';
       Swal.fire('Error', errorMessage, 'error');
     }
@@ -277,7 +276,7 @@ const GestionFAQs = () => {
           Swal.fire('Eliminado', 'La FAQ fue eliminada correctamente.', 'success');
           fetchFAQsAndCategorias();
         } catch (error) {
-          console.error('Error al eliminar FAQ:', error.response?.data || error.message);
+          
           const errorMessage = error.response?.data?.message || 'No se pudo eliminar la FAQ.';
           Swal.fire('Error', errorMessage, 'error');
         }

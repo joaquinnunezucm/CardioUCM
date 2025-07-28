@@ -8,15 +8,15 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, user } = useAuth(); // Obtenemos `user` del contexto
-  const navigate = useNavigate(); // Hook para la redirección
+  const { login, user } = useAuth(); 
+  const navigate = useNavigate(); 
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // --- NUEVO: useEffect para evitar que un usuario logueado vea esta página ---
+
   useEffect(() => {
     if (user) {
-      // Si ya hay un usuario, lo sacamos del login y reemplazamos la ruta
+
       navigate('/admin', { replace: true });
     }
   }, [user, navigate]);
@@ -31,11 +31,10 @@ function Login() {
       setError(result.message || "Ocurrió un error desconocido.");
       setLoading(false);
     }
-    // No es necesario setLoading(false) aquí si el login es exitoso,
-    // ya que la redirección en el AuthContext desmontará este componente.
+
   };
 
-  // Ruta de la imagen (corregida para apuntar a la carpeta public)
+  // Ruta de la imagen 
   const backgroundImageUrl = '/compresiones_1.jpg';
 
 

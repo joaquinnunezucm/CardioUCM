@@ -1,9 +1,8 @@
-// src/pages/Reportes.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement, TimeScale } from 'chart.js';
-import { Chart } from 'react-chartjs-2'; // El componente de react-chartjs-2
-import 'chart.js/auto'; // Para asegurar que todos los elementos estén disponibles
+import { Chart } from 'react-chartjs-2'; 
+import 'chart.js/auto'; 
 import 'chartjs-adapter-date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../context/AuthContext';
@@ -86,7 +85,7 @@ export default function Reportes() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filtrosActivosParaFetch, setFiltrosActivosParaFetch] = useState(false); // Para controlar el trigger del useEffect
+  const [filtrosActivosParaFetch, setFiltrosActivosParaFetch] = useState(false); 
 
   useEffect(() => {
     const fetchReportes = async () => {
@@ -99,16 +98,12 @@ export default function Reportes() {
       setError(null);
       try {
         const params = {};
-        // Solo enviar parámetros de fecha si filtrosActivosParaFetch es true Y las fechas tienen valor
+
         if (filtrosActivosParaFetch) {
             if (rangoFechas.inicio) params.inicio = rangoFechas.inicio;
             if (rangoFechas.fin) params.fin = rangoFechas.fin;
-            // Si solo hay inicio, el backend podría usar hoy como fin por defecto
-            // O podrías forzarlo aquí:
-            // else if (rangoFechas.inicio && !rangoFechas.fin) params.fin = getTodayDateString();
         }
-        // Si filtrosActivosParaFetch es false, no se envían parámetros de fecha,
-        // y el backend debe devolver datos históricos para DEAs y un default para clics/solicitudes.
+
         
         const response = await axios.get(`${API_BASE_URL}/api/reportes`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -116,7 +111,6 @@ export default function Reportes() {
         });
         
         const dataFromServer = response.data;
-        console.log('Datos recibidos del backend para Reportes.jsx:', dataFromServer);
 
         setReportes({
           deasPorComuna: dataFromServer.deasPorComuna || [],
@@ -132,7 +126,6 @@ export default function Reportes() {
         });
 
       } catch (err) {
-        console.error('Error fetching reports:', err.response?.data || err.message);
         setError(err.response?.data?.message || 'No se pudieron cargar los reportes. Por favor, intenta de nuevo.');
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
           logout();
@@ -155,7 +148,7 @@ export default function Reportes() {
   const handleFechaChange = (e) => {
     const { name, value } = e.target;
     setRangoFechas(prev => ({ ...prev, [name]: value }));
-    // No cambiamos filtrosActivosParaFetch aquí, se hace con el botón "Aplicar"
+
   };
   
   const aplicarFiltros = () => {
@@ -380,7 +373,7 @@ export default function Reportes() {
                             />
                         </div>
                         <div className="col-md-2 mb-3 d-flex align-items-end">
-                             <Button variant="primary" type="submit" className="w-100"> {/* Botón dentro del form */}
+                             <Button variant="primary" type="submit" className="w-100"> 
                                 Aplicar
                             </Button>
                         </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import Swal from 'sweetalert2';
 
 const Emergencia = () => {
-  const numeroEmergencia = "131"; // 🔁 Cambia este número por el que tú quieras
+  const numeroEmergencia = "131"; 
 
   const llamar = () => {
     // Intentar realizar la llamada (funciona solo en móviles)

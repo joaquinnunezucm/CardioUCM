@@ -107,7 +107,7 @@ const UbicacionDEA = () => {
   const watchIdRef = useRef(null);
   const lastRerouteTimestampRef = useRef(0);
 
-  // ESTADOS para la navegación y guía por voz
+  // ESTADOS para la navegación
   const [destinoRuta, setDestinoRuta] = useState(null);
   const [rutaFrom, setRutaFrom] = useState(null);
   const [routeData, setRouteData] = useState({ coords: [], instructions: [] });
@@ -119,9 +119,8 @@ const UbicacionDEA = () => {
   }, []);
 
 const onDeviationCallback = useCallback(() => {
-  console.log("Señal de desvío recibida desde el componente hijo.");
   setDeviationSignal(true);
-}, []); // No necesita dependencias, ya que no usa variables de estado.
+}, []);
 
   const handleLocationError = (error) => {
     setIsLoading(false); 
@@ -152,10 +151,9 @@ useEffect(() => {
   if (deviationSignal && userLocation) {
     const now = Date.now();
     if (now - lastRerouteTimestampRef.current < 10000) {
-      console.log("Re-cálculo en cooldown. Ignorando señal de desvío.");
+      // No se hace nada, silenciosamente se ignora la señal.
     } else {
       lastRerouteTimestampRef.current = now;
-      console.log('%cRECALCULANDO RUTA por desvío', 'color: orange; font-weight: bold;');
       Swal.fire({
         toast: true,
         position: 'top-end',
@@ -169,7 +167,7 @@ useEffect(() => {
     }
     setDeviationSignal(false);
   }
-}, [deviationSignal, userLocation]); // Se ejecuta cuando cambia la señal o la ubicación
+}, [deviationSignal, userLocation]);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/comunas`).then(res => setComunas(res.data.map(c => c.nombre))).catch(err => console.error('Error al cargar comunas:', err));
@@ -273,7 +271,6 @@ useEffect(() => {
     }
   };
 
-  console.log("useEffect de navegación activado. Iniciando watchPosition.");
   const id = navigator.geolocation.watchPosition(
     handlePositionChange, 
     (err) => console.error("Error en watchPosition:", err), 
@@ -283,7 +280,6 @@ useEffect(() => {
 
   return () => {
     if (watchIdRef.current) {
-      console.log(`useEffect cleanup. Limpiando watchId: ${watchIdRef.current}`);
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
@@ -294,7 +290,6 @@ useEffect(() => {
   // limpiar todos los estados de navegación
 const detenerNavegacion = useCallback(() => {
     if (watchIdRef.current) {
-        console.log(`Limpiando watchId existente: ${watchIdRef.current}`);
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
     }

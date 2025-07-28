@@ -71,7 +71,7 @@ const API_URL_ADMIN = `${API_BASE_URL}/api/admin/gestion-deas`;
       const response = await axios.get(API_URL_ADMIN, getAuthHeaders());
       setDeas(response.data);
     } catch (error) {
-      console.error('Error al obtener los DEAs:', error.response?.data || error.message);
+      
       Swal.fire('Error', 'No se pudo cargar la lista de DEAs.', 'error');
       setDeas([]);
     } finally {
@@ -86,7 +86,7 @@ const API_URL_ADMIN = `${API_BASE_URL}/api/admin/gestion-deas`;
         setComunas(nombresComunas);
       })
       .catch((err) => {
-        console.error('Error al cargar comunas:', err);
+        
         setComunas([]);
       });
   }, []);

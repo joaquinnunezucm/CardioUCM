@@ -5,7 +5,7 @@ const readline = require('readline').createInterface({
   output: process.stdout,
 });
 
-const saltRounds = 10; // Número de rondas de sal. 10-12 es un buen balance.
+const saltRounds = 10;
 
 function generarHash() {
   readline.question('Introduce el email del usuario: ', (email) => {
@@ -17,12 +17,7 @@ function generarHash() {
       }
       try {
         const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
-        console.log('\n--- Resultado ---');
-        console.log(`Email: ${email}`);
-        console.log(`Contraseña en texto plano: ${plainPassword}`);
-        console.log(`Contraseña Hasheada (bcrypt): ${hashedPassword}`);
-        console.log('-----------------\n');
-        console.log('Copia la contraseña hasheada y pégala en la columna "password" de tu base de datos para este usuario.');
+
       } catch (error) {
         console.error('Error al generar el hash:', error);
       } finally {
@@ -38,6 +33,4 @@ function generarHash() {
   });
 }
 
-// Inicia el proceso
-console.log("Generador de Hashes de Contraseña (bcrypt)");
 generarHash();

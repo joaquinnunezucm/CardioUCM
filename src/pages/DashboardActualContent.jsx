@@ -1,5 +1,4 @@
-// src/pages/DashboardActualContent.jsx
-import React from 'react'; // No necesita useState, useEffect, useCallback para estos datos específicos
+import React from 'react'; 
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 
 export default function DashboardActualContent() {

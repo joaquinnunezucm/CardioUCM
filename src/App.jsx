@@ -5,16 +5,16 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 // --- Componentes de Páginas Públicas ---
 import Home from "./pages/Home";
 import Emergencia from "./pages/Emergencia";
-import RCP_Public from "./pages/RCP"; // Renombrado para claridad si hay versión admin
-import UbicacionDEA_Public from "./pages/UbicacionDEA"; // Renombrado para claridad
-import Educacion_Public from "./pages/Educacion"; // Componente de contenido de Educación
+import RCP_Public from "./pages/RCP"; 
+import UbicacionDEA_Public from "./pages/UbicacionDEA"; 
+import Educacion_Public from "./pages/Educacion"; 
 import Contáctanos_Public from "./pages/Contáctanos";
 import FAQ_Public from "./pages/FAQ";
 import Login from "./pages/Login";
 
 // --- Componentes de Administración (Layout y Páginas de Contenido) ---
-import Dashboard from "./pages/Dashboard"; // Este actúa como el Layout principal del Admin
-import DashboardActualContent from "./pages/DashboardActualContent"; // Contenido específico para la ruta /admin (index)
+import Dashboard from "./pages/Dashboard"; 
+import DashboardActualContent from "./pages/DashboardActualContent"; 
 import ValidacionDeas from './pages/ValidacionDeas';
 import GestionDEAs from './pages/GestionDEAs';
 import ControlUsuarios from './pages/ControlUsuarios';
@@ -26,8 +26,6 @@ import Reportes from './pages/Reportes';
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 // --- Componente Wrapper para Contenido Interno de Páginas de Admin ---
-// Este wrapper añade el content-header (título, breadcrumbs) y la section.content
-// a los componentes de página que solo devuelven su JSX específico.
 const AdminPageContentWrapper = ({ title, breadcrumbCurrent, children }) => (
     <>
       <div className="content-header">
@@ -71,7 +69,7 @@ const ProtectedRouteWithRole = ({ allowedRoles, children }) => {
     return <Navigate to="/login" replace />;
   }
   if (user && allowedRoles.includes(user.rol)) { // Si está autenticado y tiene el rol permitido
-    return children; // Renderizar el componente hijo (que podría ser el Layout o una página específica)
+    return children; // Renderizar el componente hijo 
   }
   // Si está autenticado pero no tiene el rol permitido para esta ruta específica
   console.warn(`Acceso denegado por ProtectedRouteWithRole. Usuario: ${user?.email}, Rol: ${user?.rol}, Roles Permitidos: ${allowedRoles.join(', ')} para esta ruta anidada.`);
@@ -90,7 +88,7 @@ function AppContent() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/emergencia" element={<Emergencia />} />
-      <Route path="/educacion" element={<Educacion_Public />} /> {/* Ruta pública de Educación */}
+      <Route path="/educacion" element={<Educacion_Public />} />
       <Route path="/rcp" element={<RCP_Public />} />
       <Route path="/dea" element={<UbicacionDEA_Public />} />
       <Route path="/contáctanos" element={<Contáctanos_Public />} />

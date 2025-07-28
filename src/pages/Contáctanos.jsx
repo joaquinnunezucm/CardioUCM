@@ -11,7 +11,6 @@ const iconComponents = {
   FaInstagram, FaEnvelope, FaGlobe, FaPhone, FaFacebook, FaTwitter, FaInfoCircle,
 };
 
-// Component to render HTML or text with line breaks
 const HtmlRenderer = ({ htmlString }) => {
   if (typeof htmlString !== 'string') return null;
   const containsHTML = /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/s.test(htmlString);
@@ -59,7 +58,6 @@ const Contactanos = () => {
           }), {})
         );
       } catch (err) {
-        console.error("Error fetching contact info:", err);
         setError(err.response?.data?.message || 'No se pudo cargar la información de contacto.');
         setContactInfo({});
       } finally {
@@ -174,14 +172,9 @@ const Contactanos = () => {
   ];
 
   return (
-    // 1. Contenedor de página: sin padding
     <div className="min-h-screen bg-gray-100">
       <BackButton />
-      
-      {/* 2. Contenedor de contenido: con ancho máximo y padding horizontal único */}
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
-        
-        {/* 3. Tarjeta de título: se quita 'container-fluid' y se añade padding interno */}
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
@@ -195,7 +188,6 @@ const Contactanos = () => {
           </div>
         </div>
 
-        {/* 4. Sección de contenido: se quita 'container-fluid' */}
         <section className="content">
           <div>
             {Object.keys(contactInfo).length === 0 ? (
@@ -234,7 +226,7 @@ const Contactanos = () => {
                             >
                               {item.icono && renderIcon(item.icono)}
                               {!item.icono && item.tipo_dato !== 'texto_simple' && (
-                                <span className="w-5 h-5 flex-shrink-0"></span> // Placeholder para alinear
+                                <span className="w-5 h-5 flex-shrink-0"></span>
                               )}
                               <div className={`text-base ${item.tipo_dato === 'texto_simple' ? 'w-full' : ''} break-words`}>
                                 {renderItemValue(item)}

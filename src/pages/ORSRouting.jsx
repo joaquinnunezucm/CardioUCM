@@ -31,7 +31,6 @@ const styleFinalSegment = {
 };
 
 const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPositionUpdate, onError }) => {
-  console.log('%cORSRouting RENDERIZADO', 'color: red; font-weight: bold;', { from, to });
   const map = useMap();
   const remainingPathRef = useRef(null);
   const startSegmentRef = useRef(null);
@@ -39,7 +38,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
   const [fullRoute, setFullRoute] = useState(null);
   const [startSegment, setStartSegment] = useState(null);
   const [finalSegment, setFinalSegment] = useState(null);
-  const [isInitialRoute, setIsInitialRoute] = useState(true); // Bandera para ruta inicial
+  const [isInitialRoute, setIsInitialRoute] = useState(true); 
 
   // Función para calcular la distancia directa
   const getDirectDistance = (from, to) => {
@@ -60,7 +59,6 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
         Math.abs(from[0]) > 90 || Math.abs(to[0]) > 90 ||
         Math.abs(from[1]) > 180 || Math.abs(to[1]) > 180
       ) {
-        console.error('Coordenadas inválidas:', { from, to });
         if (onError) {
           onError('Coordenadas inválidas. Por favor, verifica tu posición y el destino.');
         }
@@ -100,7 +98,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           const distanceFromStart = getDirectDistance([firstCoord[1], firstCoord[0]], from);
           if (distanceFromStart > START_SEGMENT_THRESHOLD_METERS) {
             if (onError) {
-              // Simplemente mejoramos el mensaje de error
+
               onError(`No se encontró un camino lo suficientemente cerca. Tu ubicación actual está a ${distanceFromStart.toFixed(0)} metros de la vía más próxima. Por favor, acércate a una calle o sendero para calcular la ruta.`);
             }
             return;
@@ -129,7 +127,7 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
           }
 
           setFullRoute(routeData);
-          setIsInitialRoute(true); // Marcar como ruta inicial
+          setIsInitialRoute(true); 
 
           if (onRouteFound) {
             const instructions = routeData.properties.segments[0].steps || [];
@@ -196,7 +194,6 @@ const ORSRouting = ({ from, to, userPosition, onRouteFound, onDeviation, onPosit
     // Solo se considera desvío si no es la ruta inicial
     if (!isInitialRoute) {
       if (deviationDistance > DEVIATION_THRESHOLD_METERS) {
-        console.log(`Desvío detectado: ${deviationDistance.toFixed(0)}m. Solicitando re-cálculo.`);
         if (onDeviation) {
           onDeviation();
         }

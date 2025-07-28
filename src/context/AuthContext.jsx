@@ -1,6 +1,3 @@
-// Archivo: src/context/AuthContext.jsx
-// REEMPLAZA TU ARCHIVO CON ESTE CÓDIGO O COMPÁRALO CUIDADOSAMENTE
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -8,7 +5,6 @@ import { API_BASE_URL } from '../utils/api';
 
 const AuthContext = createContext(null);
 
-// El interceptor de Axios está bien, lo mantenemos.
 axios.interceptors.request.use(
   config => {
     const token = sessionStorage.getItem('token');
@@ -29,7 +25,6 @@ export const AuthProvider = ({ children }) => {
 
   // useEffect para cargar la sesión UNA SOLA VEZ al inicio de la aplicación.
   useEffect(() => {
-    console.log("AuthContext: Verificando sesión al cargar la app...");
     const storedUser = sessionStorage.getItem('user');
     const storedToken = sessionStorage.getItem('token');
 
@@ -45,7 +40,6 @@ export const AuthProvider = ({ children }) => {
           sessionStorage.clear();
         }
       } catch (error) {
-        console.error("AuthContext: Error al parsear datos de sesión.", error);
         sessionStorage.clear();
       }
     }
@@ -95,12 +89,6 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {/* 
-        PIEZA CLAVE 4: LA SOLUCIÓN DEFINITIVA.
-        No renderizamos NADA de la aplicación (los 'children') hasta que 'loading' sea 'false'.
-        Esto detiene físicamente al Dashboard y a cualquier otra ruta protegida, impidiendo
-        que se rendericen antes de tiempo y tomen decisiones incorrectas.
-      */}
       {!loading && children}
     </AuthContext.Provider>
   );

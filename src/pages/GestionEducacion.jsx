@@ -11,11 +11,11 @@ import {
   isRequired,
   isInteger,
   minValue,
-  maxValue, // Nuevo
+  maxValue,
   isDescriptiveText,
-  isSimpleAlphaWithSpaces, // Nuevo
-  isSlugWithoutNumbers, // Nuevo
-  isTitleText, // Nuevo
+  isSimpleAlphaWithSpaces, 
+  isSlugWithoutNumbers, 
+  isTitleText, 
   maxLength,
 } from '../utils/validators.js';
 
@@ -331,20 +331,19 @@ const GestionEducacion = () => {
       if (currentContenido) {
         // --- ACTUALIZAR ---
         const { data } = await axios.put(`${API_BASE_URL}/api/admin/educacion/${currentContenido.id}`, formDataToSend, getAuthHeaders());
-        
-        // Destruimos la tabla ANTES de actualizar el estado de React
+
         if ($.fn.dataTable.isDataTable(tableRef.current)) {
           $(tableRef.current).DataTable().destroy();
         }
 
-        // Actualizamos el estado local con los datos modificados
+
         setContenidos(prevContenidos => 
           prevContenidos.map(item => 
             item.id === currentContenido.id ? { ...item, ...formData, activo: formData.activo === true || formData.activo === 'true' } : item
           )
         );
 
-        // Marcamos la tabla para que se reinicialice en el próximo render
+
         setTableInitialized(false);
         
         Swal.fire('Actualizado!', 'El contenido educativo ha sido actualizado correctamente.', 'success');
@@ -353,17 +352,14 @@ const GestionEducacion = () => {
         // --- CREAR ---
         const { data } = await axios.post(`${API_BASE_URL}/api/admin/educacion`, formDataToSend, getAuthHeaders());
         
-        // Para la creación, recargar todo es más sencillo y necesario
-        // porque necesitamos el nuevo ID y puede que afecte a otros medios.
-        // Así que aquí, la llamada original está bien.
         fetchContenidosYMedios(); 
         Swal.fire('Creado!', 'El contenido educativo ha sido creado exitosamente.', 'success');
       }
 
-      // El cierre del modal se mantiene igual
+
       handleCloseModal();
     } catch (error) {
-      console.error('Error al guardar contenido educativo:', error.response?.data || error.message);
+      
       Swal.fire('Error', error.response?.data?.message || 'No se pudo guardar el contenido educativo.', 'error');
     }
   };
@@ -390,7 +386,7 @@ const GestionEducacion = () => {
           Swal.fire('Eliminado!', 'El contenido educativo y sus medios han sido eliminados.', 'success');
           fetchContenidosYMedios();
         } catch (error) {
-          console.error('Error al eliminar contenido educativo:', error.response?.data || error.message);
+          
           Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar el contenido educativo.', 'error');
         }
       }

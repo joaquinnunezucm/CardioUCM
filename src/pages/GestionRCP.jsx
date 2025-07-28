@@ -12,7 +12,7 @@ import {
   isRequired,
   isInteger,
   minValue,
-  isDescriptiveText, // Importamos el nuevo validador
+  isDescriptiveText, 
   maxLength,
 } from '../utils/validators.js';
 
@@ -196,7 +196,6 @@ const GestionRCP = () => {
     const newErrors = {};
     const { instruccion, orden, datosMediosExistentes, medios } = formData;
 
-    // Se usa isDescriptiveText para permitir casi todos los caracteres
     const instruccionError = isRequired(instruccion) || maxLength(1000)(instruccion) || isDescriptiveText(instruccion);
     if(instruccionError) newErrors.instruccion = instruccionError;
 
@@ -448,7 +447,6 @@ const GestionRCP = () => {
               <Form.Control.Feedback type="invalid">{errors.orden}</Form.Control.Feedback>
             </Form.Group>
 
-            {/* El campo Categoría ya no se muestra al usuario, su valor es fijo */}
 
             {currentInstruccion?.medios?.length > 0 && (
               <Form.Group controlId="formMediosExistentes" className="mb-3">

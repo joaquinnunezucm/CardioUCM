@@ -4,13 +4,6 @@ const dotenv = require('dotenv');
 // Cargar variables de entorno
 dotenv.config();
 
-// Depuración de credenciales
-console.log('--- Intentando conectar a la base de datos con las siguientes credenciales: ---');
-console.log('Host (DB_HOST):', process.env.DB_HOST);
-console.log('User (DB_USER):', process.env.DB_USER);
-console.log('Database (DB_NAME):', process.env.DB_NAME);
-console.log('Port (DB_PORT):', process.env.DB_PORT);
-
 // Verificación de variables obligatorias
 if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME || !process.env.DB_PORT) {
   console.error('❌ ERROR CRÍTICO: Faltan variables de entorno para la conexión a la base de datos.');

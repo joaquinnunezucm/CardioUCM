@@ -13,7 +13,7 @@ import {
   minValue,
   maxValue,
   isSimpleAlphaWithSpaces,
-  isDescriptiveText, // El validador clave para los campos de texto
+  isDescriptiveText, 
   maxLength,
   isEmail,
 } from '../utils/validators.js';
@@ -84,7 +84,7 @@ const GestionContactanos = () => {
       setContactos(response.data);
 
     } catch (error) {
-      console.error('Error al obtener información de contacto:', error.response?.data || error.message);
+      
       Swal.fire('Error', `No se pudo cargar la información de contacto. ${error.response?.data?.message || ''}`, 'error');
     } finally {
       setLoading(false);
@@ -167,7 +167,7 @@ const GestionContactanos = () => {
     const { name, value, type, checked } = e.target;
     let finalValue = type === 'checkbox' ? checked : value;
     
-    // Solo filtramos los campos que tienen reglas estrictas
+
     switch(name) {
         case 'categoria':
             finalValue = value.replace(/[^a-zA-Z\s]/g, '');
@@ -248,7 +248,7 @@ const validate = () => {
       fetchContactos();
       handleCloseModal();
     } catch (error) {
-      console.error('Error al guardar ítem de contacto:', error.response?.data || error.message);
+      
       const errorMessage = error.response?.data?.message || error.response?.data?.detalle || 'No se pudo guardar el ítem.';
       Swal.fire('Error', errorMessage, 'error');
     }
@@ -276,7 +276,7 @@ const validate = () => {
           Swal.fire('Eliminado', 'El ítem de contacto fue eliminado correctamente.', 'success');
           fetchContactos();
         } catch (error) {
-          console.error('Error al eliminar ítem:', error.response?.data || error.message);
+          
           const errorMessage = error.response?.data?.message || error.response?.data?.detalle || 'No se pudo eliminar el ítem.';
           Swal.fire('Error', errorMessage, 'error');
         }

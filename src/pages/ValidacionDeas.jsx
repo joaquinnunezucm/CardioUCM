@@ -24,7 +24,6 @@ const ValidacionDEAs = () => {
 
       setSolicitudes(res.data);
     } catch (err) {
-      console.error('Error al cargar solicitudes:', err);
       Swal.fire('Error', 'No se pudieron cargar las solicitudes.', 'error');
       setSolicitudes([]);
     } finally {
@@ -80,7 +79,6 @@ const ValidacionDEAs = () => {
         }
         fetchSolicitudes();
       } catch (err) {
-        console.error(`Error al ${action}:`, err);
         const errorMessage = err.response?.data?.message || `No se pudo ${action} la solicitud.`;
         Swal.fire('Error', errorMessage, 'error');
       } finally {

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import BackButton from '../pages/BackButton.jsx';
 import { API_BASE_URL } from '../utils/api';
 
-// Component to render HTML or text with line breaks
 const HtmlRenderer = ({ htmlString }) => {
   if (typeof htmlString !== 'string') return null;
 
@@ -76,7 +75,6 @@ const Educacion = () => {
           [cat.idCategoria]: true,
         }), {}));
       } catch (err) {
-        console.error("Error fetching educacion content:", err);
         setError(err.response?.data?.message || 'No se pudo cargar el contenido educativo.');
         setCategoriasEducacion([]);
         setMedios({});
@@ -95,7 +93,6 @@ const Educacion = () => {
       audioRef.current.currentTime = 0;
     } else {
       audioRef.current.loop = true;
-      audioRef.current.play().catch(e => console.error('Error playing metronome:', e));
     }
     setMetronomoActivo(!metronomoActivo);
   };
@@ -108,7 +105,6 @@ const Educacion = () => {
   };
 
   if (loading) {
-    // Código de carga, simplificando el padding para consistencia
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
         <div className="text-center bg-white p-8 rounded-lg shadow-xl">
@@ -120,7 +116,6 @@ const Educacion = () => {
   }
 
   if (error) {
-    // Código de error, simplificando el padding para consistencia
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-xl text-center">
@@ -139,14 +134,10 @@ const Educacion = () => {
   }
 
   return (
-    // 1. Contenedor de página: sin padding
     <div className="min-h-screen bg-gray-100">
       <BackButton />
-      
-      {/* 2. Contenedor de contenido: con ancho máximo y padding horizontal único */}
+    
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
-        
-        {/* 3. Tarjeta de título: se quita 'container-fluid' y se añade padding interno */}
         <div className="content-header p-4 bg-white rounded-lg shadow-xl mb-6">
           <div className="row mb-2">
             <div className="col-sm-12 text-center">
@@ -156,8 +147,6 @@ const Educacion = () => {
               </div>
             </div>
         </div>
-
-        {/* 4. Sección de contenido: se quita 'container-fluid' */}
         <section className="content">
           <div>
             {categoriasEducacion.length === 0 ? (
