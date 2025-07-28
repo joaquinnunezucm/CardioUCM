@@ -81,6 +81,7 @@ const ClickHandler = ({ setFormData, setShowModal }) => {
 
 const UbicacionDEA = () => {
   // Estados existentes
+  const [hasArrived, setHasArrived] = useState(false);
   const [desfibriladores, setDesfibriladores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -264,10 +265,11 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
-        Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-          detenerNavegacion();
-        });
+    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+      Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
+        detenerNavegacion();
+      });
+      setHasArrived(true); 
     }
   };
 
@@ -283,6 +285,7 @@ useEffect(() => {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    setHasArrived(false); // Resetear al desmontar
   };
 
 }, [destinoRuta]);
