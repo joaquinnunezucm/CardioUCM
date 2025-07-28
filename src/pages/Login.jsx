@@ -65,7 +65,7 @@ function Login() {
         >
           <div className="flex justify-center mb-4">
             <img 
-              src="/Escudo_UCM.png" 
+              src="/Logo.png" 
               alt="Logo de la Universidad"
               className="h-20 w-auto" 
             />
