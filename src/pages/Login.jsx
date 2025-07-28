@@ -67,7 +67,7 @@ function Login() {
             <img 
               src="/Escudo_UCM.png" 
               alt="Logo de la Universidad"
-              className="h-16 w-auto" 
+              className="h-20 w-auto" 
             />
           </div>
           <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
