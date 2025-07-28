@@ -265,12 +265,19 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 30) {
-      Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
-        detenerNavegacion();
-      });
-      setHasArrived(true); 
-    }
+if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
+  setHasArrived(true); // Marcar llegada inmediatamente
+  Swal.fire({
+    title: '¡Has llegado!',
+    text: 'Has llegado a tu destino.',
+    icon: 'success',
+    timer: 2000, // Duración de 2 segundos para evitar interacciones rápidas
+    timerProgressBar: true,
+    showConfirmButton: false,
+  }).then(() => {
+    detenerNavegacion();
+  });
+}
   };
 
   const id = navigator.geolocation.watchPosition(
