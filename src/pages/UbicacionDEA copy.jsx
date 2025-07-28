@@ -224,7 +224,8 @@ useEffect(() => {
     }
   }, [userLocation, desfibriladores]);
 
-useEffect(() => {
+  useEffect(() => {
+  // Si no hay un destino de ruta, no hacemos nada.
   if (!destinoRuta) {
     return;
   }
@@ -264,25 +265,24 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
-      setHasArrived(true);
-      Swal.fire({
-        title: '¡Has llegado!',
-        text: 'Has llegado a tu destino.',
-        icon: 'success',
-        timer: 2000,
-        timerProgressBar: true,
-        showConfirmButton: false,
-        allowOutsideClick: false, // Evitar clics externos que puedan interferir
-      }).then(() => {
-        detenerNavegacion();
-      });
-    }
+if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
+  setHasArrived(true); // Marcar llegada inmediatamente
+  Swal.fire({
+    title: '¡Has llegado!',
+    text: 'Has llegado a tu destino.',
+    icon: 'success',
+    timer: 2000, // Duración de 2 segundos para evitar interacciones rápidas
+    timerProgressBar: true,
+    showConfirmButton: false,
+  }).then(() => {
+    detenerNavegacion();
+  });
+}
   };
 
   const id = navigator.geolocation.watchPosition(
-    handlePositionChange,
-    (err) => console.error("Error en watchPosition:", err),
+    handlePositionChange, 
+    (err) => console.error("Error en watchPosition:", err), 
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
   );
   watchIdRef.current = id;
@@ -293,6 +293,7 @@ useEffect(() => {
       watchIdRef.current = null;
     }
   };
+
 }, [destinoRuta]);
 
   // limpiar todos los estados de navegación
@@ -325,47 +326,28 @@ const handleRouteError = useCallback((errorMessage) => {
 }, [detenerNavegacion]); // Depende de detenerNavegacion
 
 const iniciarNavegacion = (dea) => {
-  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-  if (!userLocation) {
-    return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
-  }
-
-  detenerNavegacion();
-
-  // Verificar distancia antes de mostrar el diálogo
-  const distance = getDistanceInMeters(userLocation[0], userLocation[1], destino[0], destino[1]);
-  if (distance < 100) {
-    if (!hasArrived) { // Solo mostrar si no se ha mostrado antes
-      setHasArrived(true);
-      Swal.fire({
-        title: '¡Has llegado!',
-        text: `Ya estás en ${dea.nombre}.`,
-        icon: 'success',
-        timer: 2000,
-        timerProgressBar: true,
-        showConfirmButton: false,
-      }).then(() => {
-        detenerNavegacion();
-      });
+    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+    if (!userLocation) {
+        return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
     }
-    return; // Salir si ya estás en el destino
-  }
 
-  Swal.fire({
-    title: '¿Iniciar navegación?',
-    text: `Se trazará la ruta hacia ${dea.nombre}.`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, iniciar',
-    cancelButtonText: 'Cancelar',
-  }).then((result) => {
-    if (result.isConfirmed) {
-      setHasArrived(false);
-      setRutaFrom(userLocation);
-      setSelectedDeaId(dea.id);
-      setDestinoRuta(destino);
-    }
-  });
+    detenerNavegacion();
+
+    Swal.fire({
+        title: '¿Iniciar navegación?',
+        text: `Se trazará la ruta hacia ${dea.nombre}.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, iniciar',
+        cancelButtonText: 'Cancelar',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            setHasArrived(false);
+            setRutaFrom(userLocation);
+            setSelectedDeaId(dea.id);
+            setDestinoRuta(destino); 
+        }
+    });
 };
 
 
