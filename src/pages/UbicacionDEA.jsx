@@ -265,13 +265,13 @@ useEffect(() => {
       return currentRouteData;
     });
 
-if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
-  setHasArrived(true); // Marcar llegada inmediatamente
+if (!hasArrived && routeData.instructions.length > 0 && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
+  setHasArrived(true);
   Swal.fire({
     title: '¡Has llegado!',
     text: 'Has llegado a tu destino.',
     icon: 'success',
-    timer: 2000, // Duración de 2 segundos para evitar interacciones rápidas
+    timer: 2000,
     timerProgressBar: true,
     showConfirmButton: false,
   }).then(() => {
@@ -327,28 +327,28 @@ const handleRouteError = useCallback((errorMessage) => {
 }, [detenerNavegacion]); // Depende de detenerNavegacion
 
 const iniciarNavegacion = (dea) => {
-    const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
-    if (!userLocation) {
-        return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+  const destino = [parseFloat(dea.lat), parseFloat(dea.lng)];
+  if (!userLocation) {
+    return Swal.fire('Error', 'No se puede iniciar la ruta sin tu ubicación.', 'error');
+  }
+
+  detenerNavegacion();
+
+  Swal.fire({
+    title: '¿Iniciar navegación?',
+    text: `Se trazará la ruta hacia ${dea.nombre}.`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, iniciar',
+    cancelButtonText: 'Cancelar',
+  }).then((result) => {
+    if (result.isConfirmed) {
+      setHasArrived(false); // Resetear hasArrived al iniciar una nueva ruta
+      setRutaFrom(userLocation);
+      setSelectedDeaId(dea.id);
+      setDestinoRuta(destino);
     }
-
-    detenerNavegacion();
-
-    Swal.fire({
-        title: '¿Iniciar navegación?',
-        text: `Se trazará la ruta hacia ${dea.nombre}.`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, iniciar',
-        cancelButtonText: 'Cancelar',
-    }).then((result) => {
-        if (result.isConfirmed) {
-
-            setRutaFrom(userLocation);
-            setSelectedDeaId(dea.id);
-            setDestinoRuta(destino); 
-        }
-    });
+  });
 };
 
 
