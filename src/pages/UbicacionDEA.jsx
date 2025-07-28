@@ -265,7 +265,7 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
+    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 30) {
       Swal.fire('¡Has llegado!', 'Has llegado a tu destino.', 'success').then(() => {
         detenerNavegacion();
       });
