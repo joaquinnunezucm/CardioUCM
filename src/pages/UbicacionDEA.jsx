@@ -265,20 +265,18 @@ useEffect(() => {
       return currentRouteData;
     });
 
-if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
-  if (routeData.instructions.length > 0 || !watchIdRef.current) {
-    setHasArrived(true);
-    Swal.fire({
-      title: '¡Has llegado!',
-      text: 'Has llegado a tu destino.',
-      icon: 'success',
-      timer: 2000,
-      timerProgressBar: true,
-      showConfirmButton: false,
-    }).then(() => {
-      detenerNavegacion();
-    });
-  }
+if (!hasArrived && routeData.instructions.length > 0 && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
+  setHasArrived(true);
+  Swal.fire({
+    title: '¡Has llegado!',
+    text: 'Has llegado a tu destino.',
+    icon: 'success',
+    timer: 2000,
+    timerProgressBar: true,
+    showConfirmButton: false,
+  }).then(() => {
+    detenerNavegacion();
+  });
 }
   };
 
