@@ -59,10 +59,17 @@ function Login() {
           }}
         ></div>
 
-        <form 
+          <form 
           className="bg-white p-8 rounded-lg shadow-xl w-96 relative z-10"
           onSubmit={handleLogin}
         >
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/Escudo_UCM.png" 
+              alt="Logo de la Universidad"
+              className="h-16 w-auto" 
+            />
+          </div>
           <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
 
           {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
