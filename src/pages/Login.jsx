@@ -70,7 +70,7 @@ function Login() {
               className="h-20 w-auto" 
             />
           </div>
-          <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Login</h2>
+
 
           {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
