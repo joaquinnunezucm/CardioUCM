@@ -264,7 +264,7 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 100) {
+    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
       setHasArrived(true);
       Swal.fire({
         title: '¡Has llegado!',
