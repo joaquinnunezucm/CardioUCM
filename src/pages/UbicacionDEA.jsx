@@ -342,7 +342,7 @@ const iniciarNavegacion = (dea) => {
         cancelButtonText: 'Cancelar',
     }).then((result) => {
         if (result.isConfirmed) {
-
+            setHasArrived(false);
             setRutaFrom(userLocation);
             setSelectedDeaId(dea.id);
             setDestinoRuta(destino); 
