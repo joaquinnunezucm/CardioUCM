@@ -332,22 +332,23 @@ const iniciarNavegacion = (dea) => {
 
   detenerNavegacion();
 
+  // Reiniciar hasArrived al intentar una nueva ruta
+  setHasArrived(false);
+
   // Verificar distancia antes de mostrar el diálogo
   const distance = getDistanceInMeters(userLocation[0], userLocation[1], destino[0], destino[1]);
   if (distance < 100) {
-    if (!hasArrived) { // Solo mostrar si no se ha mostrado antes
-      setHasArrived(true);
-      Swal.fire({
-        title: '¡Has llegado!',
-        text: `Ya estás en ${dea.nombre}.`,
-        icon: 'success',
-        timer: 2000,
-        timerProgressBar: true,
-        showConfirmButton: false,
-      }).then(() => {
-        detenerNavegacion();
-      });
-    }
+    setHasArrived(true);
+    Swal.fire({
+      title: '¡Has llegado!',
+      text: `Ya estás en ${dea.nombre}.`,
+      icon: 'success',
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    }).then(() => {
+      detenerNavegacion();
+    });
     return; // Salir si ya estás en el destino
   }
 
@@ -367,7 +368,6 @@ const iniciarNavegacion = (dea) => {
     }
   });
 };
-
 
   const handleShowModal = () => {
     setShowModal(true);
