@@ -337,7 +337,7 @@ const iniciarNavegacion = (dea) => {
 
   // Verificar distancia antes de mostrar el diálogo
   const distance = getDistanceInMeters(userLocation[0], userLocation[1], destino[0], destino[1]);
-  if (distance < 100) {
+  if (distance < 10) {
     setHasArrived(true);
     Swal.fire({
       title: '¡Has llegado!',
