@@ -264,7 +264,7 @@ useEffect(() => {
       return currentRouteData;
     });
 
-    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 40) {
+    if (!hasArrived && getDistanceInMeters(nuevaUbicacion[0], nuevaUbicacion[1], destinoRuta[0], destinoRuta[1]) < 10) {
       setHasArrived(true);
       Swal.fire({
         title: '¡Has llegado!',
@@ -337,7 +337,7 @@ const iniciarNavegacion = (dea) => {
 
   // Verificar distancia antes de mostrar el diálogo
   const distance = getDistanceInMeters(userLocation[0], userLocation[1], destino[0], destino[1]);
-  if (distance < 40) {
+  if (distance < 10) {
     setHasArrived(true);
     Swal.fire({
       title: '¡Has llegado!',
